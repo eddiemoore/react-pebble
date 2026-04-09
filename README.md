@@ -81,7 +81,7 @@ export function main(PocoCtor?) {
 | `<Text>` | Text with Pebble font, color, alignment |
 | `<Group>` | Container with x/y offset |
 | `<Line>` | Axis-aligned line (horizontal/vertical) |
-| `<Circle>` | Circle (stubbed — not yet supported in piu output) |
+| `<Circle>` | Circle via piu RoundRect (fill only, no stroke) |
 | `<StatusBar>` | No-op placeholder (Alloy has no built-in status bar) |
 
 ### Hooks
@@ -169,6 +169,30 @@ EXAMPLE=tasks npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/ma
 ```
 List/detail view switching (string enum branching) + selection counter (numeric state) + selection highlight (skin reactivity) + 4-button navigation. The most complex working example.
 
+### Analog Clock (circles + time)
+```bash
+./scripts/deploy.sh analog-clock
+```
+Analog-style clock face with 12 hour markers (circles), red center dot, digital time, seconds, and date. Showcases circles + useTime.
+
+### Rich List (multi-label items)
+```bash
+./scripts/deploy.sh rich-list
+```
+5 items with title + status subtitle, 3 visible, scrollable. Each list item has 2 labels updated from an object array on scroll.
+
+### Selected List (scroll + highlight)
+```bash
+./scripts/deploy.sh selected-list
+```
+Scrollable list with selection highlight (dark gray background on selected item) + counter text ("1/5") that updates on scroll.
+
+### JIRA Lite (flagship demo)
+```bash
+./scripts/deploy.sh jira-lite
+```
+Full JIRA-style issue tracker: list/detail view switching + scrollable multi-label list + selection highlight + circle priority indicator + 4-button navigation. Uses every compiler feature.
+
 ### JIRA List (async data + complex layout)
 ```bash
 EXAMPLE=jira-list SETTLE_MS=200 npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
@@ -177,13 +201,20 @@ Renders 5 JIRA issues with keys, summaries, statuses, and priorities. Static sna
 
 ## Deploying to emulator
 
+One-command deploy:
 ```bash
-cd pebble-spike
-pebble build
-pebble install --emulator emery --logs    # boots emulator + installs
-pebble screenshot /tmp/screenshot.png     # capture the screen
-pebble emu-button click up                # simulate button press
-pebble kill                               # stop emulator
+./scripts/deploy.sh watchface           # compile + build + install + screenshot
+./scripts/deploy.sh jira-lite --logs    # with live log streaming
+./scripts/deploy.sh counter             # auto-detects watchapp mode for buttons
+```
+
+Manual steps (if needed):
+```bash
+EXAMPLE=watchface npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
+cd pebble-spike && pebble build && pebble install --emulator emery --logs
+pebble screenshot /tmp/screenshot.png   # capture the screen
+pebble emu-button click up              # simulate button press
+pebble kill                             # stop emulator
 ```
 
 Requires Pebble SDK v4.9+ (Rebble fork) with the Alloy project type.
