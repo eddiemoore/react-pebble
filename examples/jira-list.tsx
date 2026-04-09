@@ -179,18 +179,17 @@ function JiraApp() {
   );
 }
 
-const app = render(<JiraApp />);
+import type Poco from 'commodetto/Poco';
 
-if (app.platform.platform === 'mock') {
-  console.log('react-pebble JIRA list example (mock mode)');
-  const log = app.drawLog;
-  console.log('Draw calls:', log.length);
+export function main(PocoCtor?: typeof Poco) {
+  const app = render(<JiraApp />, { poco: PocoCtor });
 
-  const textCalls = log.filter((c: { op: string }) => c.op === 'drawText');
-  console.log('Text elements:', textCalls.length);
-  for (const call of textCalls) {
-    console.log(`  "${String(call.text)}" at (${String(call.x)}, ${String(call.y)})`);
+  if (app.platform.platform === 'mock') {
+    console.log('jira-list example (mock mode)');
+    console.log('Draw calls:', app.drawLog.length);
   }
 
-  app.unmount();
+  return app;
 }
+
+export default main;

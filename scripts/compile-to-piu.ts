@@ -36,6 +36,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // ---------------------------------------------------------------------------
 
 const exampleName = process.env.EXAMPLE ?? 'watchface';
+const settleMs = Number(process.env.SETTLE_MS ?? '0');
+const settle = () =>
+  settleMs > 0 ? new Promise<void>((r) => setTimeout(r, settleMs)) : Promise.resolve();
 const exampleMod = await import(`../examples/${exampleName}.js`);
 const exampleMain: (...args: unknown[]) => ReturnType<typeof render> =
   exampleMod.main ?? exampleMod.default;
@@ -443,6 +446,7 @@ resetStateTracking();
 silence();
 const app1 = exampleMain();
 restore();
+await settle(); // Let async effects (useEffect + setTimeout) fire
 
 if (!app1) {
   process.stderr.write('Failed to render at T1\n');
@@ -647,6 +651,7 @@ resetStateTracking();
 silence();
 const appFinal = exampleMain();
 restore();
+await settle(); // Let async effects fire for final snapshot
 (globalThis as unknown as { Date: typeof Date }).Date = OrigDate;
 
 if (!appFinal) {
