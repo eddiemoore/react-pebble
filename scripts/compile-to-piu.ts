@@ -188,9 +188,9 @@ function extractButtonBindingsFromSource(exName: string): void {
 // ---------------------------------------------------------------------------
 
 interface HandlerAction {
-  type: 'increment' | 'decrement' | 'reset';
+  type: 'increment' | 'decrement' | 'reset' | 'toggle';
   slotIndex: number;
-  value: number;
+  value: number; // for toggle: 0 (unused)
 }
 
 function analyzeButtonHandler(source: string): HandlerAction | null {
@@ -213,6 +213,10 @@ function analyzeButtonHandler(source: string): HandlerAction | null {
   // Match: () => setState(N)  or  () => setXxx(N) — reset to literal
   m = source.match(/\(\)\s*=>\s*\w+\((\d+)\)/);
   if (m) return { type: 'reset', slotIndex: 0, value: Number(m[1]) };
+
+  // Match: () => setXxx(v => !v)  or  () => setXxx((v) => !v) — boolean toggle
+  m = source.match(/\(\)\s*=>\s*\w+\(\s*\(?\s*\w+\s*(?::\s*\w+)?\s*\)?\s*=>\s*!\w+\s*\)/);
+  if (m) return { type: 'toggle', slotIndex: 0, value: 0 };
 
   return null;
 }
@@ -471,10 +475,30 @@ for (const b of buttonBindings) {
 
 const stateDeps = new Map<number, { slotIndex: number; formatExpr: string }>();
 
-for (const slot of stateSlots) {
-  if (typeof slot.initialValue !== 'number') continue;
+// Branch info: when tree structure changes between baseline and perturbed,
+// we record both renders' full label sets so we can emit both as branches
+// wrapped in named Containers with .visible toggling.
+interface BranchInfo {
+  stateSlot: number;
+  baselineLabels: Map<number, string>;   // label texts from baseline render
+  perturbedLabels: Map<number, string>;  // label texts from perturbed render
+  baselineRoot: DOMElement;
+  perturbedRoot: DOMElement;
+}
+const branchInfos: BranchInfo[] = [];
 
-  const perturbedValue = (slot.initialValue as number) + 42;
+function computePerturbedValue(slot: StateSlot): unknown {
+  const v = slot.initialValue;
+  if (typeof v === 'number') return v + 42;
+  if (typeof v === 'boolean') return !v;
+  if (typeof v === 'string') return v + '__PROBE__';
+  return undefined; // unsupported type — skip
+}
+
+for (const slot of stateSlots) {
+  const perturbedValue = computePerturbedValue(slot);
+  if (perturbedValue === undefined) continue;
+
   forcedStateValues.set(slot.index, perturbedValue);
 
   // Re-render with forced state
@@ -495,22 +519,44 @@ for (const slot of stateSlots) {
     };
     emitNode(appP._root, ctxP, '', null, null);
 
-    // Diff against baseline
-    for (const [idx, baseText] of t1Texts) {
-      const pertText = ctxP.labelTexts.get(idx);
-      if (pertText !== undefined && pertText !== baseText) {
-        // This label depends on state slot
-        let formatExpr: string;
-        if (String(perturbedValue) === pertText) {
-          formatExpr = `"" + this.s${slot.index}`;
-        } else {
-          formatExpr = `"" + this.s${slot.index}`;
+    // Check if tree shape changed (different label count or structure)
+    const baseKeys = [...t1Texts.keys()].sort((a, b) => a - b);
+    const pertKeys = [...ctxP.labelTexts.keys()].sort((a, b) => a - b);
+    const sameShape = baseKeys.length === pertKeys.length &&
+      baseKeys.every((k, i) => k === pertKeys[i]);
+
+    if (sameShape) {
+      // Same structure — check for text changes (existing v3 path)
+      for (const [idx, baseText] of t1Texts) {
+        const pertText = ctxP.labelTexts.get(idx);
+        if (pertText !== undefined && pertText !== baseText) {
+          let formatExpr: string;
+          if (String(perturbedValue) === pertText) {
+            formatExpr = `"" + this.s${slot.index}`;
+          } else if (typeof slot.initialValue === 'boolean') {
+            // Boolean state produced different text — emit a ternary
+            formatExpr = `this.s${slot.index} ? "${pertText.replace(/"/g, '\\"')}" : "${baseText.replace(/"/g, '\\"')}"`;
+          } else {
+            formatExpr = `"" + this.s${slot.index}`;
+          }
+          stateDeps.set(idx, { slotIndex: slot.index, formatExpr });
+          process.stderr.write(
+            `  Label ${idx} depends on state slot ${slot.index} (base="${baseText}", perturbed="${pertText}")\n`,
+          );
         }
-        stateDeps.set(idx, { slotIndex: slot.index, formatExpr });
-        process.stderr.write(
-          `  Label ${idx} depends on state slot ${slot.index} (base="${baseText}", perturbed="${pertText}")\n`,
-        );
       }
+    } else {
+      // Different structure — this is a conditional branch!
+      process.stderr.write(
+        `  State slot ${slot.index} causes structural change: ${baseKeys.length} labels → ${pertKeys.length} labels\n`,
+      );
+      branchInfos.push({
+        stateSlot: slot.index,
+        baselineLabels: new Map(t1Texts),
+        perturbedLabels: new Map(ctxP.labelTexts),
+        baselineRoot: appFinal?._root ?? (null as unknown as DOMElement),
+        perturbedRoot: appP._root,
+      });
     }
 
     appP.unmount();
@@ -520,6 +566,7 @@ for (const slot of stateSlots) {
 }
 
 process.stderr.write(`State-dependent labels: ${stateDeps.size}\n`);
+process.stderr.write(`Structural branches: ${branchInfos.length}\n`);
 
 // --- Render at T2 (for time diff) ---
 (globalThis as unknown as { Date: unknown }).Date = class MockDate2 extends OrigDate {
@@ -725,6 +772,9 @@ if (hasBehavior) {
           break;
         case 'reset':
           stmt = `this.s${action.slotIndex} = ${action.value}; this.refresh();`;
+          break;
+        case 'toggle':
+          stmt = `this.s${action.slotIndex} = !this.s${action.slotIndex}; this.refresh();`;
           break;
       }
       lines.push(`    if (${cond}) { ${stmt} }`);
