@@ -191,9 +191,10 @@ function extractButtonBindingsFromSource(exName: string): void {
 // ---------------------------------------------------------------------------
 
 interface HandlerAction {
-  type: 'increment' | 'decrement' | 'reset' | 'toggle';
+  type: 'increment' | 'decrement' | 'reset' | 'toggle' | 'set_string';
   slotIndex: number;
-  value: number; // for toggle: 0 (unused)
+  value: number;
+  stringValue?: string; // for set_string
 }
 
 function analyzeButtonHandler(source: string): HandlerAction | null {
@@ -220,6 +221,10 @@ function analyzeButtonHandler(source: string): HandlerAction | null {
   // Match: () => setXxx(v => !v)  or  () => setXxx((v) => !v) — boolean toggle
   m = source.match(/\(\)\s*=>\s*\w+\(\s*\(?\s*\w+\s*(?::\s*\w+)?\s*\)?\s*=>\s*!\w+\s*\)/);
   if (m) return { type: 'toggle', slotIndex: 0, value: 0 };
+
+  // Match: () => setXxx('stringValue') — set string literal
+  m = source.match(/\(\)\s*=>\s*\w+\(\s*'([^']+)'\s*\)/);
+  if (m) return { type: 'set_string', slotIndex: 0, value: 0, stringValue: m[1] };
 
   return null;
 }
@@ -490,17 +495,48 @@ interface BranchInfo {
 }
 const branchInfos: BranchInfo[] = [];
 
-function computePerturbedValue(slot: StateSlot): unknown {
+/**
+ * For string enum states, extract the set of possible values from button
+ * handler sources. Handlers like `() => setFoo('bar')` reveal that 'bar'
+ * is a valid state value.
+ */
+function extractStringValuesFromHandlers(): Map<number, Set<string>> {
+  const valuesBySlot = new Map<number, Set<string>>();
+  for (const binding of buttonBindings) {
+    // Match: () => setXxx('value') — string literal argument
+    const m = binding.handlerSource.match(/\(\)\s*=>\s*\w+\(\s*'([^']+)'\s*\)/);
+    if (m) {
+      // We don't know WHICH state slot this setter belongs to, but for
+      // single-state-slot components it's slot 0. For multi-slot, we'd
+      // need to track which setter maps to which slot. For now: slot 0.
+      const slotIdx = 0;
+      if (!valuesBySlot.has(slotIdx)) valuesBySlot.set(slotIdx, new Set());
+      valuesBySlot.get(slotIdx)!.add(m[1]!);
+    }
+  }
+  return valuesBySlot;
+}
+
+function computePerturbedValues(slot: StateSlot): unknown[] {
   const v = slot.initialValue;
-  if (typeof v === 'number') return v + 42;
-  if (typeof v === 'boolean') return !v;
-  if (typeof v === 'string') return v + '__PROBE__';
-  return undefined; // unsupported type — skip
+  if (typeof v === 'number') return [v + 42];
+  if (typeof v === 'boolean') return [!v];
+  if (typeof v === 'string') {
+    // Use extracted enum values (excluding the initial value itself)
+    const enumValues = extractStringValuesFromHandlers().get(slot.index);
+    if (enumValues && enumValues.size > 0) {
+      return [...enumValues].filter((ev) => ev !== v);
+    }
+    return [v + '__PROBE__']; // fallback
+  }
+  return []; // unsupported type — skip
 }
 
 for (const slot of stateSlots) {
-  const perturbedValue = computePerturbedValue(slot);
-  if (perturbedValue === undefined) continue;
+  const perturbedValues = computePerturbedValues(slot);
+  if (perturbedValues.length === 0) continue;
+
+  for (const perturbedValue of perturbedValues) {
 
   forcedStateValues.set(slot.index, perturbedValue);
 
@@ -565,6 +601,7 @@ for (const slot of stateSlots) {
   }
 
   forcedStateValues.delete(slot.index);
+  } // end for perturbedValues
 }
 
 process.stderr.write(`State-dependent labels: ${stateDeps.size}\n`);
@@ -671,16 +708,28 @@ const ctx: EmitContext = {
 
 let contents: string | null;
 
+interface BranchOutput {
+  value: unknown;
+  tree: string;
+  isBaseline: boolean;
+}
+const branchesBySlot = new Map<number, BranchOutput[]>();
+
 if (branchInfos.length > 0) {
-  // Structural branches detected — emit BOTH branch trees wrapped in
-  // named Containers with visibility toggling.
-  const branchOutputs: { slotIndex: number; falseTree: string; trueTree: string }[] = [];
 
+  // Baseline tree (for each slot that has branches)
+  const baselineTree = emitNode(appFinal._root, ctx, '      ', dynamicLabels, stateDeps);
+
+  const affectedSlots = new Set(branchInfos.map((b) => b.stateSlot));
+  for (const si of affectedSlots) {
+    const slot = stateSlots[si];
+    branchesBySlot.set(si, [
+      { value: slot?.initialValue, tree: baselineTree ?? '      /* empty */', isBaseline: true },
+    ]);
+  }
+
+  // Perturbed trees
   for (const branch of branchInfos) {
-    // "false" branch = the baseline render (appFinal, already rendered)
-    const falseTree = emitNode(appFinal._root, ctx, '      ', dynamicLabels, stateDeps);
-
-    // "true" branch = re-render with forced perturbed value
     forcedStateValues.set(branch.stateSlot, branch.perturbedValue);
     resetStateTracking();
     (globalThis as unknown as { Date: unknown }).Date = class extends OrigDate {
@@ -694,27 +743,27 @@ if (branchInfos.length > 0) {
     forcedStateValues.clear();
 
     if (appBranch) {
-      // Use a separate emit context for the branch so skin/style indices
-      // continue from the main context (shared declarations).
-      const trueTree = emitNode(appBranch._root, ctx, '      ', dynamicLabels, stateDeps);
+      const tree = emitNode(appBranch._root, ctx, '      ', dynamicLabels, stateDeps);
       appBranch.unmount();
-      branchOutputs.push({
-        slotIndex: branch.stateSlot,
-        falseTree: falseTree ?? '      /* empty */',
-        trueTree: trueTree ?? '      /* empty */',
+      branchesBySlot.get(branch.stateSlot)!.push({
+        value: branch.perturbedValue,
+        tree: tree ?? '      /* empty */',
+        isBaseline: false,
       });
     }
   }
 
-  // Build the contents with both branches as named Containers
+  // Build the contents with named Containers per branch
   const branchLines: string[] = [];
-  for (const bo of branchOutputs) {
-    const slot = stateSlots[bo.slotIndex];
-    const initVal = slot?.initialValue;
-    const falseVisible = !initVal; // baseline is the "falsy" branch
-    const trueVisible = !!initVal;
-    branchLines.push(`    new Container(null, { name: "br_s${bo.slotIndex}_f", visible: ${falseVisible}, contents: [\n${bo.falseTree}\n    ] })`);
-    branchLines.push(`    new Container(null, { name: "br_s${bo.slotIndex}_t", visible: ${trueVisible}, contents: [\n${bo.trueTree}\n    ] })`);
+  for (const [si, branches] of branchesBySlot) {
+    for (let bi = 0; bi < branches.length; bi++) {
+      const branch = branches[bi]!;
+      const name = `br_s${si}_v${bi}`;
+      const visible = branch.isBaseline; // only baseline visible initially
+      branchLines.push(
+        `    new Container(null, { name: "${name}", visible: ${visible}, contents: [\n${branch.tree}\n    ] })`,
+      );
+    }
   }
   contents = branchLines.join(',\n');
 } else {
@@ -787,10 +836,10 @@ if (hasBehavior) {
   }
 
   // Branch container refs (for structural conditional rendering)
-  for (const branch of branchInfos) {
-    const si = branch.stateSlot;
-    lines.push(`    this.br_s${si}_f = app.content("br_s${si}_f");`);
-    lines.push(`    this.br_s${si}_t = app.content("br_s${si}_t");`);
+  for (const [si, branches] of branchesBySlot ?? []) {
+    for (let bi = 0; bi < branches.length; bi++) {
+      lines.push(`    this.br_s${si}_v${bi} = app.content("br_s${si}_v${bi}");`);
+    }
   }
 
   lines.push('  }');
@@ -838,6 +887,9 @@ if (hasBehavior) {
         case 'toggle':
           stmt = `this.s${action.slotIndex} = !this.s${action.slotIndex}; this.refresh();`;
           break;
+        case 'set_string':
+          stmt = `this.s${action.slotIndex} = "${action.stringValue}"; this.refresh();`;
+          break;
       }
       lines.push(`    if (${cond}) { ${stmt} }`);
     }
@@ -856,16 +908,11 @@ if (hasBehavior) {
     lines.push(`    this.sl${idx}.string = ${dep.formatExpr};`);
   }
   // Branch visibility toggles
-  for (const branch of branchInfos) {
-    const si = branch.stateSlot;
-    const slot = stateSlots[si];
-    if (typeof slot?.initialValue === 'boolean') {
-      lines.push(`    this.br_s${si}_f.visible = !this.s${si};`);
-      lines.push(`    this.br_s${si}_t.visible = !!this.s${si};`);
-    } else {
-      // String/other: compare against initial value
-      lines.push(`    this.br_s${si}_f.visible = (this.s${si} === ${JSON.stringify(slot?.initialValue)});`);
-      lines.push(`    this.br_s${si}_t.visible = (this.s${si} !== ${JSON.stringify(slot?.initialValue)});`);
+  for (const [si, branches] of branchesBySlot ?? []) {
+    for (let bi = 0; bi < branches.length; bi++) {
+      const branch = branches[bi]!;
+      const cond = `this.s${si} === ${JSON.stringify(branch.value)}`;
+      lines.push(`    this.br_s${si}_v${bi}.visible = (${cond});`);
     }
   }
   lines.push('  }');
