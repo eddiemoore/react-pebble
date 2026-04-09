@@ -682,6 +682,18 @@ function emitNode(
       return null;
     }
 
+    case 'pbl-circle': {
+      const r = num(p, 'r') || num(p, 'radius');
+      const cx = num(p, 'x');
+      const cy = num(p, 'y');
+      const fill = str(p, 'fill');
+      if (!fill || r <= 0) return null;
+      const skinVar = ensureSkin(ctx, fill);
+      // piu RoundRect with radius = r draws a circle when width = height = 2*r
+      const size = r * 2;
+      return `${indent}new RoundRect(null, { left: ${cx}, top: ${cy}, width: ${size}, height: ${size}, radius: ${r}, skin: ${skinVar} })`;
+    }
+
     default:
       return null;
   }
