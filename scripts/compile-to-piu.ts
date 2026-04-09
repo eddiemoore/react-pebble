@@ -1179,10 +1179,16 @@ if (hasList && listInfo!.dataArrayValues) {
 if (hasBehavior) {
   lines.push('class AppBehavior extends Behavior {');
   lines.push('  onCreate(app) {');
-  // Use app.first.content() for simple (non-branch) cases.
-  // For branch cases, nodes are direct children of branch containers
-  // which are direct children of app, so app.content() suffices for branches.
-  if (!hasBranches) {
+  // `c` is the container to search for named content nodes (sl*, sr*, ls*).
+  // Without branches: c = app.first (the root Group container).
+  // With branches: c = the baseline branch's inner Group container.
+  //   app → br_s0_v0 (branch) → Container (Group) → named nodes
+  if (hasBranches) {
+    // Find the baseline (initially visible) branch and navigate into its Group
+    const baselineBranchIdx = branchesBySlot.values().next().value?.[0]?.isBaseline ? 0 : 1;
+    const si = branchInfos[0]?.stateSlot ?? 0;
+    lines.push(`    const c = app.content("br_s${si}_v${baselineBranchIdx}").first;`);
+  } else {
     lines.push('    const c = app.first;');
   }
 
