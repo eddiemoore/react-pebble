@@ -647,6 +647,7 @@ const lines: string[] = [
   '// Regenerate: npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js',
   '',
   'import {} from "piu/MC";',
+  hasButtons ? 'import PebbleButton from "pebble/button";' : '',
   '',
   ...ctx.declarations,
   '',
@@ -693,7 +694,11 @@ if (hasBehavior) {
     lines.push('    app.start();');
   }
   if (hasButtons) {
-    lines.push('    watch.addEventListener("button", (e) => this.onButton(e));');
+    // Collect unique button names used by bindings
+    const usedButtons = [...new Set(buttonBindings.map(b => b.button))];
+    for (const btn of usedButtons) {
+      lines.push(`    new PebbleButton({ type: "${btn}", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });`);
+    }
   }
   lines.push('  }');
 
