@@ -197,34 +197,72 @@ interface HandlerAction {
   stringValue?: string; // for set_string
 }
 
+/**
+ * Extract a setter→slot index map from source by parsing
+ * `const [name, setName] = useState(...)` patterns in order.
+ */
+function buildSetterSlotMap(exName: string): Map<string, number> {
+  const map = new Map<string, number>();
+  const srcPath = resolve(__dirname, '..', 'examples', `${exName}.tsx`);
+  let source: string;
+  try {
+    source = readFileSync(srcPath, 'utf-8');
+  } catch {
+    try { source = readFileSync(srcPath.replace('.tsx', '.ts'), 'utf-8'); }
+    catch { return map; }
+  }
+  const re = /const\s*\[\s*\w+\s*,\s*(\w+)\s*\]\s*=\s*useState/g;
+  let m: RegExpExecArray | null;
+  let idx = 0;
+  while ((m = re.exec(source)) !== null) {
+    map.set(m[1]!, idx++);
+  }
+  return map;
+}
+
+const setterSlotMap = buildSetterSlotMap(exampleName);
+
+function inferSlotIndex(handlerSource: string): number {
+  // Extract the setter name called in the handler
+  const m = handlerSource.match(/\b(set\w+)\s*\(/);
+  if (m && setterSlotMap.has(m[1]!)) {
+    return setterSlotMap.get(m[1]!)!;
+  }
+  return 0; // fallback
+}
+
 function analyzeButtonHandler(source: string): HandlerAction | null {
+  const slotIndex = inferSlotIndex(source);
+  // Reusable param pattern: matches v, (v), (v: Type)
+  const P = String.raw`\(?\s*\w+(?:\s*:\s*\w+)?\s*\)?`;
+
   // Match: () => setXxx(c => c + N) — increment via functional update
-  let m = source.match(/\(\)\s*=>\s*\w+\(\s*\(?\w+\)?\s*=>\s*\w+\s*\+\s*(\d+)\s*\)/);
-  if (m) return { type: 'increment', slotIndex: 0, value: Number(m[1]) };
+  let m = source.match(new RegExp(String.raw`\(\)\s*=>\s*\w+\(\s*${P}\s*=>\s*\w+\s*\+\s*(\d+)\s*\)`));
+  if (m) return { type: 'increment', slotIndex, value: Number(m[1]) };
 
   // Match: () => setXxx(c => c - N) — decrement via functional update
-  m = source.match(/\(\)\s*=>\s*\w+\(\s*\(?\w+\)?\s*=>\s*\w+\s*-\s*(\d+)\s*\)/);
-  if (m) return { type: 'decrement', slotIndex: 0, value: Number(m[1]) };
+  m = source.match(new RegExp(String.raw`\(\)\s*=>\s*\w+\(\s*${P}\s*=>\s*\w+\s*-\s*(\d+)\s*\)`));
+  if (m) return { type: 'decrement', slotIndex, value: Number(m[1]) };
 
   // Match: c => c + N  or  (c) => c + N — bare increment
-  m = source.match(/\(?\w+\)?\s*=>\s*\w+\s*\+\s*(\d+)/);
-  if (m) return { type: 'increment', slotIndex: 0, value: Number(m[1]) };
+  m = source.match(new RegExp(String.raw`${P}\s*=>\s*\w+\s*\+\s*(\d+)`));
+  if (m) return { type: 'increment', slotIndex, value: Number(m[1]) };
 
   // Match: c => c - N  or  (c) => c - N — bare decrement
-  m = source.match(/\(?\w+\)?\s*=>\s*\w+\s*-\s*(\d+)/);
-  if (m) return { type: 'decrement', slotIndex: 0, value: Number(m[1]) };
+  m = source.match(new RegExp(String.raw`${P}\s*=>\s*\w+\s*-\s*(\d+)`));
+  if (m) return { type: 'decrement', slotIndex, value: Number(m[1]) };
 
   // Match: () => setState(N)  or  () => setXxx(N) — reset to literal
   m = source.match(/\(\)\s*=>\s*\w+\((\d+)\)/);
-  if (m) return { type: 'reset', slotIndex: 0, value: Number(m[1]) };
+  if (m) return { type: 'reset', slotIndex, value: Number(m[1]) };
 
   // Match: () => setXxx(v => !v)  or  () => setXxx((v) => !v) — boolean toggle
   m = source.match(/\(\)\s*=>\s*\w+\(\s*\(?\s*\w+\s*(?::\s*\w+)?\s*\)?\s*=>\s*!\w+\s*\)/);
-  if (m) return { type: 'toggle', slotIndex: 0, value: 0 };
+  if (m) return { type: 'toggle', slotIndex, value: 0 };
 
   // Match: () => setXxx('stringValue') — set string literal
   m = source.match(/\(\)\s*=>\s*\w+\(\s*'([^']+)'\s*\)/);
-  if (m) return { type: 'set_string', slotIndex: 0, value: 0, stringValue: m[1] };
+  if (m) return { type: 'set_string', slotIndex, value: 0, stringValue: m[1] };
 
   return null;
 }
@@ -868,7 +906,12 @@ if (hasTimeDeps) {
 if (hasBehavior) {
   lines.push('class AppBehavior extends Behavior {');
   lines.push('  onCreate(app) {');
-  lines.push('    const c = app.first;');
+  // Use app.first.content() for simple (non-branch) cases.
+  // For branch cases, nodes are direct children of branch containers
+  // which are direct children of app, so app.content() suffices for branches.
+  if (!hasBranches) {
+    lines.push('    const c = app.first;');
+  }
 
   // State fields
   for (const slot of stateSlots) {
