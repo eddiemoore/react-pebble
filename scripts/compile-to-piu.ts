@@ -242,6 +242,12 @@ function buildSetterSlotMap(exName: string): Map<string, number> {
 }
 
 const setterSlotMap = buildSetterSlotMap(exampleName);
+const listInfo = detectListPatterns(exampleName);
+if (listInfo) {
+  process.stderr.write(`List detected: array="${listInfo.dataArrayName}" visible=${listInfo.visibleCount} labelsPerItem=${listInfo.labelsPerItem}\n`);
+  if (listInfo.dataArrayValues) process.stderr.write(`  values: ${JSON.stringify(listInfo.dataArrayValues)}\n`);
+  if (listInfo.scrollSetterName) process.stderr.write(`  scroll setter: ${listInfo.scrollSetterName}\n`);
+}
 
 /** Module-level map collecting string enum values per slot from handler analysis */
 const stringEnumValues = new Map<number, Set<string>>();
@@ -331,6 +337,136 @@ function analyzeSetterCall(call: ts.CallExpression, sf: ts.SourceFile): HandlerA
 }
 
 // ---------------------------------------------------------------------------
+// List (.map()) detection via AST
+// ---------------------------------------------------------------------------
+
+interface ListInfo {
+  dataArrayName: string;
+  dataArrayValues: string[] | null;
+  visibleCount: number;
+  scrollSetterName: string | null;
+  labelsPerItem: number;
+}
+
+function detectListPatterns(exName: string): ListInfo | null {
+  const sf = parseExampleSource(exName);
+  if (!sf) return null;
+
+  let mapCallFound = false;
+  let dataArrayName: string | null = null;
+  let visibleCount = 3;
+  let scrollSetterName: string | null = null;
+  let labelsPerItem = 1;
+  let dataArrayValues: string[] | null = null;
+
+  // First pass: find array literals to know data values
+  const arrayLiterals = new Map<string, string[]>();
+  walkAST(sf, (node) => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      ts.isArrayLiteralExpression(node.initializer)
+    ) {
+      const values: string[] = [];
+      let allStrings = true;
+      for (const el of node.initializer.elements) {
+        if (ts.isStringLiteral(el)) values.push(el.text);
+        else { allStrings = false; break; }
+      }
+      if (allStrings && values.length > 0) {
+        arrayLiterals.set(node.name.text, values);
+      }
+    }
+  });
+
+  // Second pass: find .map() and .slice()
+  walkAST(sf, (node) => {
+    // Find .map() call
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'map'
+    ) {
+      mapCallFound = true;
+      const obj = node.expression.expression;
+      if (ts.isIdentifier(obj) && !dataArrayName) {
+        // Only set if .slice() hasn't already identified the real source
+        dataArrayName = obj.text;
+        dataArrayValues = arrayLiterals.get(obj.text) ?? null;
+      }
+
+      // Count Text elements in callback
+      if (node.arguments.length > 0) {
+        let textCount = 0;
+        walkAST(node.arguments[0]!, (n) => {
+          if (ts.isJsxSelfClosingElement(n) && ts.isIdentifier(n.tagName) && n.tagName.text === 'Text') textCount++;
+          if (ts.isJsxElement(n) && ts.isIdentifier(n.openingElement.tagName) && n.openingElement.tagName.text === 'Text') textCount++;
+        });
+        if (textCount > 0) labelsPerItem = textCount;
+      }
+    }
+
+    // Find .slice(index, index + N)
+    if (
+      ts.isVariableDeclaration(node) &&
+      node.initializer &&
+      ts.isCallExpression(node.initializer) &&
+      ts.isPropertyAccessExpression(node.initializer.expression) &&
+      node.initializer.expression.name.text === 'slice'
+    ) {
+      const sliceArgs = node.initializer.arguments;
+      if (sliceArgs.length >= 2) {
+        const secondArg = sliceArgs[1]!;
+        if (
+          ts.isBinaryExpression(secondArg) &&
+          secondArg.operatorToken.kind === ts.SyntaxKind.PlusToken &&
+          ts.isNumericLiteral(secondArg.right)
+        ) {
+          visibleCount = Number(secondArg.right.text);
+        }
+        // Find scroll setter from the index variable
+        const firstArg = sliceArgs[0]!;
+        if (ts.isIdentifier(firstArg)) {
+          const indexVarName = firstArg.text;
+          walkAST(sf, (n) => {
+            if (
+              ts.isVariableDeclaration(n) &&
+              ts.isArrayBindingPattern(n.name) &&
+              n.name.elements.length >= 2
+            ) {
+              const first = n.name.elements[0]!;
+              if (
+                !ts.isOmittedExpression(first) &&
+                ts.isIdentifier(first.name) &&
+                first.name.text === indexVarName
+              ) {
+                const setter = n.name.elements[1]!;
+                if (!ts.isOmittedExpression(setter) && ts.isIdentifier(setter.name)) {
+                  scrollSetterName = setter.name.text;
+                }
+              }
+            }
+          });
+        }
+      }
+
+      // Trace the source array from: visible = SOURCE.slice(...)
+      // This overrides .map()'s target since the slice source is the real data.
+      const sliceObj = node.initializer.expression.expression;
+      if (ts.isIdentifier(sliceObj)) {
+        dataArrayName = sliceObj.text;
+        dataArrayValues = arrayLiterals.get(sliceObj.text) ?? null;
+      }
+    }
+  });
+
+  if (!mapCallFound || !dataArrayName) return null;
+
+  return { dataArrayName, dataArrayValues, visibleCount, scrollSetterName, labelsPerItem };
+}
+
+// ---------------------------------------------------------------------------
 // Emit context
 // ---------------------------------------------------------------------------
 
@@ -395,8 +531,14 @@ function emitNode(
         .map((c) => emitNode(c, ctx, indent + '  ', dynamicLabels, stateDeps, skinDeps))
         .filter(Boolean);
       if (el.type === 'pbl-root') return kids.join(',\n');
-      const props = buildPos(p);
-      return `${indent}new Container(null, { ${props}contents: [\n${kids.join(',\n')}\n${indent}] })`;
+      const x = num(p, 'x');
+      const y = num(p, 'y');
+      // Groups without explicit position need full-size layout constraints
+      // so piu actually sizes them (otherwise they get zero size).
+      const layout = (x === 0 && y === 0)
+        ? 'left: 0, right: 0, top: 0, bottom: 0, '
+        : `left: ${x}, top: ${y}, `;
+      return `${indent}new Container(null, { ${layout}contents: [\n${kids.join(',\n')}\n${indent}] })`;
     }
 
     case 'pbl-rect': {
@@ -449,7 +591,10 @@ function emitNode(
       const isTimeDynamic = dynamicLabels?.has(idx) ?? false;
       const isStateDynamic = stateDeps?.has(idx) ?? false;
       let nameProp = '';
-      if (isStateDynamic) {
+      if (listSlotLabels.has(idx)) {
+        const lsIdx = [...listSlotLabels].indexOf(idx);
+        nameProp = `, name: "ls${lsIdx}"`;
+      } else if (isStateDynamic) {
         nameProp = `, name: "sl${idx}"`;
       } else if (isTimeDynamic) {
         nameProp = `, name: "tl${idx}"`;
@@ -541,6 +686,10 @@ const silence = () => {
 const restore = () => {
   console.log = origLog;
 };
+
+// Hoisted declarations for list slots (populated during list detection below)
+const listSlotLabels = new Set<number>();
+let listScrollSlotIndex = -1;
 
 // Install interceptors BEFORE any rendering
 installUseStateInterceptor();
@@ -716,15 +865,24 @@ for (const slot of stateSlots) {
       }
     } else {
       // Different structure — this is a conditional branch!
-      process.stderr.write(
-        `  State slot ${slot.index} causes structural change: ${baseKeys.length} labels → ${pertKeys.length} labels\n`,
-      );
-      branchInfos.push({
-        stateSlot: slot.index,
-        perturbedValue,
-        baselineLabels: new Map(t1Texts),
-        perturbedLabels: new Map(ctxP.labelTexts),
-      });
+      // EXCEPT: skip if this slot is the list scroll index — list items
+      // change count when scrolled past the end, which is handled by
+      // the list slot pool, not structural branching.
+      if (listInfo && listInfo.scrollSetterName && setterSlotMap.get(listInfo.scrollSetterName) === slot.index) {
+        process.stderr.write(
+          `  State slot ${slot.index} causes structural change (skipped — list scroll): ${baseKeys.length} → ${pertKeys.length} labels\n`,
+        );
+      } else {
+        process.stderr.write(
+          `  State slot ${slot.index} causes structural change: ${baseKeys.length} labels → ${pertKeys.length} labels\n`,
+        );
+        branchInfos.push({
+          stateSlot: slot.index,
+          perturbedValue,
+          baselineLabels: new Map(t1Texts),
+          perturbedLabels: new Map(ctxP.labelTexts),
+        });
+      }
     }
 
     appP.unmount();
@@ -736,6 +894,50 @@ for (const slot of stateSlots) {
 
 process.stderr.write(`State-dependent labels: ${stateDeps.size}\n`);
 process.stderr.write(`Structural branches: ${branchInfos.length}\n`);
+
+// ---------------------------------------------------------------------------
+// List slot detection: identify which labels are .map() items
+// ---------------------------------------------------------------------------
+
+// (listSlotLabels and listScrollSlotIndex hoisted before first emitNode call)
+// Populated in the list slot detection section below.
+
+if (listInfo) {
+  if (listInfo.scrollSetterName && setterSlotMap.has(listInfo.scrollSetterName)) {
+    listScrollSlotIndex = setterSlotMap.get(listInfo.scrollSetterName)!;
+  }
+
+  // Perturb scroll index to 1 and diff — labels that change are list slots
+  if (listScrollSlotIndex >= 0) {
+    forcedStateValues.set(listScrollSlotIndex, 1);
+    resetStateTracking();
+    silence();
+    const appScroll = exampleMain();
+    restore();
+
+    if (appScroll) {
+      const ctxScroll: EmitContext = {
+        skins: new Map(), styles: new Map(), declarations: [],
+        skinIdx: 0, styleIdx: 0, labelIdx: 0, labelTexts: new Map(),
+        rectIdx: 0, rectFills: new Map(),
+      };
+      emitNode(appScroll._root, ctxScroll, '', null, null);
+
+      for (const [idx, baseText] of t1Texts) {
+        const scrollText = ctxScroll.labelTexts.get(idx);
+        if (scrollText !== undefined && scrollText !== baseText) {
+          listSlotLabels.add(idx);
+        }
+      }
+      appScroll.unmount();
+    }
+    forcedStateValues.delete(listScrollSlotIndex);
+  }
+
+  if (listSlotLabels.size > 0) {
+    process.stderr.write(`List slot labels: [${[...listSlotLabels].join(', ')}]\n`);
+  }
+}
 
 // --- Render at T2 (for time diff) ---
 (globalThis as unknown as { Date: unknown }).Date = class MockDate2 extends OrigDate {
@@ -895,7 +1097,7 @@ if (branchInfos.length > 0) {
       const name = `br_s${si}_v${bi}`;
       const visible = branch.isBaseline; // only baseline visible initially
       branchLines.push(
-        `    new Container(null, { name: "${name}", visible: ${visible}, contents: [\n${branch.tree}\n    ] })`,
+        `    new Container(null, { name: "${name}", visible: ${visible}, left: 0, right: 0, top: 0, bottom: 0, contents: [\n${branch.tree}\n    ] })`,
       );
     }
   }
@@ -915,6 +1117,15 @@ for (const binding of buttonBindings) {
     process.stderr.write(
       `  Button "${binding.button}": ${action.type} s${action.slotIndex} by ${action.value}\n`,
     );
+  } else if (listInfo && listSlotLabels.size > 0 && listScrollSlotIndex >= 0) {
+    // Unrecognized handler but we have a list — emit scroll fallback for up/down
+    if (binding.button === 'up') {
+      buttonActions.push({ button: 'up', action: { type: 'decrement', slotIndex: listScrollSlotIndex, value: 1 } });
+      process.stderr.write(`  Button "up": list scroll up (fallback)\n`);
+    } else if (binding.button === 'down') {
+      buttonActions.push({ button: 'down', action: { type: 'increment', slotIndex: listScrollSlotIndex, value: 1 } });
+      process.stderr.write(`  Button "down": list scroll down (fallback)\n`);
+    }
   }
 }
 
@@ -924,7 +1135,8 @@ const hasStateDeps = stateDeps.size > 0;
 const hasButtons = buttonActions.length > 0;
 const hasBranches = branchInfos.length > 0;
 const hasSkinDeps = skinDeps.size > 0;
-const hasBehavior = hasTimeDeps || hasStateDeps || hasButtons || hasBranches || hasSkinDeps;
+const hasList = listInfo !== null && listSlotLabels.size > 0;
+const hasBehavior = hasTimeDeps || hasStateDeps || hasButtons || hasBranches || hasSkinDeps || hasList;
 
 const lines: string[] = [
   '// Auto-generated by react-pebble compile-to-piu (v3 with state reactivity)',
@@ -956,6 +1168,11 @@ if (hasTimeDeps) {
     'const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];',
     'const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];',
   );
+  lines.push('');
+}
+
+if (hasList && listInfo!.dataArrayValues) {
+  lines.push(`const _data = ${JSON.stringify(listInfo!.dataArrayValues)};`);
   lines.push('');
 }
 
@@ -996,6 +1213,14 @@ if (hasBehavior) {
     }
   }
 
+  // List slot refs
+  if (hasList) {
+    lines.push(`    this._ls = [];`);
+    for (let i = 0; i < listInfo!.visibleCount; i++) {
+      lines.push(`    this._ls.push(c.content("ls${i}"));`);
+    }
+  }
+
   lines.push('  }');
 
   // onDisplaying
@@ -1028,12 +1253,23 @@ if (hasBehavior) {
     for (const { button, action } of buttonActions) {
       const cond = `name === "${button}"`;
       let stmt: string;
+      // Override for list scroll: add clamping
+      const isListScroll = hasList && action.slotIndex === listScrollSlotIndex;
+
       switch (action.type) {
         case 'increment':
-          stmt = `this.s${action.slotIndex} += ${action.value}; this.refresh();`;
+          if (isListScroll) {
+            stmt = `this.s${action.slotIndex} = Math.min(_data.length - ${listInfo!.visibleCount}, this.s${action.slotIndex} + ${action.value}); this.refresh();`;
+          } else {
+            stmt = `this.s${action.slotIndex} += ${action.value}; this.refresh();`;
+          }
           break;
         case 'decrement':
-          stmt = `this.s${action.slotIndex} -= ${action.value}; this.refresh();`;
+          if (isListScroll) {
+            stmt = `this.s${action.slotIndex} = Math.max(0, this.s${action.slotIndex} - ${action.value}); this.refresh();`;
+          } else {
+            stmt = `this.s${action.slotIndex} -= ${action.value}; this.refresh();`;
+          }
           break;
         case 'reset':
           stmt = `this.s${action.slotIndex} = ${action.value}; this.refresh();`;
@@ -1079,6 +1315,17 @@ if (hasBehavior) {
       const cond = `this.s${si} === ${JSON.stringify(branch.value)}`;
       lines.push(`    this.br_s${si}_v${bi}.visible = (${cond});`);
     }
+  }
+  // List slot scroll updates
+  if (hasList && listScrollSlotIndex >= 0) {
+    lines.push(`    const _start = this.s${listScrollSlotIndex};`);
+    lines.push(`    for (let _i = 0; _i < ${listInfo!.visibleCount}; _i++) {`);
+    lines.push(`      const _item = _data[_start + _i];`);
+    lines.push(`      if (this._ls[_i]) {`);
+    lines.push(`        this._ls[_i].string = _item !== undefined ? "" + _item : "";`);
+    lines.push(`        this._ls[_i].visible = (_item !== undefined);`);
+    lines.push(`      }`);
+    lines.push(`    }`);
   }
   lines.push('  }');
 
