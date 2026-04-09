@@ -993,6 +993,17 @@ if (listInfo) {
     forcedStateValues.delete(listScrollSlotIndex);
   }
 
+  // Trim to expected count: visibleCount × labelsPerItem.
+  // Extra labels (e.g., a "1/5" counter) that change on scroll aren't list slots.
+  const expectedSlots = listInfo.visibleCount * listInfo.labelsPerItem;
+  if (listSlotLabels.size > expectedSlots) {
+    const all = [...listSlotLabels];
+    // Keep the LAST expectedSlots (list items appear after header labels)
+    const keep = new Set(all.slice(all.length - expectedSlots));
+    listSlotLabels.clear();
+    for (const idx of keep) listSlotLabels.add(idx);
+  }
+
   if (listSlotLabels.size > 0) {
     process.stderr.write(`List slot labels: [${[...listSlotLabels].join(', ')}]\n`);
   }
