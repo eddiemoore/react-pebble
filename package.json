@@ -29,7 +29,9 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck",
+    "test": "npm run typecheck && npx tsx test/snapshot-test.ts",
+    "test:snapshots": "npx tsx test/snapshot-test.ts",
+    "test:update": "npx tsx test/snapshot-test.ts --update",
     "build": "npm run typecheck && npm run build:lib && npm run build:examples",
     "build:lib": "vite build --config vite.config.lib.js",
     "build:examples": "for f in examples/*.tsx; do EXAMPLE=$(basename \"$f\" .tsx) vite build --config vite.config.examples.js; done"
