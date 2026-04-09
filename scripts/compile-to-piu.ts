@@ -343,6 +343,10 @@ function analyzeSetterCall(call: ts.CallExpression, sf: ts.SourceFile): HandlerA
 interface ListInfo {
   dataArrayName: string;
   dataArrayValues: string[] | null;
+  /** For object arrays: array of plain objects with string values */
+  dataArrayObjects: Record<string, string>[] | null;
+  /** Property names in the order they appear as labels per item */
+  propertyOrder: string[] | null;
   visibleCount: number;
   scrollSetterName: string | null;
   labelsPerItem: number;
@@ -358,9 +362,11 @@ function detectListPatterns(exName: string): ListInfo | null {
   let scrollSetterName: string | null = null;
   let labelsPerItem = 1;
   let dataArrayValues: string[] | null = null;
+  let dataArrayObjects: Record<string, string>[] | null = null;
 
   // First pass: find array literals to know data values
   const arrayLiterals = new Map<string, string[]>();
+  const objectArrayLiterals = new Map<string, Record<string, string>[]>();
   walkAST(sf, (node) => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -368,14 +374,38 @@ function detectListPatterns(exName: string): ListInfo | null {
       node.initializer &&
       ts.isArrayLiteralExpression(node.initializer)
     ) {
-      const values: string[] = [];
+      // Try string array first
+      const strValues: string[] = [];
       let allStrings = true;
       for (const el of node.initializer.elements) {
-        if (ts.isStringLiteral(el)) values.push(el.text);
+        if (ts.isStringLiteral(el)) strValues.push(el.text);
         else { allStrings = false; break; }
       }
-      if (allStrings && values.length > 0) {
-        arrayLiterals.set(node.name.text, values);
+      if (allStrings && strValues.length > 0) {
+        arrayLiterals.set(node.name.text, strValues);
+        return;
+      }
+
+      // Try object array
+      const objValues: Record<string, string>[] = [];
+      let allObjects = true;
+      for (const el of node.initializer.elements) {
+        if (ts.isObjectLiteralExpression(el)) {
+          const obj: Record<string, string> = {};
+          for (const prop of el.properties) {
+            if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name) && ts.isStringLiteral(prop.initializer)) {
+              obj[prop.name.text] = prop.initializer.text;
+            }
+          }
+          if (Object.keys(obj).length > 0) objValues.push(obj);
+          else { allObjects = false; break; }
+        } else {
+          allObjects = false;
+          break;
+        }
+      }
+      if (allObjects && objValues.length > 0) {
+        objectArrayLiterals.set(node.name.text, objValues);
       }
     }
   });
@@ -394,6 +424,7 @@ function detectListPatterns(exName: string): ListInfo | null {
         // Only set if .slice() hasn't already identified the real source
         dataArrayName = obj.text;
         dataArrayValues = arrayLiterals.get(obj.text) ?? null;
+        dataArrayObjects = objectArrayLiterals.get(obj.text) ?? null;
       }
 
       // Count Text elements in callback
@@ -457,13 +488,22 @@ function detectListPatterns(exName: string): ListInfo | null {
       if (ts.isIdentifier(sliceObj)) {
         dataArrayName = sliceObj.text;
         dataArrayValues = arrayLiterals.get(sliceObj.text) ?? null;
+        dataArrayObjects = objectArrayLiterals.get(sliceObj.text) ?? null;
       }
     }
   });
 
   if (!mapCallFound || !dataArrayName) return null;
 
-  return { dataArrayName, dataArrayValues, visibleCount, scrollSetterName, labelsPerItem };
+  // Determine property order by matching baseline label texts to first item's properties
+  let propertyOrder: string[] | null = null;
+  if (dataArrayObjects && dataArrayObjects.length > 0 && labelsPerItem > 1) {
+    const firstItem = dataArrayObjects[0]!;
+    // We'll match during the main pipeline after rendering
+    propertyOrder = Object.keys(firstItem).slice(0, labelsPerItem);
+  }
+
+  return { dataArrayName, dataArrayValues, dataArrayObjects, propertyOrder, visibleCount, scrollSetterName, labelsPerItem };
 }
 
 // ---------------------------------------------------------------------------
@@ -538,7 +578,22 @@ function emitNode(
       const layout = (x === 0 && y === 0)
         ? 'left: 0, right: 0, top: 0, bottom: 0, '
         : `left: ${x}, top: ${y}, `;
-      return `${indent}new Container(null, { ${layout}contents: [\n${kids.join(',\n')}\n${indent}] })`;
+
+      // If this Group is a DIRECT parent of list slot labels (not a grandparent),
+      // give it a name so the Behavior can find it.
+      let groupNameProp = '';
+      if (listInfo && listInfo.labelsPerItem > 1 && listSlotLabels.size > 0) {
+        // Check if a DIRECT child (not nested) is a named list label
+        const directListLabels = kids.filter(k => k?.includes('name: "ls') && !k?.includes('contents:'));
+        if (directListLabels.length > 0) {
+          const m = directListLabels[0]!.match(/name: "ls(\d+)_/);
+          if (m) {
+            groupNameProp = `name: "lg${m[1]}", `;
+          }
+        }
+      }
+
+      return `${indent}new Container(null, { ${groupNameProp}${layout}contents: [\n${kids.join(',\n')}\n${indent}] })`;
     }
 
     case 'pbl-rect': {
@@ -592,8 +647,12 @@ function emitNode(
       const isStateDynamic = stateDeps?.has(idx) ?? false;
       let nameProp = '';
       if (listSlotLabels.has(idx)) {
-        const lsIdx = [...listSlotLabels].indexOf(idx);
-        nameProp = `, name: "ls${lsIdx}"`;
+        const flatIdx = [...listSlotLabels].indexOf(idx);
+        const lpi = listInfo?.labelsPerItem ?? 1;
+        const itemIdx = Math.floor(flatIdx / lpi);
+        const labelIdx = flatIdx % lpi;
+        const lsName = lpi > 1 ? `ls${itemIdx}_${labelIdx}` : `ls${flatIdx}`;
+        nameProp = `, name: "${lsName}"`;
       } else if (isStateDynamic) {
         nameProp = `, name: "sl${idx}"`;
       } else if (isTimeDynamic) {
@@ -1171,8 +1230,12 @@ if (hasTimeDeps) {
   lines.push('');
 }
 
-if (hasList && listInfo!.dataArrayValues) {
-  lines.push(`const _data = ${JSON.stringify(listInfo!.dataArrayValues)};`);
+if (hasList) {
+  if (listInfo!.dataArrayObjects) {
+    lines.push(`const _data = ${JSON.stringify(listInfo!.dataArrayObjects)};`);
+  } else if (listInfo!.dataArrayValues) {
+    lines.push(`const _data = ${JSON.stringify(listInfo!.dataArrayValues)};`);
+  }
   lines.push('');
 }
 
@@ -1221,9 +1284,20 @@ if (hasBehavior) {
 
   // List slot refs
   if (hasList) {
+    const lpi = listInfo!.labelsPerItem;
     lines.push(`    this._ls = [];`);
     for (let i = 0; i < listInfo!.visibleCount; i++) {
-      lines.push(`    this._ls.push(c.content("ls${i}"));`);
+      if (lpi > 1) {
+        // Multi-label: find the item Group, then its labels within
+        lines.push(`    const _g${i} = c.content("lg${i}");`);
+        const refs = [];
+        for (let j = 0; j < lpi; j++) {
+          refs.push(`_g${i}.content("ls${i}_${j}")`);
+        }
+        lines.push(`    this._ls.push([${refs.join(', ')}]);`);
+      } else {
+        lines.push(`    this._ls.push(c.content("ls${i}"));`);
+      }
     }
   }
 
@@ -1324,13 +1398,27 @@ if (hasBehavior) {
   }
   // List slot scroll updates
   if (hasList && listScrollSlotIndex >= 0) {
+    const lpi = listInfo!.labelsPerItem;
     lines.push(`    const _start = this.s${listScrollSlotIndex};`);
     lines.push(`    for (let _i = 0; _i < ${listInfo!.visibleCount}; _i++) {`);
     lines.push(`      const _item = _data[_start + _i];`);
-    lines.push(`      if (this._ls[_i]) {`);
-    lines.push(`        this._ls[_i].string = _item !== undefined ? "" + _item : "";`);
-    lines.push(`        this._ls[_i].visible = (_item !== undefined);`);
-    lines.push(`      }`);
+    if (lpi > 1 && listInfo!.propertyOrder) {
+      // Multi-label: update each label from the corresponding property
+      lines.push(`      const _slot = this._ls[_i];`);
+      lines.push(`      if (_slot) {`);
+      for (let j = 0; j < lpi; j++) {
+        const prop = listInfo!.propertyOrder[j]!;
+        lines.push(`        _slot[${j}].string = _item ? _item.${prop} : "";`);
+        lines.push(`        _slot[${j}].visible = !!_item;`);
+      }
+      lines.push(`      }`);
+    } else {
+      // Single-label: simple string update
+      lines.push(`      if (this._ls[_i]) {`);
+      lines.push(`        this._ls[_i].string = _item !== undefined ? "" + _item : "";`);
+      lines.push(`        this._ls[_i].visible = (_item !== undefined);`);
+      lines.push(`      }`);
+    }
     lines.push(`    }`);
   }
   lines.push('  }');
