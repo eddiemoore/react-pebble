@@ -1,0 +1,54 @@
+{
+  "name": "react-pebble",
+  "version": "0.1.0",
+  "description": "A React renderer for Pebble smartwatch apps using the Pebble.js/Alloy API",
+  "type": "module",
+  "main": "dist/lib/index.cjs",
+  "module": "dist/lib/index.js",
+  "types": "dist/lib/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib/src/index.d.ts",
+      "import": "./dist/lib/index.js",
+      "require": "./dist/lib/index.cjs"
+    },
+    "./hooks": {
+      "types": "./dist/lib/src/hooks/index.d.ts",
+      "import": "./dist/lib/hooks.js",
+      "require": "./dist/lib/hooks.cjs"
+    },
+    "./components": {
+      "types": "./dist/lib/src/components/index.d.ts",
+      "import": "./dist/lib/components.js",
+      "require": "./dist/lib/components.cjs"
+    }
+  },
+  "files": [
+    "dist/lib",
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck",
+    "build": "npm run typecheck && npm run build:lib && npm run build:examples",
+    "build:lib": "vite build --config vite.config.lib.js",
+    "build:examples": "for f in examples/*.tsx; do EXAMPLE=$(basename \"$f\" .tsx) vite build --config vite.config.examples.js; done"
+  },
+  "keywords": [
+    "react",
+    "pebble",
+    "smartwatch",
+    "renderer",
+    "reconciler"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.7",
+    "vite-plugin-dts": "^4.5.4"
+  },
+  "dependencies": {
+    "preact": "^10.29.1"
+  }
+}

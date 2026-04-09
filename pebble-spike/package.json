@@ -1,0 +1,39 @@
+{
+  "name": "pebble-spike",
+  "author": "MakeAwesomeHappen",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {
+    "preact": "^10.29.1"
+  },
+  "pebble": {
+    "displayName": "pebble-spike",
+    "uuid": "8e2e13bd-471d-4096-9ae0-977c7adeeff9",
+    "projectType": "moddable",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "emery",
+      "gabbro"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "messageKeys": [
+      "dummy"
+    ],
+    "resources": {
+      "media": []
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.8",
+    "vite-plugin-dts": "^4.5.4"
+  }
+}

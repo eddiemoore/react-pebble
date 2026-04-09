@@ -1,0 +1,156 @@
+/**
+ * Ambient declarations for the Pebble Alloy runtime (Moddable XS / Poco).
+ *
+ * IMPORTANT: this file MUST remain a script (no top-level imports or
+ * exports). As soon as you add an `export`, TypeScript treats it as a
+ * module and `declare module 'commodetto/Poco'` stops working ambiently.
+ *
+ * Only the surface actually used by react-pebble is declared. When you
+ * reach for a Moddable API that isn't here, add it — keep this file the
+ * single source of truth for the runtime shape.
+ */
+
+// ---------------------------------------------------------------------------
+// `screen` — the framebuffer the Poco renderer draws into.
+// Probed shape: { width, height, frameBuffer, unobstructed }.
+// ---------------------------------------------------------------------------
+
+interface ModdableScreen {
+  readonly width: number;
+  readonly height: number;
+  readonly frameBuffer: unknown;
+  readonly unobstructed: unknown;
+}
+
+declare const screen: ModdableScreen | undefined;
+
+// ---------------------------------------------------------------------------
+// `watch` — system event bus (time ticks, buttons, connection state).
+//
+// `addEventListener` accepts any string without validation. The list of
+// events that actually fire is observed empirically:
+//   - secondchange / minutechange / hourchange / daychange (confirmed)
+//   - button events: unconfirmed — see pebble-render.ts wireWatchButtons()
+//     for the current best-guess subscription names.
+// ---------------------------------------------------------------------------
+
+type WatchTickEvent = 'secondchange' | 'minutechange' | 'hourchange' | 'daychange';
+type WatchButtonEvent = 'button' | 'buttonDown' | 'buttonUp' | 'buttonClick' | 'longClick';
+type WatchEvent = WatchTickEvent | WatchButtonEvent | (string & {});
+
+interface WatchButtonPayload {
+  /** Which hardware button — empirically unknown; cast at use site. */
+  button?: 'up' | 'down' | 'select' | 'back' | string;
+  [key: string]: unknown;
+}
+
+interface ModdableWatch {
+  addEventListener(event: WatchEvent, handler: (payload?: WatchButtonPayload) => void): void;
+  removeEventListener(event: WatchEvent, handler: (payload?: WatchButtonPayload) => void): void;
+  /** Unexplained method on the prototype — possibly the internal dispatch path. */
+  do?: (...args: unknown[]) => unknown;
+  /** Connection / pairing state — unexplored. */
+  connected?: unknown;
+}
+
+declare const watch: ModdableWatch | undefined;
+
+// ---------------------------------------------------------------------------
+// `trace` — low-level log function Moddable provides alongside `console`.
+// ---------------------------------------------------------------------------
+
+declare function trace(message: string): void;
+
+// ---------------------------------------------------------------------------
+// Module declarations for Moddable / Commodetto imports.
+// These resolve at runtime via the Moddable manifest.json `modules` section.
+// Kept ambient (no top-level import/export) so they augment TS's module
+// resolution without requiring /// <reference> directives.
+// ---------------------------------------------------------------------------
+
+declare module 'commodetto/Poco' {
+  /** Integer color handle produced by `Poco.prototype.makeColor`. */
+  export type PocoColor = number;
+
+  /** Opaque font resource. Construction is platform-specific. */
+  export interface PocoFont {
+    readonly height: number;
+    [key: string]: unknown;
+  }
+
+  /** Opaque bitmap resource. */
+  export interface PocoBitmap {
+    readonly width: number;
+    readonly height: number;
+    [key: string]: unknown;
+  }
+
+  export default class Poco {
+    constructor(
+      pixelsOut: ModdableScreen | unknown,
+      options?: { displayListLength?: number; rotation?: 0 | 90 | 180 | 270 },
+    );
+
+    readonly width: number;
+    readonly height: number;
+
+    begin(x?: number, y?: number, width?: number, height?: number): void;
+    end(continueFrame?: boolean): void;
+    continue(x: number, y: number, width: number, height: number): void;
+
+    clip(x?: number, y?: number, width?: number, height?: number): void;
+    origin(x?: number, y?: number): void;
+
+    makeColor(r: number, g: number, b: number): PocoColor;
+
+    fillRectangle(color: PocoColor, x: number, y: number, width: number, height: number): void;
+    blendRectangle(
+      color: PocoColor,
+      blend: number,
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+    ): void;
+    drawPixel(color: PocoColor, x: number, y: number): void;
+
+    drawBitmap(
+      bits: PocoBitmap,
+      x: number,
+      y: number,
+      sx?: number,
+      sy?: number,
+      sw?: number,
+      sh?: number,
+    ): void;
+
+    drawMonochrome(
+      monochrome: PocoBitmap,
+      fore: PocoColor,
+      back: PocoColor | undefined,
+      x: number,
+      y: number,
+      sx?: number,
+      sy?: number,
+      sw?: number,
+      sh?: number,
+    ): void;
+
+    drawText(text: string, font: PocoFont, color: PocoColor, x: number, y: number): void;
+    getTextWidth(text: string, font: PocoFont): number;
+
+    /** Font constructor — available on Poco instances as `render.Font`. */
+    readonly Font: new (name: string, size: number) => PocoFont;
+  }
+}
+
+declare module 'commodetto/PocoCore' {
+  export { default } from 'commodetto/Poco';
+}
+
+// Outline extension module — adds blendOutline / blendPolygon to Poco.prototype.
+// Importing this module has the side-effect of installing those methods.
+declare module 'commodetto/outline/PocoOutline' {
+  const _default: Readonly<Record<string, never>>;
+  export default _default;
+}

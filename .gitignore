@@ -1,0 +1,20 @@
+# Build output
+dist/
+node_modules/
+*.tsbuildinfo
+
+# Pebble spike project build artifacts
+pebble-spike/build/
+pebble-spike/src/embeddedjs/main.js
+pebble-spike/.lock-waf*
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Editor
+*.swp
+*.swo
+*~
