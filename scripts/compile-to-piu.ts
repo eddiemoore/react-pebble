@@ -240,8 +240,11 @@ interface EmitContext {
   skinIdx: number;
   styleIdx: number;
   labelIdx: number;
-  /** Map from label sequential index → its text at T1 */
+  rectIdx: number;
+  /** Map from label sequential index → its text */
   labelTexts: Map<number, string>;
+  /** Map from rect sequential index → its fill color name */
+  rectFills: Map<number, string>;
 }
 
 function ensureSkin(ctx: EmitContext, fill: string): string {
@@ -277,6 +280,7 @@ function emitNode(
   indent: string,
   dynamicLabels: Set<number> | null,
   stateDeps: Map<number, { slotIndex: number; formatExpr: string }> | null,
+  skinDeps?: Map<number, { slotIndex: number; skins: string[] }> | null,
 ): string | null {
   if (node.type === '#text') return null;
 
@@ -287,7 +291,7 @@ function emitNode(
     case 'pbl-root':
     case 'pbl-group': {
       const kids = el.children
-        .map((c) => emitNode(c, ctx, indent + '  ', dynamicLabels, stateDeps))
+        .map((c) => emitNode(c, ctx, indent + '  ', dynamicLabels, stateDeps, skinDeps))
         .filter(Boolean);
       if (el.type === 'pbl-root') return kids.join(',\n');
       const props = buildPos(p);
@@ -302,13 +306,22 @@ function emitNode(
       const x = num(p, 'x');
       const y = num(p, 'y');
       const skinVar = ensureSkin(ctx, fill);
+
+      // Track rect fill for skin reactivity detection
+      const rectIdx = ctx.rectIdx++;
+      ctx.rectFills.set(rectIdx, fill);
+
+      // If this rect has a dynamic skin, give it a name
+      const isSkinDynamic = skinDeps?.has(rectIdx) ?? false;
+      const nameProp = isSkinDynamic ? `, name: "sr${rectIdx}"` : '';
+
       const kids = el.children
-        .map((c) => emitNode(c, ctx, indent + '  ', dynamicLabels, stateDeps))
+        .map((c) => emitNode(c, ctx, indent + '  ', dynamicLabels, stateDeps, skinDeps))
         .filter(Boolean);
       if (kids.length > 0) {
-        return `${indent}new Container(null, { left: ${x}, top: ${y}, width: ${w}, height: ${h}, skin: ${skinVar}, contents: [\n${kids.join(',\n')}\n${indent}] })`;
+        return `${indent}new Container(null, { left: ${x}, top: ${y}, width: ${w}, height: ${h}, skin: ${skinVar}${nameProp}, contents: [\n${kids.join(',\n')}\n${indent}] })`;
       }
-      return `${indent}new Content(null, { left: ${x}, top: ${y}, width: ${w}, height: ${h}, skin: ${skinVar} })`;
+      return `${indent}new Content(null, { left: ${x}, top: ${y}, width: ${w}, height: ${h}, skin: ${skinVar}${nameProp} })`;
     }
 
     case 'pbl-text': {
@@ -467,6 +480,8 @@ const ctx1: EmitContext = {
   styleIdx: 0,
   labelIdx: 0,
   labelTexts: new Map(),
+  rectIdx: 0,
+  rectFills: new Map(),
 };
 emitNode(app1._root, ctx1, '', null, null);
 const t1Texts = new Map(ctx1.labelTexts);
@@ -483,6 +498,7 @@ for (const b of buttonBindings) {
 // ---------------------------------------------------------------------------
 
 const stateDeps = new Map<number, { slotIndex: number; formatExpr: string }>();
+const skinDeps = new Map<number, { slotIndex: number; skins: [string, string] }>();
 
 // Branch info: when tree structure changes between baseline and perturbed,
 // we record both renders' full label sets so we can emit both as branches
@@ -555,6 +571,8 @@ for (const slot of stateSlots) {
       styleIdx: 0,
       labelIdx: 0,
       labelTexts: new Map(),
+      rectIdx: 0,
+      rectFills: new Map(),
     };
     emitNode(appP._root, ctxP, '', null, null);
 
@@ -581,6 +599,24 @@ for (const slot of stateSlots) {
           stateDeps.set(idx, { slotIndex: slot.index, formatExpr });
           process.stderr.write(
             `  Label ${idx} depends on state slot ${slot.index} (base="${baseText}", perturbed="${pertText}")\n`,
+          );
+        }
+      }
+
+      // Also check for rect fill changes
+      const baseRectFills = ctx1.rectFills;
+      for (const [rIdx, baseFill] of baseRectFills) {
+        const pertFill = ctxP.rectFills.get(rIdx);
+        if (pertFill !== undefined && pertFill !== baseFill) {
+          // Ensure both skins exist in declarations
+          ensureSkin(ctx1, baseFill);
+          ensureSkin(ctx1, pertFill);
+          skinDeps.set(rIdx, {
+            slotIndex: slot.index,
+            skins: [baseFill, pertFill],
+          });
+          process.stderr.write(
+            `  Rect ${rIdx} skin depends on state slot ${slot.index} (base="${baseFill}", perturbed="${pertFill}")\n`,
           );
         }
       }
@@ -638,6 +674,8 @@ const ctx2: EmitContext = {
   styleIdx: 0,
   labelIdx: 0,
   labelTexts: new Map(),
+  rectIdx: 0,
+  rectFills: new Map(),
 };
 emitNode(app2._root, ctx2, '', null, null);
 const t2Texts = new Map(ctx2.labelTexts);
@@ -704,6 +742,8 @@ const ctx: EmitContext = {
   styleIdx: 0,
   labelIdx: 0,
   labelTexts: new Map(),
+  rectIdx: 0,
+  rectFills: new Map(),
 };
 
 let contents: string | null;
@@ -718,7 +758,7 @@ const branchesBySlot = new Map<number, BranchOutput[]>();
 if (branchInfos.length > 0) {
 
   // Baseline tree (for each slot that has branches)
-  const baselineTree = emitNode(appFinal._root, ctx, '      ', dynamicLabels, stateDeps);
+  const baselineTree = emitNode(appFinal._root, ctx, '      ', dynamicLabels, stateDeps, skinDeps);
 
   const affectedSlots = new Set(branchInfos.map((b) => b.stateSlot));
   for (const si of affectedSlots) {
@@ -743,7 +783,7 @@ if (branchInfos.length > 0) {
     forcedStateValues.clear();
 
     if (appBranch) {
-      const tree = emitNode(appBranch._root, ctx, '      ', dynamicLabels, stateDeps);
+      const tree = emitNode(appBranch._root, ctx, '      ', dynamicLabels, stateDeps, skinDeps);
       appBranch.unmount();
       branchesBySlot.get(branch.stateSlot)!.push({
         value: branch.perturbedValue,
@@ -768,7 +808,7 @@ if (branchInfos.length > 0) {
   contents = branchLines.join(',\n');
 } else {
   // No structural branches — emit the single tree as before
-  contents = emitNode(appFinal._root, ctx, '    ', dynamicLabels, stateDeps);
+  contents = emitNode(appFinal._root, ctx, '    ', dynamicLabels, stateDeps, skinDeps);
 }
 appFinal.unmount();
 
@@ -789,7 +829,8 @@ const hasTimeDeps = dynamicLabels.size > 0;
 const hasStateDeps = stateDeps.size > 0;
 const hasButtons = buttonActions.length > 0;
 const hasBranches = branchInfos.length > 0;
-const hasBehavior = hasTimeDeps || hasStateDeps || hasButtons || hasBranches;
+const hasSkinDeps = skinDeps.size > 0;
+const hasBehavior = hasTimeDeps || hasStateDeps || hasButtons || hasBranches || hasSkinDeps;
 
 const lines: string[] = [
   '// Auto-generated by react-pebble compile-to-piu (v3 with state reactivity)',
@@ -800,11 +841,20 @@ const lines: string[] = [
   'import {} from "piu/MC";',
   hasButtons ? 'import PebbleButton from "pebble/button";' : '',
   '',
+];
+
+// Pre-register all skin deps so declarations are complete before output
+for (const [, dep] of skinDeps) {
+  ensureSkin(ctx, dep.skins[0]!);
+  ensureSkin(ctx, dep.skins[1]!);
+}
+
+lines.push(
   ...ctx.declarations,
   '',
   `const bgSkin = new Skin({ fill: "${colorToHex('black')}" });`,
   '',
-];
+);
 
 if (hasTimeDeps) {
   lines.push('function pad(n) { return n < 10 ? "0" + n : "" + n; }');
@@ -833,6 +883,11 @@ if (hasBehavior) {
   // State-dependent label refs
   for (const [idx] of stateDeps) {
     lines.push(`    this.sl${idx} = c.content("sl${idx}");`);
+  }
+
+  // Skin-reactive rect refs
+  for (const [rIdx] of skinDeps) {
+    lines.push(`    this.sr${rIdx} = c.content("sr${rIdx}");`);
   }
 
   // Branch container refs (for structural conditional rendering)
@@ -906,6 +961,17 @@ if (hasBehavior) {
   }
   for (const [idx, dep] of stateDeps) {
     lines.push(`    this.sl${idx}.string = ${dep.formatExpr};`);
+  }
+  // Skin reactivity — swap skins on state change
+  for (const [rIdx, dep] of skinDeps) {
+    const baseSkinVar = ensureSkin(ctx, dep.skins[0]!);
+    const pertSkinVar = ensureSkin(ctx, dep.skins[1]!);
+    const slot = stateSlots[dep.slotIndex];
+    if (typeof slot?.initialValue === 'boolean') {
+      lines.push(`    this.sr${rIdx}.skin = this.s${dep.slotIndex} ? ${pertSkinVar} : ${baseSkinVar};`);
+    } else {
+      lines.push(`    this.sr${rIdx}.skin = (this.s${dep.slotIndex} !== ${JSON.stringify(slot?.initialValue)}) ? ${pertSkinVar} : ${baseSkinVar};`);
+    }
   }
   // Branch visibility toggles
   for (const [si, branches] of branchesBySlot ?? []) {
