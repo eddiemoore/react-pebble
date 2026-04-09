@@ -17,6 +17,7 @@
  *   EXAMPLE=counter  npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
  */
 
+import ts from 'typescript';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -154,36 +155,49 @@ interface ButtonBinding {
 const buttonBindings: ButtonBinding[] = [];
 
 /**
- * Statically analyze the example source file to extract useButton calls.
- * This is more reliable than runtime interception since ESM exports are
- * read-only and useButton wraps handlers in refs internally.
+ * Parse an example source file into a TypeScript AST SourceFile.
+ */
+function parseExampleSource(exName: string): ts.SourceFile | null {
+  for (const ext of ['.tsx', '.ts', '.jsx']) {
+    const srcPath = resolve(__dirname, '..', 'examples', `${exName}${ext}`);
+    try {
+      const source = readFileSync(srcPath, 'utf-8');
+      return ts.createSourceFile(srcPath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    } catch { continue; }
+  }
+  return null;
+}
+
+/**
+ * Walk all nodes in a TypeScript AST.
+ */
+function walkAST(node: ts.Node, visitor: (node: ts.Node) => void): void {
+  visitor(node);
+  ts.forEachChild(node, child => walkAST(child, visitor));
+}
+
+/**
+ * Statically analyze the example source file to extract useButton calls
+ * using TypeScript AST parsing.
  */
 function extractButtonBindingsFromSource(exName: string): void {
-  const srcPath = resolve(__dirname, '..', 'examples', `${exName}.tsx`);
-  let source: string;
-  try {
-    source = readFileSync(srcPath, 'utf-8');
-  } catch {
-    // Try .ts and .jsx variants
-    try {
-      source = readFileSync(srcPath.replace('.tsx', '.ts'), 'utf-8');
-    } catch {
-      return; // No source found; skip button analysis
-    }
-  }
+  const sf = parseExampleSource(exName);
+  if (!sf) return;
 
-  // Match useButton('button', handler) patterns
-  // Handles multi-line by collapsing the source
-  const collapsed = source.replace(/\n/g, ' ');
-  const re = /useButton\(\s*['"](\w+)['"]\s*,\s*(.+?)\)\s*;/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(collapsed)) !== null) {
-    const button = m[1]!;
-    const handlerSource = m[2]!.trim();
+  walkAST(sf, (node) => {
+    if (!ts.isCallExpression(node)) return;
+    // Check callee is identifier `useButton`
+    if (!ts.isIdentifier(node.expression) || node.expression.text !== 'useButton') return;
+    if (node.arguments.length < 2) return;
+    const firstArg = node.arguments[0]!;
+    if (!ts.isStringLiteral(firstArg)) return;
+    const button = firstArg.text;
+    const handlerNode = node.arguments[1]!;
+    const handlerSource = handlerNode.getText(sf);
     if (!buttonBindings.some((b) => b.button === button)) {
       buttonBindings.push({ button, handlerSource });
     }
-  }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -198,71 +212,120 @@ interface HandlerAction {
 }
 
 /**
- * Extract a setter→slot index map from source by parsing
- * `const [name, setName] = useState(...)` patterns in order.
+ * Extract a setter→slot index map from source by walking the AST for
+ * `const [name, setName] = useState(...)` variable declarations.
  */
 function buildSetterSlotMap(exName: string): Map<string, number> {
   const map = new Map<string, number>();
-  const srcPath = resolve(__dirname, '..', 'examples', `${exName}.tsx`);
-  let source: string;
-  try {
-    source = readFileSync(srcPath, 'utf-8');
-  } catch {
-    try { source = readFileSync(srcPath.replace('.tsx', '.ts'), 'utf-8'); }
-    catch { return map; }
-  }
-  const re = /const\s*\[\s*\w+\s*,\s*(\w+)\s*\]\s*=\s*useState/g;
-  let m: RegExpExecArray | null;
+  const sf = parseExampleSource(exName);
+  if (!sf) return map;
+
   let idx = 0;
-  while ((m = re.exec(source)) !== null) {
-    map.set(m[1]!, idx++);
-  }
+  walkAST(sf, (node) => {
+    if (!ts.isVariableDeclaration(node)) return;
+    // Must have an initializer that calls useState
+    if (!node.initializer || !ts.isCallExpression(node.initializer)) return;
+    const callee = node.initializer.expression;
+    if (!ts.isIdentifier(callee) || callee.text !== 'useState') return;
+    // Must be an array binding pattern with 2 elements: [value, setter]
+    if (!ts.isArrayBindingPattern(node.name)) return;
+    const elements = node.name.elements;
+    if (elements.length < 2) return;
+    const setterElement = elements[1]!;
+    if (ts.isOmittedExpression(setterElement)) return;
+    const setterName = setterElement.name;
+    if (ts.isIdentifier(setterName)) {
+      map.set(setterName.text, idx++);
+    }
+  });
   return map;
 }
 
 const setterSlotMap = buildSetterSlotMap(exampleName);
 
-function inferSlotIndex(handlerSource: string): number {
-  // Extract the setter name called in the handler
-  const m = handlerSource.match(/\b(set\w+)\s*\(/);
-  if (m && setterSlotMap.has(m[1]!)) {
-    return setterSlotMap.get(m[1]!)!;
-  }
-  return 0; // fallback
+/** Module-level map collecting string enum values per slot from handler analysis */
+const stringEnumValues = new Map<number, Set<string>>();
+
+/**
+ * Analyze a button handler AST node (or source string) to determine
+ * what action it performs (increment, decrement, reset, toggle, set_string).
+ */
+function analyzeButtonHandler(source: string): HandlerAction | null {
+  // Parse the handler source as an expression statement
+  const wrapper = `(${source});`;
+  const sf = ts.createSourceFile('__handler__.ts', wrapper, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const stmt = sf.statements[0];
+  if (!stmt || !ts.isExpressionStatement(stmt)) return null;
+  const expr = ts.isParenthesizedExpression(stmt.expression) ? stmt.expression.expression : stmt.expression;
+  return analyzeHandlerNode(expr, sf);
 }
 
-function analyzeButtonHandler(source: string): HandlerAction | null {
-  const slotIndex = inferSlotIndex(source);
-  // Reusable param pattern: matches v, (v), (v: Type)
-  const P = String.raw`\(?\s*\w+(?:\s*:\s*\w+)?\s*\)?`;
+function analyzeHandlerNode(node: ts.Node, sf: ts.SourceFile): HandlerAction | null {
+  // We expect an arrow function: () => setXxx(...) or (param => expr)
+  if (ts.isArrowFunction(node)) {
+    const body = node.body;
+    // () => setXxx(...)  — body is a call expression
+    if (ts.isCallExpression(body)) {
+      return analyzeSetterCall(body, sf);
+    }
+    // () => someExpr — try recursing
+    if (ts.isBlock(body)) {
+      // Walk statements for a setter call
+      for (const stmt of body.statements) {
+        if (ts.isExpressionStatement(stmt) && ts.isCallExpression(stmt.expression)) {
+          const result = analyzeSetterCall(stmt.expression, sf);
+          if (result) return result;
+        }
+      }
+    }
+  }
+  // Maybe it's a bare setter call expression (unlikely but handle it)
+  if (ts.isCallExpression(node)) {
+    return analyzeSetterCall(node, sf);
+  }
+  return null;
+}
 
-  // Match: () => setXxx(c => c + N) — increment via functional update
-  let m = source.match(new RegExp(String.raw`\(\)\s*=>\s*\w+\(\s*${P}\s*=>\s*\w+\s*\+\s*(\d+)\s*\)`));
-  if (m) return { type: 'increment', slotIndex, value: Number(m[1]) };
+function analyzeSetterCall(call: ts.CallExpression, sf: ts.SourceFile): HandlerAction | null {
+  // Get setter name to look up slot index
+  if (!ts.isIdentifier(call.expression)) return null;
+  const setterName = call.expression.text;
+  const slotIndex = setterSlotMap.has(setterName) ? setterSlotMap.get(setterName)! : 0;
 
-  // Match: () => setXxx(c => c - N) — decrement via functional update
-  m = source.match(new RegExp(String.raw`\(\)\s*=>\s*\w+\(\s*${P}\s*=>\s*\w+\s*-\s*(\d+)\s*\)`));
-  if (m) return { type: 'decrement', slotIndex, value: Number(m[1]) };
+  if (call.arguments.length !== 1) return null;
+  const arg = call.arguments[0]!;
 
-  // Match: c => c + N  or  (c) => c + N — bare increment
-  m = source.match(new RegExp(String.raw`${P}\s*=>\s*\w+\s*\+\s*(\d+)`));
-  if (m) return { type: 'increment', slotIndex, value: Number(m[1]) };
+  // setXxx(numericLiteral) — reset
+  if (ts.isNumericLiteral(arg)) {
+    return { type: 'reset', slotIndex, value: Number(arg.text) };
+  }
 
-  // Match: c => c - N  or  (c) => c - N — bare decrement
-  m = source.match(new RegExp(String.raw`${P}\s*=>\s*\w+\s*-\s*(\d+)`));
-  if (m) return { type: 'decrement', slotIndex, value: Number(m[1]) };
+  // setXxx('stringLiteral') — set_string
+  if (ts.isStringLiteral(arg)) {
+    // Collect for string enum extraction
+    if (!stringEnumValues.has(slotIndex)) stringEnumValues.set(slotIndex, new Set());
+    stringEnumValues.get(slotIndex)!.add(arg.text);
+    return { type: 'set_string', slotIndex, value: 0, stringValue: arg.text };
+  }
 
-  // Match: () => setState(N)  or  () => setXxx(N) — reset to literal
-  m = source.match(/\(\)\s*=>\s*\w+\((\d+)\)/);
-  if (m) return { type: 'reset', slotIndex, value: Number(m[1]) };
-
-  // Match: () => setXxx(v => !v)  or  () => setXxx((v) => !v) — boolean toggle
-  m = source.match(/\(\)\s*=>\s*\w+\(\s*\(?\s*\w+\s*(?::\s*\w+)?\s*\)?\s*=>\s*!\w+\s*\)/);
-  if (m) return { type: 'toggle', slotIndex, value: 0 };
-
-  // Match: () => setXxx('stringValue') — set string literal
-  m = source.match(/\(\)\s*=>\s*\w+\(\s*'([^']+)'\s*\)/);
-  if (m) return { type: 'set_string', slotIndex, value: 0, stringValue: m[1] };
+  // setXxx(arrow function) — functional update
+  if (ts.isArrowFunction(arg)) {
+    const body = arg.body;
+    // param => param + N  (increment)
+    // param => param - N  (decrement)
+    if (ts.isBinaryExpression(body)) {
+      if (body.operatorToken.kind === ts.SyntaxKind.PlusToken && ts.isNumericLiteral(body.right)) {
+        return { type: 'increment', slotIndex, value: Number(body.right.text) };
+      }
+      if (body.operatorToken.kind === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(body.right)) {
+        return { type: 'decrement', slotIndex, value: Number(body.right.text) };
+      }
+    }
+    // param => !param  (toggle)
+    if (ts.isPrefixUnaryExpression(body) && body.operator === ts.SyntaxKind.ExclamationToken) {
+      return { type: 'toggle', slotIndex, value: 0 };
+    }
+  }
 
   return null;
 }
@@ -550,25 +613,18 @@ interface BranchInfo {
 const branchInfos: BranchInfo[] = [];
 
 /**
- * For string enum states, extract the set of possible values from button
- * handler sources. Handlers like `() => setFoo('bar')` reveal that 'bar'
- * is a valid state value.
+ * For string enum states, return the set of possible values from button
+ * handler sources. Values are collected during analyzeButtonHandler into
+ * the module-level stringEnumValues map; this function triggers analysis
+ * if not yet done and returns the map.
  */
 function extractStringValuesFromHandlers(): Map<number, Set<string>> {
-  const valuesBySlot = new Map<number, Set<string>>();
+  // Ensure handler analysis has run so stringEnumValues is populated.
+  // Analyze all bindings if not yet analyzed.
   for (const binding of buttonBindings) {
-    // Match: () => setXxx('value') — string literal argument
-    const m = binding.handlerSource.match(/\(\)\s*=>\s*\w+\(\s*'([^']+)'\s*\)/);
-    if (m) {
-      // We don't know WHICH state slot this setter belongs to, but for
-      // single-state-slot components it's slot 0. For multi-slot, we'd
-      // need to track which setter maps to which slot. For now: slot 0.
-      const slotIdx = 0;
-      if (!valuesBySlot.has(slotIdx)) valuesBySlot.set(slotIdx, new Set());
-      valuesBySlot.get(slotIdx)!.add(m[1]!);
-    }
+    analyzeButtonHandler(binding.handlerSource);
   }
-  return valuesBySlot;
+  return stringEnumValues;
 }
 
 function computePerturbedValues(slot: StateSlot): unknown[] {
