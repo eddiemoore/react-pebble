@@ -931,6 +931,35 @@ for (const slot of stateSlots) {
         process.stderr.write(
           `  State slot ${slot.index} causes structural change (skipped — list scroll): ${baseKeys.length} → ${pertKeys.length} labels\n`,
         );
+        // Still check labels that exist in BOTH renders for text changes
+        // (e.g., a "1/5" counter label that updates on scroll).
+        for (const [idx, baseText] of t1Texts) {
+          const pertText = ctxP.labelTexts.get(idx);
+          if (pertText !== undefined && pertText !== baseText) {
+            // Skip labels that will be handled as list slots
+            if (listSlotLabels.has(idx)) continue;
+            // Infer format by substitution: find where the perturbed value appears in the text
+            let formatExpr: string;
+            const pv = String(Number(perturbedValue) + 1); // try value+1 (common: sel+1)
+            if (pertText.includes(pv)) {
+              // Pattern like "{sel+1}/{total}" → "(this.s{N} + 1) + suffix"
+              const before = pertText.substring(0, pertText.indexOf(pv));
+              const after = pertText.substring(pertText.indexOf(pv) + pv.length);
+              formatExpr = `${before ? `"${before}" + ` : ''}(this.s${slot.index} + 1)${after ? ` + "${after}"` : ''}`;
+            } else if (pertText.includes(String(perturbedValue))) {
+              const pStr = String(perturbedValue);
+              const before = pertText.substring(0, pertText.indexOf(pStr));
+              const after = pertText.substring(pertText.indexOf(pStr) + pStr.length);
+              formatExpr = `${before ? `"${before}" + ` : ''}this.s${slot.index}${after ? ` + "${after}"` : ''}`;
+            } else {
+              formatExpr = `"" + this.s${slot.index}`;
+            }
+            stateDeps.set(idx, { slotIndex: slot.index, formatExpr });
+            process.stderr.write(
+              `  Label ${idx} depends on state slot ${slot.index} (base="${baseText}", perturbed="${pertText}")\n`,
+            );
+          }
+        }
       } else {
         process.stderr.write(
           `  State slot ${slot.index} causes structural change: ${baseKeys.length} labels → ${pertKeys.length} labels\n`,
