@@ -20,10 +20,10 @@
       "gabbro"
     ],
     "watchapp": {
-      "watchface": false
+      "watchface": true
     },
     "messageKeys": [
-      "dummy"
+      "data"
     ],
     "resources": {
       "media": []
