@@ -6,6 +6,7 @@
 import {} from "piu/MC";
 
 
+
 const sk0 = new Skin({ fill: "#000000" });
 const sk1 = new Skin({ fill: "#ff0000" });
 const sk2 = new Skin({ fill: "#0000ff" });

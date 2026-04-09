@@ -16,7 +16,7 @@ Pebble.addEventListener("ready", function () {
     ]);
 
     Pebble.sendAppMessage(
-      { data: data },
+      { items: data },
       function () { console.log("Data sent to watch successfully"); },
       function (e) { console.log("Send failed: " + JSON.stringify(e)); }
     );

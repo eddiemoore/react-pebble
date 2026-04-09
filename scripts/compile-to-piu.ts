@@ -249,6 +249,53 @@ if (listInfo) {
   if (listInfo.scrollSetterName) process.stderr.write(`  scroll setter: ${listInfo.scrollSetterName}\n`);
 }
 
+// ---------------------------------------------------------------------------
+// useMessage detection — runtime async data loading
+// ---------------------------------------------------------------------------
+
+interface MessageInfo {
+  key: string;              // Message key name (e.g., "items")
+  mockDataArrayName: string | null; // Variable name of mockData
+}
+
+function detectUseMessage(exName: string): MessageInfo | null {
+  const sf = parseExampleSource(exName);
+  if (!sf) return null;
+
+  let key: string | null = null;
+  let mockDataArrayName: string | null = null;
+
+  walkAST(sf, (node) => {
+    // Find: useMessage({ key: "...", mockData: ... })
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'useMessage' &&
+      node.arguments.length > 0 &&
+      ts.isObjectLiteralExpression(node.arguments[0]!)
+    ) {
+      const objLit = node.arguments[0]!;
+      for (const prop of (objLit as ts.ObjectLiteralExpression).properties) {
+        if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) continue;
+        if (prop.name.text === 'key' && ts.isStringLiteral(prop.initializer)) {
+          key = prop.initializer.text;
+        }
+        if (prop.name.text === 'mockData' && ts.isIdentifier(prop.initializer)) {
+          mockDataArrayName = prop.initializer.text;
+        }
+      }
+    }
+  });
+
+  if (!key) return null;
+  return { key, mockDataArrayName };
+}
+
+const messageInfo = detectUseMessage(exampleName);
+if (messageInfo) {
+  process.stderr.write(`useMessage detected: key="${messageInfo.key}"${messageInfo.mockDataArrayName ? ` mockData=${messageInfo.mockDataArrayName}` : ''}\n`);
+}
+
 /** Module-level map collecting string enum values per slot from handler analysis */
 const stringEnumValues = new Map<number, Set<string>>();
 
@@ -1206,7 +1253,9 @@ if (branchInfos.length > 0) {
     for (let bi = 0; bi < branches.length; bi++) {
       const branch = branches[bi]!;
       const name = `br_s${si}_v${bi}`;
-      const visible = branch.isBaseline; // only baseline visible initially
+      // For message-driven apps, start with loading visible (non-baseline)
+      // since data arrives at runtime. Otherwise, baseline is visible.
+      const visible = messageInfo ? !branch.isBaseline : branch.isBaseline;
       branchLines.push(
         `    new Container(null, { name: "${name}", visible: ${visible}, left: 0, right: 0, top: 0, bottom: 0, contents: [\n${branch.tree}\n    ] })`,
       );
@@ -1257,6 +1306,7 @@ const lines: string[] = [
   '',
   'import {} from "piu/MC";',
   hasButtons ? 'import PebbleButton from "pebble/button";' : '',
+  messageInfo ? 'import Message from "pebble/message";' : '',
   '',
 ];
 
@@ -1282,7 +1332,12 @@ if (hasTimeDeps) {
   lines.push('');
 }
 
-if (hasList) {
+if (messageInfo) {
+  // Runtime data: always declare _data for Message population
+  lines.push('let _data = [];');
+  lines.push('');
+}
+if (hasList && !messageInfo) {
   if (listInfo!.dataArrayObjects) {
     lines.push(`const _data = ${JSON.stringify(listInfo!.dataArrayObjects)};`);
   } else if (listInfo!.dataArrayValues) {
@@ -1357,7 +1412,9 @@ if (hasBehavior) {
 
   // onDisplaying
   lines.push('  onDisplaying(app) {');
-  lines.push('    this.refresh();');
+  if (!messageInfo) {
+    lines.push('    this.refresh();');
+  }
   if (hasTimeDeps) {
     lines.push('    app.interval = 1000;');
     lines.push('    app.start();');
@@ -1368,6 +1425,47 @@ if (hasBehavior) {
     for (const btn of usedButtons) {
       lines.push(`    new PebbleButton({ type: "${btn}", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });`);
     }
+  }
+  if (messageInfo) {
+    // Subscribe to phone→watch messages
+    lines.push(`    const self = this;`);
+    lines.push(`    new Message({`);
+    lines.push(`      keys: ["${messageInfo.key}"],`);
+    lines.push(`      onReadable() {`);
+    lines.push(`        const map = this.read();`);
+    lines.push(`        const json = map.get("${messageInfo.key}");`);
+    lines.push(`        if (json) {`);
+    lines.push(`          try {`);
+    lines.push(`            _data = JSON.parse(json);`);
+    // Toggle: show loaded branches (v0 = baseline = loaded), hide loading (v1)
+    for (const [si, branches] of branchesBySlot ?? []) {
+      for (let bi = 0; bi < branches.length; bi++) {
+        lines.push(`            self.br_s${si}_v${bi}.visible = ${bi === 0 ? 'true' : 'false'};`);
+      }
+    }
+    // Update list labels from parsed data
+    if (listInfo && listInfo.labelsPerItem > 1 && listInfo.propertyOrder) {
+      const lpi = listInfo.labelsPerItem;
+      const vc = listInfo.visibleCount;
+      lines.push(`            const c = self.br_s${[...branchesBySlot.keys()][0]}_v0.first;`);
+      for (let i = 0; i < vc; i++) {
+        lines.push(`            const g${i} = c.content("lg${i}");`);
+        for (let j = 0; j < lpi; j++) {
+          const prop = listInfo.propertyOrder[j]!;
+          lines.push(`            if (g${i}) { const l = g${i}.content("ls${i}_${j}"); if (l) l.string = _data[${i}] ? _data[${i}].${prop} : ""; }`);
+        }
+      }
+    } else if (listInfo) {
+      const vc = listInfo.visibleCount;
+      lines.push(`            const c = self.br_s${[...branchesBySlot.keys()][0]}_v0.first;`);
+      for (let i = 0; i < vc; i++) {
+        lines.push(`            const l${i} = c.content("ls${i}"); if (l${i}) l${i}.string = _data[${i}] || "";`);
+      }
+    }
+    lines.push(`          } catch (e) { console.log("Parse error: " + e.message); }`);
+    lines.push(`        }`);
+    lines.push(`      }`);
+    lines.push(`    });`);
   }
   lines.push('  }');
 
@@ -1474,6 +1572,31 @@ if (hasBehavior) {
     lines.push(`    }`);
   }
   lines.push('  }');
+
+  // refreshList — separate from refresh() for Message-driven data updates
+  if (messageInfo && listInfo) {
+    const lpi = listInfo!.labelsPerItem;
+    lines.push('  refreshList() {');
+    lines.push(`    for (let i = 0; i < ${listInfo!.visibleCount}; i++) {`);
+    lines.push(`      const item = _data[i];`);
+    if (lpi > 1 && listInfo!.propertyOrder) {
+      lines.push(`      const slot = this._ls[i];`);
+      lines.push(`      if (slot) {`);
+      for (let j = 0; j < lpi; j++) {
+        const prop = listInfo!.propertyOrder[j]!;
+        lines.push(`        slot[${j}].string = item ? item.${prop} : "";`);
+        lines.push(`        slot[${j}].visible = !!item;`);
+      }
+      lines.push(`      }`);
+    } else {
+      lines.push(`      if (this._ls[i]) {`);
+      lines.push(`        this._ls[i].string = item !== undefined ? "" + item : "";`);
+      lines.push(`        this._ls[i].visible = (item !== undefined);`);
+      lines.push(`      }`);
+    }
+    lines.push(`    }`);
+    lines.push('  }');
+  }
 
   lines.push('}');
   lines.push('');
