@@ -84,19 +84,19 @@ const WatchApp = Application.template(() => ({
           new Content(null, { left: 0, right: 0, top: 0, height: 28, skin: sk1 }),
           new Label(null, { top: 4, left: 4, width: 140, style: st0, string: "JIRA Issues" }),
           new Label(null, { top: 4, left: 148, width: 48, style: st1, horizontal: "right", name: "sl1", string: "1/5" }),
-          new Container(null, { name: "lg0", left: 0, top: 32, contents: [
+          new Container(null, { name: "lg0", left: 0, right: 0, top: 32, contents: [
             new Content(null, { left: 0, right: 0, top: 0, height: 60, skin: sk2 }),
             new Label(null, { top: 4, left: 8, width: 184, style: st2, name: "ls0_0", string: "PROJ-1" }),
             new Label(null, { top: 26, left: 8, width: 184, style: st3, name: "ls0_1", string: "Fix login timeout" }),
             new Label(null, { top: 42, left: 8, width: 184, style: st4, name: "ls0_2", string: "In Progress" })
           ] }),
-          new Container(null, { name: "lg1", left: 0, top: 94, contents: [
+          new Container(null, { name: "lg1", left: 0, right: 0, top: 94, contents: [
             new Content(null, { left: 0, right: 0, top: 0, height: 60, skin: sk0 }),
             new Label(null, { top: 4, left: 8, width: 184, style: st2, name: "ls1_0", string: "PROJ-2" }),
             new Label(null, { top: 26, left: 8, width: 184, style: st3, name: "ls1_1", string: "Update dependencies" }),
             new Label(null, { top: 42, left: 8, width: 184, style: st4, name: "ls1_2", string: "To Do" })
           ] }),
-          new Container(null, { name: "lg2", left: 0, top: 156, contents: [
+          new Container(null, { name: "lg2", left: 0, right: 0, top: 156, contents: [
             new Content(null, { left: 0, right: 0, top: 0, height: 60, skin: sk0 }),
             new Label(null, { top: 4, left: 8, width: 184, style: st2, name: "ls2_0", string: "PROJ-3" }),
             new Label(null, { top: 26, left: 8, width: 184, style: st3, name: "ls2_1", string: "Add dark mode" }),

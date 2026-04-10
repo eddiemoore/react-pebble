@@ -631,7 +631,7 @@ function emitNode(
       // so piu actually sizes them (otherwise they get zero size).
       const layout = (x === 0 && y === 0)
         ? 'left: 0, right: 0, top: 0, bottom: 0, '
-        : `left: ${x}, top: ${y}, `;
+        : `left: ${x}, right: 0, top: ${y}, `;
 
       // If this Group is a DIRECT parent of list slot labels (not a grandparent),
       // give it a name so the Behavior can find it.

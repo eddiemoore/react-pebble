@@ -62,15 +62,15 @@ const WatchApp = Application.template(() => ({
         new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
         new Content(null, { left: 0, right: 0, top: 0, height: 28, skin: sk1 }),
         new Label(null, { top: 4, left: 4, width: 192, style: st0, string: "Issues" }),
-        new Container(null, { name: "lg0", left: 0, top: 32, contents: [
+        new Container(null, { name: "lg0", left: 0, right: 0, top: 32, contents: [
           new Label(null, { top: 4, left: 8, width: 184, style: st1, name: "ls0_0", string: "Fix login bug" }),
           new Label(null, { top: 26, left: 8, width: 184, style: st2, name: "ls0_1", string: "In Progress" })
         ] }),
-        new Container(null, { name: "lg1", left: 0, top: 92, contents: [
+        new Container(null, { name: "lg1", left: 0, right: 0, top: 92, contents: [
           new Label(null, { top: 4, left: 8, width: 184, style: st1, name: "ls1_0", string: "Update docs" }),
           new Label(null, { top: 26, left: 8, width: 184, style: st2, name: "ls1_1", string: "To Do" })
         ] }),
-        new Container(null, { name: "lg2", left: 0, top: 152, contents: [
+        new Container(null, { name: "lg2", left: 0, right: 0, top: 152, contents: [
           new Label(null, { top: 4, left: 8, width: 184, style: st1, name: "ls2_0", string: "Deploy v2" }),
           new Label(null, { top: 26, left: 8, width: 184, style: st2, name: "ls2_1", string: "Done" })
         ] })
