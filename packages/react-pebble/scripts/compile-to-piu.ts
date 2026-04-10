@@ -340,6 +340,24 @@ function detectUseMessage(exName: string): MessageInfo | null {
 const messageInfo = detectUseMessage(entryPath);
 if (messageInfo) {
   process.stderr.write(`useMessage detected: key="${messageInfo.key}"${messageInfo.mockDataArrayName ? ` mockData=${messageInfo.mockDataArrayName}` : ''}\n`);
+
+  // Extract the mock data value from the source so the plugin can generate phone-side JS
+  if (messageInfo.mockDataArrayName) {
+    const sf = parseExampleSource(entryPath);
+    if (sf) {
+      walkAST(sf, (node) => {
+        if (
+          ts.isVariableDeclaration(node) &&
+          ts.isIdentifier(node.name) &&
+          node.name.text === messageInfo.mockDataArrayName &&
+          node.initializer
+        ) {
+          const mockDataSource = node.initializer.getText(sf);
+          process.stderr.write(`mockDataValue=${mockDataSource}\n`);
+        }
+      });
+    }
+  }
 }
 
 /** Module-level map collecting string enum values per slot from handler analysis */
@@ -1354,6 +1372,20 @@ if (listInfo) {
     for (const idx of keep) listSlotLabels.add(idx);
   }
 
+  // For message-driven lists without scroll buttons, identify list labels
+  // from the template by matching the expected label count. The last
+  // (visibleCount × labelsPerItem) labels in the T1 render are the list items.
+  if (listSlotLabels.size === 0 && messageInfo && listInfo) {
+    const expectedSlots = listInfo.visibleCount * listInfo.labelsPerItem;
+    const allLabels = [...t1Texts.keys()].sort((a, b) => a - b);
+    // Take the last expectedSlots labels (list items come after headers)
+    const listLabels = allLabels.slice(-expectedSlots);
+    for (const idx of listLabels) {
+      listSlotLabels.add(idx);
+    }
+    process.stderr.write(`Message-driven list labels (inferred): [${[...listSlotLabels].join(', ')}]\n`);
+  }
+
   if (listSlotLabels.size > 0) {
     process.stderr.write(`List slot labels: [${[...listSlotLabels].join(', ')}]\n`);
   }
@@ -1629,8 +1661,10 @@ if (branchInfos.length > 0) {
   }
   contents = branchLines.join(',\n');
 } else {
-  // No structural branches — emit the single tree as before
-  emitConditionals = true;
+  // No structural branches — emit the single tree as before.
+  // For message-driven apps, skip conditionals since the UI starts with
+  // mock data visible and labels get updated in-place by the Message handler.
+  emitConditionals = !messageInfo;
   contents = emitNode(appFinal._root, ctx, '    ', dynamicLabels, stateDeps, skinDeps);
 }
 appFinal.unmount();
@@ -1663,7 +1697,7 @@ const hasTimeDeps = dynamicLabels.size > 0 || stateNeedsTime || hasAnimatedEleme
 const hasStateDeps = stateDeps.size > 0;
 const hasButtons = buttonActions.length > 0;
 const hasBranches = branchInfos.length > 0;
-const hasConditionals = conditionalChildren.length > 0;
+const hasConditionals = conditionalChildren.length > 0 && !messageInfo;
 const hasSkinDeps = skinDeps.size > 0;
 const hasList = listInfo !== null && listSlotLabels.size > 0;
 const hasBehavior = hasTimeDeps || hasStateDeps || hasButtons || hasBranches || hasSkinDeps || hasList || hasConditionals;
@@ -1785,8 +1819,8 @@ if (hasBehavior) {
     }
   }
 
-  // Per-subtree conditional refs
-  for (const cc of conditionalChildren) {
+  // Per-subtree conditional refs (skipped for message-driven apps)
+  if (hasConditionals) for (const cc of conditionalChildren) {
     if (cc.type === 'removed') {
       const name = `cv_s${cc.stateSlot}_${cc.childIndex}`;
       lines.push(`    this.${name} = c.content("${name}");`);
@@ -1841,29 +1875,51 @@ if (hasBehavior) {
     lines.push(`        if (json) {`);
     lines.push(`          try {`);
     lines.push(`            _data = JSON.parse(json);`);
-    // Toggle: show loaded branches (v0 = baseline = loaded), hide loading (v1)
-    for (const [si, branches] of branchesBySlot ?? []) {
-      for (let bi = 0; bi < branches.length; bi++) {
-        lines.push(`            self.br_s${si}_v${bi}.visible = ${bi === 0 ? 'true' : 'false'};`);
+    // Toggle visibility: show loaded content, hide loading state
+    if (branchesBySlot && branchesBySlot.size > 0) {
+      // Structural branches: toggle br_s*_v* containers
+      for (const [si, branches] of branchesBySlot) {
+        for (let bi = 0; bi < branches.length; bi++) {
+          lines.push(`            self.br_s${si}_v${bi}.visible = ${bi === 0 ? 'true' : 'false'};`);
+        }
       }
     }
+    // Determine the content root for finding list labels
+    const contentRoot = (branchesBySlot && branchesBySlot.size > 0)
+      ? `self.br_s${[...branchesBySlot.keys()][0]}_v0.first`
+      : 'app.first';
     // Update list labels from parsed data
-    if (listInfo && listInfo.labelsPerItem > 1 && listInfo.propertyOrder) {
+    if (listInfo && listInfo.labelsPerItem > 1) {
       const lpi = listInfo.labelsPerItem;
       const vc = listInfo.visibleCount;
-      lines.push(`            const c = self.br_s${[...branchesBySlot.keys()][0]}_v0.first;`);
+      const props = listInfo.propertyOrder;
+      lines.push(`            const c = ${contentRoot};`);
       for (let i = 0; i < vc; i++) {
         lines.push(`            const g${i} = c.content("lg${i}");`);
         for (let j = 0; j < lpi; j++) {
-          const prop = listInfo.propertyOrder[j]!;
-          lines.push(`            if (g${i}) { const l = g${i}.content("ls${i}_${j}"); if (l) l.string = _data[${i}] ? _data[${i}].${prop} : ""; }`);
+          // Use property name if known, otherwise access by Object.values
+          const accessor = props ? `_data[${i}].${props[j]}` : `Object.values(_data[${i}] || {})[${j}]`;
+          lines.push(`            if (g${i}) { const l = g${i}.content("ls${i}_${j}"); if (l) l.string = _data[${i}] ? ${accessor} || "" : ""; }`);
         }
       }
     } else if (listInfo) {
       const vc = listInfo.visibleCount;
-      lines.push(`            const c = self.br_s${[...branchesBySlot.keys()][0]}_v0.first;`);
+      lines.push(`            const c = ${contentRoot};`);
       for (let i = 0; i < vc; i++) {
         lines.push(`            const l${i} = c.content("ls${i}"); if (l${i}) l${i}.string = _data[${i}] || "";`);
+      }
+    } else {
+      // Non-list message data: update state-dependent labels
+      // The received data replaces the loading state — toggle conditionals
+      for (const cc of conditionalChildren) {
+        if (cc.type === 'removed') {
+          const name = `cv_s${cc.stateSlot}_${cc.childIndex}`;
+          lines.push(`            if (self.${name}) self.${name}.visible = true;`);
+        }
+      }
+      // Update any state-dependent labels with data values
+      for (const [idx, dep] of stateDeps) {
+        lines.push(`            if (self.sl${idx}) self.sl${idx}.string = JSON.stringify(_data);`);
       }
     }
     lines.push(`          } catch (e) { console.log("Parse error: " + e.message); }`);
@@ -1949,8 +2005,8 @@ if (hasBehavior) {
       lines.push(`    this.sr${rIdx}.skin = (this.s${dep.slotIndex} !== ${JSON.stringify(slot?.initialValue)}) ? ${pertSkinVar} : ${baseSkinVar};`);
     }
   }
-  // Per-subtree conditional visibility
-  for (const cc of conditionalChildren) {
+  // Per-subtree conditional visibility (skipped for message-driven apps)
+  if (hasConditionals) for (const cc of conditionalChildren) {
     if (cc.type === 'removed') {
       const name = `cv_s${cc.stateSlot}_${cc.childIndex}`;
       lines.push(`    this.${name}.visible = !!this.s${cc.stateSlot};`);

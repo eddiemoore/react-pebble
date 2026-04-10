@@ -38,6 +38,8 @@ export interface CompileResult {
   hasButtons: boolean;
   /** Message keys used by useMessage hooks */
   messageKeys: string[];
+  /** Mock data source from useMessage (for generating phone-side JS) */
+  mockDataSource: string | null;
   /** Diagnostic messages from the compiler */
   diagnostics: string;
 }
@@ -109,7 +111,12 @@ export async function compileToPiu(options: CompileOptions): Promise<CompileResu
   const msgMatch = diagnostics.match(/useMessage detected: key="([^"]+)"/);
   if (msgMatch?.[1]) messageKeys.push(msgMatch[1]);
 
+  // Extract mock data source for phone-side JS generation
+  let mockDataSource: string | null = null;
+  const mockMatch = diagnostics.match(/mockDataValue=([\s\S]*?)(?:\n[A-Z]|\n$)/);
+  if (mockMatch?.[1]) mockDataSource = mockMatch[1].trim();
+
   log(`Compiled ${exampleName}: ${code.split('\n').length} lines, buttons=${hasButtons}, messageKeys=[${messageKeys.join(',')}]`);
 
-  return { code, hasButtons, messageKeys, diagnostics };
+  return { code, hasButtons, messageKeys, mockDataSource, diagnostics };
 }

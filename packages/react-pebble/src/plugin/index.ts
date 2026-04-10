@@ -90,6 +90,7 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
         scaffoldPebbleProject(platBuildDir, {
           watchface: !result.hasButtons,
           messageKeys: result.messageKeys,
+          mockDataSource: result.mockDataSource,
         });
 
         // 3. Write compiled output
@@ -134,6 +135,8 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
 interface ScaffoldOptions {
   watchface: boolean;
   messageKeys: string[];
+  /** TypeScript source of mock data (for generating phone-side JS) */
+  mockDataSource?: string | null;
 }
 
 function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
@@ -221,17 +224,52 @@ int main(void) {
   // Phone-side JS
   const pkjsPath = join(dir, 'src', 'pkjs', 'index.js');
   if (options.messageKeys.length > 0 && options.messageKeys[0] !== 'dummy') {
-    writeFileSync(
-      pkjsPath,
-      `// Phone-side PebbleKit JS — sends data to watch via AppMessage.
+    const key = options.messageKeys[0]!;
+    const mockSrc = options.mockDataSource;
+    if (mockSrc) {
+      // Generate working phone-side JS that sends the mock data
+      // Strip TypeScript type annotations from the mock data source
+      const cleanMockSrc = mockSrc
+        .replace(/as\s+const/g, '')
+        .replace(/:\s*\w+(\[\])?/g, '')
+        .replace(/<[^>]+>/g, '');
+      writeFileSync(
+        pkjsPath,
+        `// Phone-side PebbleKit JS — sends mock data to watch via AppMessage.
 // Replace the mock data below with a real API fetch.
 
 Pebble.addEventListener("ready", function () {
-  console.log("Phone JS ready.");
-  // TODO: fetch real data and send via Pebble.sendAppMessage({ ${options.messageKeys[0]}: jsonString });
+  console.log("Phone JS ready — sending data to watch...");
+
+  // Mock data (from example). Replace with fetch() for real data.
+  var data = ${cleanMockSrc};
+
+  // Send to watch after a short delay (wait for Message subscription)
+  setTimeout(function() {
+    Pebble.sendAppMessage(
+      { "${key}": JSON.stringify(data) },
+      function() { console.log("Data sent to watch successfully."); },
+      function(e) { console.log("Send failed: " + JSON.stringify(e)); }
+    );
+  }, 2000);
 });
 `,
-    );
+      );
+    } else {
+      writeFileSync(
+        pkjsPath,
+        `// Phone-side PebbleKit JS — sends data to watch via AppMessage.
+// Replace the placeholder below with a real API fetch.
+
+Pebble.addEventListener("ready", function () {
+  console.log("Phone JS ready.");
+  // Example: fetch data and send to watch
+  // var data = { key: "value" };
+  // Pebble.sendAppMessage({ "${key}": JSON.stringify(data) });
+});
+`,
+      );
+    }
   } else if (!existsSync(pkjsPath)) {
     writeFileSync(
       pkjsPath,
