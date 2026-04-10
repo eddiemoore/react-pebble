@@ -1,90 +1,9 @@
 {
-  "name": "react-pebble",
-  "version": "0.1.0",
-  "description": "Write Pebble watchfaces and apps in JSX — compiles to piu for Pebble Alloy at build time",
-  "type": "module",
-  "main": "dist/lib/index.cjs",
-  "module": "dist/lib/index.js",
-  "types": "dist/lib/src/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/lib/src/index.d.ts",
-      "import": "./dist/lib/index.js",
-      "require": "./dist/lib/index.cjs"
-    },
-    "./hooks": {
-      "types": "./dist/lib/src/hooks/index.d.ts",
-      "import": "./dist/lib/hooks.js",
-      "require": "./dist/lib/hooks.cjs"
-    },
-    "./components": {
-      "types": "./dist/lib/src/components/index.d.ts",
-      "import": "./dist/lib/components.js",
-      "require": "./dist/lib/components.cjs"
-    },
-    "./plugin": {
-      "types": "./dist/lib/src/plugin/index.d.ts",
-      "import": "./dist/lib/plugin.js"
-    },
-    "./compiler": {
-      "types": "./dist/lib/src/compiler/index.d.ts",
-      "import": "./dist/lib/compiler.js"
-    }
-  },
-  "files": [
-    "dist/lib",
-    "src",
-    "scripts"
-  ],
+  "name": "react-pebble-monorepo",
+  "private": true,
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && npx tsx test/snapshot-test.ts",
-    "test:snapshots": "npx tsx test/snapshot-test.ts",
-    "test:update": "npx tsx test/snapshot-test.ts --update",
-    "build": "npm run build:lib",
-    "build:lib": "vite build --config vite.config.lib.js",
-    "prepublishOnly": "npm run test && npm run build"
-  },
-  "keywords": [
-    "pebble",
-    "smartwatch",
-    "watchface",
-    "piu",
-    "moddable",
-    "alloy",
-    "jsx",
-    "preact",
-    "compiler",
-    "vite-plugin"
-  ],
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/eddiemoore/react-pebble"
-  },
-  "homepage": "https://github.com/eddiemoore/react-pebble#readme",
-  "bugs": {
-    "url": "https://github.com/eddiemoore/react-pebble/issues"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "peerDependencies": {
-    "vite": ">=5.0.0"
-  },
-  "peerDependenciesMeta": {
-    "vite": {
-      "optional": true
-    }
-  },
-  "devDependencies": {
-    "@types/node": "^25.5.2",
-    "tsx": "^4.21.0",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.7",
-    "vite-plugin-dts": "^4.5.4"
-  },
-  "dependencies": {
-    "preact": "^10.29.1"
+    "build": "pnpm -r build",
+    "test": "pnpm --filter react-pebble test",
+    "typecheck": "pnpm --filter react-pebble typecheck"
   }
 }

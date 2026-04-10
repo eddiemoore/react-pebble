@@ -7,6 +7,9 @@ node_modules/
 .pebble-build/
 .pebble-build-vite-tmp/
 
+# pnpm
+pnpm-lock.yaml
+
 # OS
 .DS_Store
 
