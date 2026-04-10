@@ -20,7 +20,7 @@
       "gabbro"
     ],
     "watchapp": {
-      "watchface": true
+      "watchface": false
     },
     "messageKeys": [
       "items"

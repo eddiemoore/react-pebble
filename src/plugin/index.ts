@@ -94,10 +94,12 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
             cwd: buildDir,
             stdio: 'ignore',
           });
-          execSync(`pebble install --emulator ${emu} --logs`, {
+          execSync(`pebble install --emulator ${emu}`, {
             cwd: buildDir,
             stdio: 'inherit',
+            timeout: 30000,
           });
+          log(`Deployed to ${emu}. Run 'cd ${buildDir} && pebble logs' for live output.`);
         } catch (err) {
           log('Deploy failed — is the Pebble SDK installed? (pebble --version)');
           throw err;

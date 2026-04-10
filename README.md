@@ -31,6 +31,35 @@ Pebble Alloy mods get ~3 KB of runtime heap. That's not enough to run Preact (or
 
 ## Quick start
 
+### Option 1: Vite plugin (recommended)
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import { pebblePiu } from 'react-pebble/plugin';
+
+export default defineConfig({
+  plugins: [
+    pebblePiu({
+      entry: 'src/App.tsx',       // your component
+      deploy: true,                // auto build + install to emulator
+    }),
+  ],
+});
+```
+
+```bash
+vite build    # compiles → scaffolds → builds → deploys to emulator
+```
+
+The plugin automatically:
+- Compiles your JSX to piu code
+- Scaffolds a Pebble project in `.pebble-build/` (gitignored)
+- Sets watchface/watchapp mode based on button usage
+- Runs `pebble build && pebble install` (when `deploy: true`)
+
+### Option 2: CLI
+
 ```bash
 # Install dependencies
 npm install
