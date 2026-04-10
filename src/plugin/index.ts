@@ -229,7 +229,8 @@ Pebble.addEventListener("ready", function () {
   }
 }
 
-export default pebblePiu;
+// Named export only — avoids Vite's MIXED_EXPORTS warning.
+// Users import as: import { pebblePiu } from 'react-pebble/plugin';
 
 // ---------------------------------------------------------------------------
 // Inline templates (no external file dependencies)

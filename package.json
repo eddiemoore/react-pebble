@@ -1,7 +1,7 @@
 {
   "name": "react-pebble",
   "version": "0.1.0",
-  "description": "A React renderer for Pebble smartwatch apps using the Pebble.js/Alloy API",
+  "description": "Write Pebble watchfaces and apps in JSX — compiles to piu for Pebble Alloy at build time",
   "type": "module",
   "main": "dist/lib/index.cjs",
   "module": "dist/lib/index.js",
@@ -41,20 +41,45 @@
     "test": "npm run typecheck && npx tsx test/snapshot-test.ts",
     "test:snapshots": "npx tsx test/snapshot-test.ts",
     "test:update": "npx tsx test/snapshot-test.ts --update",
-    "build": "npm run typecheck && npm run build:lib && npm run build:examples",
+    "build": "npm run build:lib",
     "build:lib": "vite build --config vite.config.lib.js",
-    "build:examples": "for f in examples/*.tsx; do EXAMPLE=$(basename \"$f\" .tsx) vite build --config vite.config.examples.js; done"
+    "prepublishOnly": "npm run test && npm run build"
   },
   "keywords": [
-    "react",
     "pebble",
     "smartwatch",
-    "renderer",
-    "reconciler"
+    "watchface",
+    "piu",
+    "moddable",
+    "alloy",
+    "jsx",
+    "preact",
+    "compiler",
+    "vite-plugin"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eddiemoore/react-pebble"
+  },
+  "homepage": "https://github.com/eddiemoore/react-pebble#readme",
+  "bugs": {
+    "url": "https://github.com/eddiemoore/react-pebble/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "vite": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/node": "^25.5.2",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "vite": "^8.0.7",
     "vite-plugin-dts": "^4.5.4"

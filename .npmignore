@@ -1,0 +1,10 @@
+# Dev/test files not needed in the published package
+test/
+examples/
+docs/
+.pebble-build/
+.pebble-build-vite-tmp/
+vite.config.*.js
+tsconfig.json
+.gitignore
+*.log
