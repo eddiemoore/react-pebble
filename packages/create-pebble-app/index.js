@@ -66,9 +66,15 @@ export default defineConfig({
   plugins: [
     pebblePiu({
       entry: 'src/App.tsx',
-      deploy: true,
     }),
   ],
+  // Minimal build config — the pebblePiu plugin handles the real output
+  build: {
+    lib: { entry: 'src/App.tsx', formats: ['es'] },
+    rollupOptions: { external: [/./] },
+    outDir: '.pebble-build-vite',
+    emptyOutDir: true,
+  },
 });
 `);
 
@@ -93,6 +99,7 @@ writeFileSync(join(dir, 'tsconfig.json'), JSON.stringify({
 writeFileSync(join(dir, '.gitignore'), `node_modules/
 dist/
 .pebble-build/
+.pebble-build-vite/
 *.log
 `);
 

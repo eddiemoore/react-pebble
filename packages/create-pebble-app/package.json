@@ -1,13 +1,21 @@
 {
   "name": "create-pebble-app",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Scaffold a new react-pebble watchface or app project",
   "type": "module",
   "bin": {
     "create-pebble-app": "index.js"
   },
-  "files": ["index.js"],
-  "keywords": ["pebble", "smartwatch", "create", "scaffold", "watchface"],
+  "files": [
+    "index.js"
+  ],
+  "keywords": [
+    "pebble",
+    "smartwatch",
+    "create",
+    "scaffold",
+    "watchface"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
