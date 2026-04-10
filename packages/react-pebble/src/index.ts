@@ -87,6 +87,13 @@ export {
   useConnection,
   useLocalStorage,
   useFetch,
+  useAnimation,
+  useAccelerometer,
+  useCompass,
+  useWebSocket,
+  useKVStorage,
+  Easing,
+  lerp,
   ButtonRegistry,
   PebbleAppContext,
 } from './hooks/index.js';
@@ -99,6 +106,13 @@ export type {
   ConnectionState,
   UseFetchOptions,
   UseFetchResult,
+  UseAnimationOptions,
+  UseAnimationResult,
+  EasingFn,
+  AccelerometerData,
+  UseAccelerometerOptions,
+  CompassData,
+  UseWebSocketResult,
 } from './hooks/index.js';
 
 // Low-level access (for advanced usage / custom renderers / tests)

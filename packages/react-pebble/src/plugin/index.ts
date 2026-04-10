@@ -41,6 +41,12 @@ export interface PebblePiuOptions {
   settleMs?: number;
   /** Target platform — sets screen dimensions (default: 'emery') */
   platform?: string;
+  /**
+   * Target platforms for multi-platform builds (e.g. ['emery', 'gabbro']).
+   * When set, builds once per platform into `{buildDir}-{platform}/`.
+   * Overrides the `platform` option.
+   */
+  targetPlatforms?: string[];
   /** Directory for the generated Pebble project (default: '.pebble-build') */
   buildDir?: string;
   /** Auto-run pebble build + install after compilation */
@@ -63,51 +69,59 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
     async closeBundle() {
       const log = (msg: string) => console.log(`[react-pebble] ${msg}`);
 
-      // 1. Compile JSX → piu
-      log(`Compiling ${options.entry}...`);
-      const result = await compileToPiu({
-        entry: options.entry,
-        settleMs: options.settleMs,
-        platform: options.platform,
-        logger: log,
-      });
+      const platforms = options.targetPlatforms ?? [options.platform ?? 'emery'];
 
-      // 2. Scaffold pebble project
-      log(`Scaffolding pebble project in ${buildDir}...`);
-      scaffoldPebbleProject(buildDir, {
-        watchface: !result.hasButtons,
-        messageKeys: result.messageKeys,
-      });
+      for (const platform of platforms) {
+        const platBuildDir = platforms.length > 1
+          ? resolve(`${options.buildDir ?? '.pebble-build'}-${platform}`)
+          : buildDir;
 
-      // 3. Write compiled output
-      const outputPath = join(buildDir, 'src', 'embeddedjs', 'main.js');
-      mkdirSync(dirname(outputPath), { recursive: true });
-      writeFileSync(outputPath, result.code);
-      log(`Wrote ${result.code.split('\n').length} lines to ${outputPath}`);
+        // 1. Compile JSX → piu
+        log(`Compiling ${options.entry} for ${platform}...`);
+        const result = await compileToPiu({
+          entry: options.entry,
+          settleMs: options.settleMs,
+          platform,
+          logger: log,
+        });
 
-      // 4. Optionally build + deploy
-      if (options.deploy) {
-        const emu = options.emulator ?? options.platform ?? 'emery';
-        log('Running pebble build...');
-        try {
-          execSync('pebble build', { cwd: buildDir, stdio: 'inherit' });
-          log(`Installing to ${emu} emulator...`);
-          execSync('pebble kill 2>/dev/null; pebble wipe 2>/dev/null; sleep 2', {
-            cwd: buildDir,
-            stdio: 'ignore',
-          });
-        execSync(`pebble install --emulator ${emu}`, {
-            cwd: buildDir,
-            stdio: 'inherit',
-            timeout: 30000,
-          });
-          log(`Deployed to ${emu}. Run 'cd ${buildDir} && pebble logs' for live output.`);
-        } catch (err) {
-          log('Deploy failed — is the Pebble SDK installed? (pebble --version)');
-          throw err;
+        // 2. Scaffold pebble project
+        log(`Scaffolding pebble project in ${platBuildDir}...`);
+        scaffoldPebbleProject(platBuildDir, {
+          watchface: !result.hasButtons,
+          messageKeys: result.messageKeys,
+        });
+
+        // 3. Write compiled output
+        const outputPath = join(platBuildDir, 'src', 'embeddedjs', 'main.js');
+        mkdirSync(dirname(outputPath), { recursive: true });
+        writeFileSync(outputPath, result.code);
+        log(`Wrote ${result.code.split('\n').length} lines to ${outputPath}`);
+
+        // 4. Optionally build + deploy
+        if (options.deploy) {
+          const emu = options.emulator ?? platform;
+          log(`Running pebble build for ${platform}...`);
+          try {
+            execSync('pebble build', { cwd: platBuildDir, stdio: 'inherit' });
+            log(`Installing to ${emu} emulator...`);
+            execSync('pebble kill 2>/dev/null; pebble wipe 2>/dev/null; sleep 2', {
+              cwd: platBuildDir,
+              stdio: 'ignore',
+            });
+            execSync(`pebble install --emulator ${emu}`, {
+              cwd: platBuildDir,
+              stdio: 'inherit',
+              timeout: 30000,
+            });
+            log(`Deployed to ${emu}. Run 'cd ${platBuildDir} && pebble logs' for live output.`);
+          } catch (err) {
+            log(`Deploy failed for ${platform} — is the Pebble SDK installed? (pebble --version)`);
+            throw err;
+          }
+        } else {
+          log(`Done (${platform}). To deploy:\n  cd ${platBuildDir} && pebble build && pebble install --emulator ${platform}`);
         }
-      } else {
-        log(`Done. To deploy:\n  cd ${buildDir} && pebble build && pebble install --emulator emery`);
       }
     },
   };

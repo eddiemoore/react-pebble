@@ -328,7 +328,26 @@ export class PocoRenderer {
       case 'pbl-image': {
         const bitmap = p.bitmap;
         if (bitmap) {
-          this.poco.drawBitmap(bitmap as never, x, y);
+          const rotation = num(p, 'rotation');
+          const scale = num(p, 'scale');
+          if (rotation || (scale && scale !== 1)) {
+            // Use Poco's extended drawBitmap with rotation/scale if available.
+            // The mock Poco records the intent; the real Poco handles transforms.
+            const bmp = bitmap as never;
+            const poco = this.poco as Poco & {
+              drawBitmapWithTransform?: (
+                bmp: never, x: number, y: number, rotation: number, scale: number,
+              ) => void;
+            };
+            if (poco.drawBitmapWithTransform) {
+              poco.drawBitmapWithTransform(bmp, x, y, rotation, scale || 1);
+            } else {
+              // Fallback: draw without transform
+              this.poco.drawBitmap(bmp, x, y);
+            }
+          } else {
+            this.poco.drawBitmap(bitmap as never, x, y);
+          }
         }
         break;
       }

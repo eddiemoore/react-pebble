@@ -466,10 +466,361 @@ export function useFetch<T>(url: string, options: UseFetchOptions<T> = {}): UseF
 }
 
 // ---------------------------------------------------------------------------
-// FUTURE HOOKS — reference for reimplementation
+// useAnimation — property interpolation with easing
+// ---------------------------------------------------------------------------
+
+/** Standard easing functions matching Alloy's Timeline API. */
+export const Easing = {
+  linear: (t: number) => t,
+  quadEaseIn: (t: number) => t * t,
+  quadEaseOut: (t: number) => t * (2 - t),
+  quadEaseInOut: (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+  cubicEaseIn: (t: number) => t * t * t,
+  cubicEaseOut: (t: number) => (--t) * t * t + 1,
+  cubicEaseInOut: (t: number) => t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1,
+  sinEaseIn: (t: number) => 1 - Math.cos(t * Math.PI / 2),
+  sinEaseOut: (t: number) => Math.sin(t * Math.PI / 2),
+  sinEaseInOut: (t: number) => -(Math.cos(Math.PI * t) - 1) / 2,
+  expoEaseIn: (t: number) => t === 0 ? 0 : Math.pow(2, 10 * (t - 1)),
+  expoEaseOut: (t: number) => t === 1 ? 1 : 1 - Math.pow(2, -10 * t),
+  circEaseIn: (t: number) => 1 - Math.sqrt(1 - t * t),
+  circEaseOut: (t: number) => Math.sqrt(1 - (--t) * t),
+  bounceEaseOut: (t: number) => {
+    if (t < 1 / 2.75) return 7.5625 * t * t;
+    if (t < 2 / 2.75) return 7.5625 * (t -= 1.5 / 2.75) * t + 0.75;
+    if (t < 2.5 / 2.75) return 7.5625 * (t -= 2.25 / 2.75) * t + 0.9375;
+    return 7.5625 * (t -= 2.625 / 2.75) * t + 0.984375;
+  },
+  bounceEaseIn: (t: number) => 1 - Easing.bounceEaseOut(1 - t),
+  elasticEaseOut: (t: number) => {
+    if (t === 0 || t === 1) return t;
+    return Math.pow(2, -10 * t) * Math.sin((t - 0.075) * (2 * Math.PI) / 0.3) + 1;
+  },
+  backEaseOut: (t: number) => {
+    const s = 1.70158;
+    return (--t) * t * ((s + 1) * t + s) + 1;
+  },
+} as const;
+
+export type EasingFn = (t: number) => number;
+
+export interface UseAnimationOptions {
+  /** Duration in ms. */
+  duration: number;
+  /** Easing function (default: linear). */
+  easing?: EasingFn;
+  /** Delay before start in ms (default: 0). */
+  delay?: number;
+  /** Loop the animation (default: false). */
+  loop?: boolean;
+  /** Auto-start on mount (default: true). */
+  autoStart?: boolean;
+}
+
+export interface UseAnimationResult {
+  /** Current progress value (0 to 1), eased. */
+  progress: number;
+  /** Whether the animation is currently running. */
+  running: boolean;
+  /** Start or restart the animation. */
+  start: () => void;
+  /** Stop the animation. */
+  stop: () => void;
+}
+
+/**
+ * Animate a progress value from 0 to 1 over a duration with easing.
+ *
+ * Use the returned `progress` to interpolate any property:
+ *   const x = startX + (endX - startX) * progress;
+ */
+export function useAnimation(options: UseAnimationOptions): UseAnimationResult {
+  const { duration, easing = Easing.linear, delay = 0, loop = false, autoStart = true } = options;
+  const [progress, setProgress] = useState(0);
+  const [running, setRunning] = useState(autoStart);
+  const startTimeRef = useRef<number | null>(null);
+
+  const start = useCallback(() => {
+    startTimeRef.current = null;
+    setProgress(0);
+    setRunning(true);
+  }, []);
+
+  const stop = useCallback(() => {
+    setRunning(false);
+  }, []);
+
+  useEffect(() => {
+    if (!running) return;
+
+    const tick = () => {
+      const now = Date.now();
+      if (startTimeRef.current === null) {
+        startTimeRef.current = now + delay;
+      }
+      const elapsed = now - startTimeRef.current;
+      if (elapsed < 0) {
+        // Still in delay
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
+      const raw = Math.min(elapsed / duration, 1);
+      setProgress(easing(raw));
+
+      if (raw < 1) {
+        rafId = requestAnimationFrame(tick);
+      } else if (loop) {
+        startTimeRef.current = null;
+        rafId = requestAnimationFrame(tick);
+      } else {
+        setRunning(false);
+      }
+    };
+
+    // Use requestAnimationFrame if available, otherwise setInterval
+    let rafId: ReturnType<typeof requestAnimationFrame> | ReturnType<typeof setInterval>;
+    if (typeof requestAnimationFrame === 'function') {
+      rafId = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(rafId as number);
+    }
+    // Fallback for environments without rAF
+    rafId = setInterval(() => tick(), 16);
+    return () => clearInterval(rafId as ReturnType<typeof setInterval>);
+  }, [running, duration, delay, loop, easing]);
+
+  return { progress, running, start, stop };
+}
+
+/**
+ * Interpolate between two values using an animation progress (0-1).
+ */
+export function lerp(from: number, to: number, progress: number): number {
+  return from + (to - from) * progress;
+}
+
+// ---------------------------------------------------------------------------
+// useAccelerometer — motion sensing via Moddable sensor API
+// ---------------------------------------------------------------------------
+
+export interface AccelerometerData {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface UseAccelerometerOptions {
+  /** Sample rate in ms (default: 100). */
+  sampleRate?: number;
+  /** Called on tap gesture. */
+  onTap?: () => void;
+  /** Called on double-tap gesture. */
+  onDoubleTap?: () => void;
+}
+
+/**
+ * Read accelerometer data.
+ *
+ * On Alloy: reads from the Moddable Accelerometer sensor.
+ * In mock mode: returns { x: 0, y: 0, z: -1000 } (gravity pointing down).
+ */
+export function useAccelerometer(options: UseAccelerometerOptions = {}): AccelerometerData {
+  const { sampleRate = 100, onTap, onDoubleTap } = options;
+  const [data, setData] = useState<AccelerometerData>({ x: 0, y: 0, z: -1000 });
+  const tapRef = useRef(onTap);
+  const doubleTapRef = useRef(onDoubleTap);
+  tapRef.current = onTap;
+  doubleTapRef.current = onDoubleTap;
+
+  useEffect(() => {
+    // Try to access the Alloy accelerometer
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).__pbl_accel) {
+      const accel = (globalThis as Record<string, unknown>).__pbl_accel as {
+        onSample?: (x: number, y: number, z: number) => void;
+        onTap?: () => void;
+        onDoubleTap?: () => void;
+        start?: () => void;
+        stop?: () => void;
+      };
+      accel.onSample = (x: number, y: number, z: number) => setData({ x, y, z });
+      if (tapRef.current) accel.onTap = () => tapRef.current?.();
+      if (doubleTapRef.current) accel.onDoubleTap = () => doubleTapRef.current?.();
+      accel.start?.();
+      return () => accel.stop?.();
+    }
+
+    // Mock mode: simulate gentle wobble
+    const id = setInterval(() => {
+      setData({
+        x: Math.round(Math.sin(Date.now() / 1000) * 50),
+        y: Math.round(Math.cos(Date.now() / 1200) * 30),
+        z: -1000 + Math.round(Math.sin(Date.now() / 800) * 20),
+      });
+    }, sampleRate);
+    return () => clearInterval(id);
+  }, [sampleRate]);
+
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// useCompass — magnetic heading via Moddable sensor API
+// ---------------------------------------------------------------------------
+
+export interface CompassData {
+  /** Heading in degrees (0-360, 0 = north). */
+  heading: number;
+}
+
+/**
+ * Read compass heading.
+ *
+ * On Alloy: reads from the Moddable Compass sensor.
+ * In mock mode: returns a slowly rotating heading.
+ */
+export function useCompass(): CompassData {
+  const [heading, setHeading] = useState(0);
+
+  useEffect(() => {
+    // Try to access the Alloy compass
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).__pbl_compass) {
+      const compass = (globalThis as Record<string, unknown>).__pbl_compass as {
+        onSample?: (heading: number) => void;
+        start?: () => void;
+        stop?: () => void;
+      };
+      compass.onSample = (h: number) => setHeading(h);
+      compass.start?.();
+      return () => compass.stop?.();
+    }
+
+    // Mock mode: slowly rotate
+    const id = setInterval(() => {
+      setHeading((h) => (h + 1) % 360);
+    }, 100);
+    return () => clearInterval(id);
+  }, []);
+
+  return { heading };
+}
+
+// ---------------------------------------------------------------------------
+// useWebSocket — bidirectional communication via pebbleproxy
+// ---------------------------------------------------------------------------
+
+export interface UseWebSocketResult {
+  /** Last received message (null until first message). */
+  lastMessage: string | null;
+  /** Whether the connection is open. */
+  connected: boolean;
+  /** Send a message. */
+  send: (data: string) => void;
+  /** Close the connection. */
+  close: () => void;
+}
+
+/**
+ * Connect to a WebSocket server.
+ *
+ * On Alloy: uses the WebSocket API (proxied via @moddable/pebbleproxy).
+ * In mock mode: simulates a connection that echoes messages back.
+ */
+export function useWebSocket(url: string): UseWebSocketResult {
+  const [lastMessage, setLastMessage] = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
+  const wsRef = useRef<{ send: (d: string) => void; close: () => void } | null>(null);
+
+  useEffect(() => {
+    // On Alloy: use real WebSocket
+    if (typeof WebSocket !== 'undefined') {
+      const ws = new WebSocket(url);
+      ws.onopen = () => setConnected(true);
+      ws.onmessage = (e) => setLastMessage(String(e.data));
+      ws.onclose = () => setConnected(false);
+      ws.onerror = () => setConnected(false);
+      wsRef.current = { send: (d) => ws.send(d), close: () => ws.close() };
+      return () => ws.close();
+    }
+
+    // Mock mode: echo server
+    setConnected(true);
+    wsRef.current = {
+      send: (d: string) => {
+        setTimeout(() => setLastMessage(`echo: ${d}`), 50);
+      },
+      close: () => setConnected(false),
+    };
+    return () => setConnected(false);
+  }, [url]);
+
+  const send = useCallback((data: string) => {
+    wsRef.current?.send(data);
+  }, []);
+
+  const close = useCallback(() => {
+    wsRef.current?.close();
+  }, []);
+
+  return { lastMessage, connected, send, close };
+}
+
+// ---------------------------------------------------------------------------
+// useKVStorage — ECMA-419 binary key-value storage
+// ---------------------------------------------------------------------------
+
+/**
+ * Key-value storage for binary and structured data using the ECMA-419 API.
+ *
+ * On Alloy: uses `device.keyValue.open(storeName)` for persistent binary storage.
+ * In mock mode: uses an in-memory Map.
+ *
+ * For simple string storage, prefer `useLocalStorage`.
+ */
+export function useKVStorage(storeName: string): {
+  get: (key: string) => string | null;
+  set: (key: string, value: string) => void;
+  remove: (key: string) => void;
+} {
+  const storeRef = useRef<{
+    get: (key: string) => string | null;
+    set: (key: string, value: string) => void;
+    delete: (key: string) => void;
+  } | null>(null);
+
+  if (!storeRef.current) {
+    // Try ECMA-419 device.keyValue API
+    const device = (globalThis as Record<string, unknown>).device as {
+      keyValue?: { open: (path: string) => {
+        get: (key: string) => string | null;
+        set: (key: string, value: string) => void;
+        delete: (key: string) => void;
+      }};
+    } | undefined;
+
+    if (device?.keyValue) {
+      storeRef.current = device.keyValue.open(storeName);
+    } else {
+      // Mock mode: in-memory map
+      const map = new Map<string, string>();
+      storeRef.current = {
+        get: (k) => map.get(k) ?? null,
+        set: (k, v) => map.set(k, v),
+        delete: (k) => { map.delete(k); },
+      };
+    }
+  }
+
+  const store = storeRef.current!;
+  return {
+    get: useCallback((key: string) => store.get(key), []),
+    set: useCallback((key: string, value: string) => store.set(key, value), []),
+    remove: useCallback((key: string) => store.delete(key), []),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// FUTURE HOOKS
 //
-//   - useAccelerometer   — Alloy has Moddable sensor modules;
-//                          specific import path unknown.
 //   - useAppMessage      — phone↔watch messaging goes through PebbleKit JS
 //                          on the phone side (`src/pkjs/index.js`).
+//   - useLocation        — GPS via phone proxy (one-shot).
 // ---------------------------------------------------------------------------

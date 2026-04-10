@@ -152,6 +152,10 @@ export function Line(props: LineProps) {
 
 export interface ImageProps extends PositionProps {
   bitmap: unknown;
+  /** Rotation in radians. */
+  rotation?: number;
+  /** Scale factor (1 = original size). */
+  scale?: number;
 }
 
 export function Image(props: ImageProps) {
