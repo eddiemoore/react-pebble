@@ -49,8 +49,9 @@ import { pebblePiu } from 'react-pebble/plugin';
 export default defineConfig({
   plugins: [
     pebblePiu({
-      entry: 'src/App.tsx',       // your component
-      deploy: true,                // auto build + install to emulator
+      entry: 'src/App.tsx',          // your component
+      deploy: true,                   // auto build + install to emulator
+      targetPlatforms: ['emery'],     // or ['emery', 'gabbro'] for multi-platform
     }),
   ],
 });
@@ -64,33 +65,28 @@ The plugin automatically:
 - Compiles your JSX to piu code
 - Scaffolds a Pebble project in `.pebble-build/` (gitignored)
 - Sets watchface/watchapp mode based on button usage
+- Generates phone-side JS with mock data for `useMessage` apps
 - Runs `pebble build && pebble install` (when `deploy: true`)
 
 ### Option 2: CLI
 
 ```bash
-# Install dependencies
 npm install
-
-# Compile the watchface example to piu
 EXAMPLE=watchface npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
-
-# Build and deploy to emulator
-cd .pebble-build
-pebble build
-pebble install --emulator emery --logs
+cd .pebble-build && pebble build && pebble install --emulator emery --logs
 ```
 
 ## Writing components
 
-Components use standard Preact JSX with a small set of Pebble-specific primitives:
+Components use standard Preact JSX with Pebble-specific primitives:
 
 ```tsx
-import { render, Text, Rect, Group } from 'react-pebble';
-import { useTime, useButton, useState } from 'react-pebble/hooks';
+import { render, Text, Rect, Circle, Group, Column } from 'react-pebble';
+import { useTime, useButton, useState, useBattery } from 'react-pebble/hooks';
 
 function WatchFace() {
   const time = useTime();
+  const battery = useBattery();
   const hours = time.getHours().toString().padStart(2, '0');
   const minutes = time.getMinutes().toString().padStart(2, '0');
 
@@ -100,6 +96,7 @@ function WatchFace() {
       <Text x={0} y={90} w={200} font="bitham42Bold" color="white" align="center">
         {hours}:{minutes}
       </Text>
+      <Circle x={170} y={10} r={8} fill={battery.percent > 20 ? 'green' : 'red'} />
     </Group>
   );
 }
@@ -113,29 +110,70 @@ export function main() {
 
 | Component | Description |
 |-----------|------------|
-| `<Rect>` | Rectangle with fill and/or stroke |
-| `<Text>` | Text with Pebble font, color, alignment |
-| `<Group>` | Container with x/y offset |
-| `<Line>` | Axis-aligned line (horizontal/vertical) |
-| `<Circle>` | Circle via piu RoundRect (fill only, no stroke) |
-| `<StatusBar>` | No-op placeholder (Alloy has no built-in status bar) |
+| `<Rect>` | Rectangle with fill, stroke, and optional `borderRadius` for rounded corners |
+| `<Text>` | Text with font, color, alignment. Auto-wraps to fit width. |
+| `<Circle>` | Circle with fill and/or stroke (midpoint algorithm + piu RoundRect) |
+| `<Line>` | Line (axis-aligned or diagonal via Bresenham's algorithm) |
+| `<Image>` | Bitmap image with optional `rotation` (radians) and `scale` |
+| `<Group>` | Container with x/y offset and optional w/h sizing |
+| `<Column>` | Vertical layout — stacks children with configurable `gap` |
+| `<Row>` | Horizontal layout — stacks children with configurable `gap` |
+| `<StatusBar>` | Status bar with centered time, background color, and separator style |
+| `<ActionBar>` | Right-edge action bar with icon placeholders for up/select/down |
+| `<Card>` | Composite: title bar + body text |
+| `<Badge>` | Composite: circle + centered text |
+| `<Window>` | Fullscreen container with button handler props |
 
 ### Hooks
 
+#### Time & Animation
+
 | Hook | Description |
 |------|------------|
-| `useTime(intervalMs?)` | Returns a `Date` that updates every N ms. Compiles to piu `onTimeChanged` behavior. |
-| `useFormattedTime(format?)` | Returns formatted time string (HH:mm, hh:mm:ss a, etc.) |
-| `useState(initialValue)` | Number or boolean state. Compiles to piu Behavior instance fields. |
-| `useButton(button, handler)` | Hardware button handler (up/down/select/back). Compiles to `PebbleButton` native module. |
+| `useTime(intervalMs?)` | Returns a `Date` that updates every N ms. Uses `watch` events on device for battery efficiency. |
+| `useFormattedTime(format?)` | Formatted time string (HH:mm, hh:mm:ss a, etc.) |
+| `useAnimation(options)` | Animate 0→1 progress with easing over a duration. Supports loop. Compiler samples keyframes. |
 | `useInterval(callback, delay)` | Runs a callback on an interval. |
-| `useListNavigation(items, opts)` | Up/down button navigation through a list. |
+| `lerp(from, to, progress)` | Interpolate between two values. |
+| `Easing` | 18 easing functions: quad, cubic, sine, expo, circular, bounce, elastic, back (in/out/inOut). |
+
+#### Input & Sensors
+
+| Hook | Description |
+|------|------------|
+| `useButton(button, handler)` | Hardware button handler (up/down/select/back). Compiles to `PebbleButton` native module. |
+| `useLongButton(button, handler)` | Long-press button handler. |
+| `useBattery()` | Returns `{ percent, charging, plugged }` from the Battery sensor. |
+| `useConnection()` | Returns `{ app, pebblekit }` connection status. |
+| `useAccelerometer(options?)` | Returns `{ x, y, z }` motion data with optional `onTap`/`onDoubleTap` callbacks. |
+| `useCompass()` | Returns `{ heading }` in degrees (0-360). |
+| `useListNavigation(items, opts)` | Up/down button navigation through a list with optional wrapping. |
+
+#### State & Storage
+
+| Hook | Description |
+|------|------------|
+| `useState(initialValue)` | Number, boolean, or string state. Compiles to piu Behavior instance fields. |
+| `useLocalStorage(key, default)` | Like useState but persists to `localStorage` across reboots. |
+| `useKVStorage(storeName)` | ECMA-419 binary key-value storage: `get`, `set`, `remove`. |
+
+#### Data & Networking
+
+| Hook | Description |
+|------|------------|
+| `useMessage(options)` | Phone→watch data via Alloy Message API. Compiler emits full wiring. |
+| `useFetch(url, options?)` | HTTP data loading via `fetch()` / pebbleproxy. |
+| `useWebSocket(url)` | Bidirectional WebSocket: `send`, `close`, `lastMessage`, `connected`. |
 
 ### Fonts
 
-Available system fonts (matched to Pebble's built-in font resources):
+System fonts organized by family:
 
-`gothic14`, `gothic14Bold`, `gothic18`, `gothic18Bold`, `gothic24`, `gothic24Bold`, `gothic28`, `gothic28Bold`, `bitham30Black`, `bitham42Bold`, `bitham42Light`
+- **Gothic:** `gothic14`, `gothic14Bold`, `gothic18`, `gothic18Bold`, `gothic24`, `gothic24Bold`, `gothic28`, `gothic28Bold`
+- **Bitham:** `bitham30Black`, `bitham42Bold`, `bitham42Light`, `bitham34MediumNumbers`, `bitham42MediumNumbers`
+- **Roboto:** `robotoCondensed21`, `roboto21`
+- **LECO:** `leco20`, `leco26`, `leco28`, `leco32`, `leco36`, `leco38`, `leco42`
+- **Droid:** `droid28`
 
 ### Colors
 
@@ -150,110 +188,91 @@ The compiler renders your component multiple times with different state values a
 | `useTime()` dependent text | Render at two mock times, diff labels | `onTimeChanged` + `pad(d.getHours())` |
 | `useState(number)` dependent text | Perturb value +42, diff labels | `this.s0 += 1; this.sl1.string = "" + this.s0` |
 | `useState(boolean)` conditional text | Perturb true/false, diff labels | `this.sl0.string = this.s0 ? "ON" : "OFF"` |
+| `useState(boolean)` + time text | Perturb boolean, detect time format in result | Elapsed-time tracking: `Date.now() - this._startTime` |
 | `useState(boolean)` conditional tree | Perturb true/false, diff tree shape | Two branch Containers with `.visible` toggling |
 | `useState(string)` enum branching | Extract values from handler AST, perturb each | N-way `.visible` toggling |
 | Skin/background reactivity | Perturb state, diff rect fills | `.skin` swap between pre-declared Skins |
-| `useButton` increment/decrement/reset | TypeScript AST analysis of handler | `PebbleButton({ type: "up", onPush: ... })` |
+| `useButton` increment/decrement | AST analysis of handler | `PebbleButton({ type: "up", onPush: ... })` |
+| `useButton` clamped increment | Detects `Math.min(x+N, max)` / `Math.max(x-N, min)` | Same as increment with clamping |
+| `useButton` modular increment | Detects `(x+N) % M` pattern | `this.s0 = (this.s0 + 1) % 3` |
 | `useButton` toggle | AST detects `v => !v` pattern | `this.s0 = !this.s0; this.refresh()` |
 | `useButton` set string | AST detects `setState('value')` | `this.s0 = "detail"; this.refresh()` |
 | `.map()` list rendering | AST detects `.map()` + `.slice()` | Pre-allocated Label slots with scroll behavior |
+| Multi-label list items | Detects labelsPerItem > 1, matches property order | Named groups with property-mapped labels |
 | Setter→slot mapping | AST parses `const [x, setX] = useState` | Correct `this.s{N}` per setter |
-| Async data loading | `SETTLE_MS=200` waits for effects | Snapshot includes loaded data |
+| `useMessage` data loading | AST detects `useMessage({ key, mockData })` | `Message` class + `onReadable` + label updates |
+| Phone-side JS generation | Extracts mockData from source AST | `Pebble.sendAppMessage` with mock data |
+| Animated positions | Diff element positions between T1/T2, sample 60 keyframes | Keyframe arrays + position updates in `onTimeChanged` |
 | Watchface vs watchapp mode | Auto-detects from button usage | Sets `package.json` watchface flag |
 
 ## Examples
 
-### Watchface (live clock)
-```bash
-EXAMPLE=watchface npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
-```
-Displays hours:minutes, seconds, and date. Updates every second via piu `onTimeChanged`.
+21 working examples covering all features:
 
-### Counter (interactive buttons)
-```bash
-EXAMPLE=counter npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
-```
-UP increments, DOWN decrements, SELECT resets to 0. Uses `PebbleButton` native module.
+### Watchfaces
+| Example | Features |
+|---------|----------|
+| `watchface` | Digital clock, date, useTime |
+| `analog-clock` | Circle markers, time-driven layout |
+| `dashboard` | StatusBar, useBattery, useConnection, rounded rects, Column layout |
+| `weather` | Circles, multi-section layout |
 
-### Toggle (boolean state + skin reactivity)
-```bash
-EXAMPLE=toggle npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
-```
-SELECT toggles between ON/OFF text and swaps background red↔green (skin reactivity).
+### Interactive Apps
+| Example | Features |
+|---------|----------|
+| `counter` | UP/DOWN/SELECT buttons, useState |
+| `toggle` | Boolean toggle, skin reactivity |
+| `stopwatch` | Start/stop/reset, elapsed time tracking |
+| `settings` | Font size +/-, theme cycling, rounded cards, ActionBar |
+| `views` | Two-view branching (SELECT toggles) |
+| `multiview` | Three-way string enum navigation |
 
-### Views (structural branching)
-```bash
-EXAMPLE=views npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
-```
-SELECT switches between a list view (3 labels) and detail view (5 labels, blue background). Uses piu `.visible` toggling on pre-rendered branch Containers.
+### Lists
+| Example | Features |
+|---------|----------|
+| `simple-list` | 5 items, 3 visible, scroll |
+| `selected-list` | Scroll + highlight + counter |
+| `rich-list` | Multi-label items (title + status) |
+| `tasks` | List/detail + scroll + highlight + 4-button nav |
+| `jira-lite` | Flagship: issues list/detail, priority circles, all features |
+| `jira-list` | JIRA issues with useListNavigation |
+| `async-list` | useMessage + phone data loading |
 
-### Multiview (3-way string enum)
-```bash
-EXAMPLE=multiview npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
-```
-UP=Settings, DOWN=About, SELECT=Home. Three named branch Containers with string-equality visibility conditions.
+### Animation & Sensors
+| Example | Features |
+|---------|----------|
+| `animation` | useAnimation, Easing.bounceEaseOut, keyframe-driven positions |
+| `compass` | useCompass, useAccelerometer, diagonal lines, circles |
+| `layout-demo` | Column, Row, diagonal lines, stroked circles |
+| `circles` | Circle rendering showcase |
 
-### Simple List (scrollable .map())
-```bash
-EXAMPLE=simple-list npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
-```
-5 string items, 3 visible at a time, UP/DOWN scrolls. Pre-allocated Label slots updated via `.string` on scroll.
+### Deploy any example
 
-### Tasks (multi-feature app)
-```bash
-EXAMPLE=tasks npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
-```
-List/detail view switching (string enum branching) + selection counter (numeric state) + selection highlight (skin reactivity) + 4-button navigation. The most complex working example.
-
-### Analog Clock (circles + time)
-```bash
-./scripts/deploy.sh analog-clock
-```
-Analog-style clock face with 12 hour markers (circles), red center dot, digital time, seconds, and date. Showcases circles + useTime.
-
-### Rich List (multi-label items)
-```bash
-./scripts/deploy.sh rich-list
-```
-5 items with title + status subtitle, 3 visible, scrollable. Each list item has 2 labels updated from an object array on scroll.
-
-### Selected List (scroll + highlight)
-```bash
-./scripts/deploy.sh selected-list
-```
-Scrollable list with selection highlight (dark gray background on selected item) + counter text ("1/5") that updates on scroll.
-
-### JIRA Lite (flagship demo)
-```bash
-./scripts/deploy.sh jira-lite
-```
-Full JIRA-style issue tracker: list/detail view switching + scrollable multi-label list + selection highlight + circle priority indicator + 4-button navigation. Uses every compiler feature.
-
-### JIRA List (async data + complex layout)
-```bash
-EXAMPLE=jira-list SETTLE_MS=200 npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
-```
-Renders 5 JIRA issues with keys, summaries, statuses, and priorities. Static snapshot of the loaded state.
-
-## Deploying to emulator
-
-One-command deploy:
 ```bash
 ./scripts/deploy.sh watchface           # compile + build + install + screenshot
 ./scripts/deploy.sh jira-lite --logs    # with live log streaming
-./scripts/deploy.sh counter             # auto-detects watchapp mode for buttons
+SETTLE_MS=200 ./scripts/deploy.sh async-list  # async data loading
 ```
 
-Manual steps (from packages/react-pebble/):
+## Emulator testing
+
+Full emulator test suite with button press verification:
+
 ```bash
-EXAMPLE=watchface npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
-cd .pebble-build && pebble build && pebble install --emulator emery --logs
-pebble screenshot /tmp/screenshot.png   # capture the screen
+./scripts/test-emulator.sh              # test all examples
+./scripts/test-emulator.sh counter      # test one example
+```
+
+The script deploys each example, takes screenshots, sends button presses via `pebble emu-button`, and screenshots each state transition. Results saved to `/tmp/react-pebble-emu-test/`.
+
+Manual emulator commands:
+```bash
 pebble emu-button click up              # simulate button press
+pebble emu-button click select
+pebble emu-tap --direction x+           # simulate accelerometer tap
+pebble screenshot /tmp/screenshot.png   # capture the screen
 pebble kill                             # stop emulator
 ```
-
-Requires Pebble SDK v4.9+ (Rebble fork) with the Alloy project type.
 
 ## Architecture
 
@@ -262,18 +281,22 @@ packages/
   react-pebble/              — npm: react-pebble
     src/
       compiler/index.ts      — Programmatic compiler API
-      plugin/index.ts        — Vite plugin (pebblePiu)
-      components/index.tsx   — JSX wrappers (<Rect>, <Text>, <Circle>, etc.)
-      hooks/index.ts         — Hooks (useTime, useButton, useState, useMessage)
+      plugin/index.ts        — Vite plugin (pebblePiu) with multi-platform + phone JS generation
+      components/index.tsx   — JSX wrappers (<Rect>, <Text>, <Circle>, <Column>, <Row>, etc.)
+      hooks/index.ts         — 15+ hooks (time, buttons, sensors, storage, networking, animation)
       pebble-dom.ts          — Virtual DOM
       pebble-dom-shim.ts     — DOM adapter for Preact
+      pebble-output.ts       — Poco renderer (circles, lines, rounded rects, text wrapping)
       pebble-render.ts       — Mock renderer entry point
       platform.ts            — Screen dimensions (SCREEN.width/height)
+      types/moddable.d.ts    — Alloy runtime type declarations (Poco, Battery, Watch)
       index.ts               — Public API
     scripts/
       compile-to-piu.ts      — The compiler: JSX → pebble-dom → piu output
-    examples/                — 17 working examples
-    test/                    — 14 snapshot tests
+      deploy.sh              — One-command deploy to emulator
+      test-emulator.sh       — Full emulator test suite with button verification
+    examples/                — 21 working examples
+    test/                    — 21 snapshot tests
   create-pebble-app/         — npm: create-pebble-app
     index.js                 — Project scaffolder CLI
 ```
@@ -281,11 +304,11 @@ packages/
 ## Limitations
 
 - **Emery/gabbro only.** Alloy projects target emery (200x228) and gabbro platforms. Basalt/chalk/aplite are not supported by Alloy.
-- **~3 KB runtime heap.** Alloy mods get minimal heap from the firmware. No VDOM framework runs on-watch — all reactivity is compiled away.
-- **Single-label list items.** `.map()` lists currently support one Label per item. Multi-label templates (e.g., IssueCard with title + status + priority) need extension.
-- **No nested conditionals.** `if/else` inside `if/else` is not yet handled.
-- **Button API is best-guess.** We use `PebbleButton` from `"pebble/button"` which is confirmed working, but long-press and multi-button combos are untested.
-- **Circles not implemented.** Poco has no native circle primitive; would need the `commodetto/outline` extension.
+- **~3 KB runtime heap.** Alloy mods get minimal heap. No VDOM framework runs on-watch — all reactivity is compiled away.
+- **No nested conditionals.** `if/else` inside `if/else` is partially handled but may not compile correctly in all cases.
+- **useLocalStorage not compiler-tracked.** The hook works at Preact runtime, but the piu compiler can't track setter→slot mappings through the wrapper. Use `useState` for state that buttons modify in compiled apps.
+- **Animation is 1fps in compiled mode.** The keyframe sampling produces per-second updates. Smooth animation requires piu Timeline (not yet emitted).
+- **Button API is best-guess.** `PebbleButton` from `"pebble/button"` works for click events. Long-press and multi-button combos are untested.
 
 ## Key discovery: why React can't run on Pebble
 
