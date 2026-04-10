@@ -602,6 +602,16 @@ function ensureStyle(ctx: EmitContext, font: string, color: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Per-subtree conditional tracking (hoisted for emitNode access)
+interface ConditionalChild {
+  stateSlot: number;
+  childIndex: number;
+  type: 'removed' | 'added';
+}
+const conditionalChildren: ConditionalChild[] = [];
+let emitConditionals = false; // Only wrap conditionals during final emit
+let conditionalDepth = 0; // Track nesting — only wrap at depth 1 (root Group's children)
+
 // Emit piu tree
 // ---------------------------------------------------------------------------
 
@@ -621,8 +631,27 @@ function emitNode(
   switch (el.type) {
     case 'pbl-root':
     case 'pbl-group': {
+      if (el.type === 'pbl-group') conditionalDepth++;
       const kids = el.children
-        .map((c) => emitNode(c, ctx, indent + '  ', dynamicLabels, stateDeps, skinDeps))
+        .map((c, childIdx) => {
+          const emitted = emitNode(c, ctx, indent + '  ', dynamicLabels, stateDeps, skinDeps);
+          if (!emitted) return null;
+
+          // Check if this child is a per-subtree conditional
+          // (only applies to children of the root Group, which is child 0 of pbl-root)
+          // Only wrap at the root Group level (depth 1), not nested Groups
+          if (el.type === 'pbl-group' && emitConditionals && conditionalDepth === 1 && conditionalChildren.length > 0) {
+            const cond = conditionalChildren.find(
+              cc => cc.childIndex === childIdx && cc.type === 'removed'
+            );
+            if (cond) {
+              const name = `cv_s${cond.stateSlot}_${childIdx}`;
+              return `${indent}  new Container(null, { name: "${name}", visible: true, left: 0, right: 0, top: 0, bottom: 0, contents: [\n${emitted}\n${indent}  ] })`;
+            }
+          }
+
+          return emitted;
+        })
         .filter(Boolean);
       if (el.type === 'pbl-root') return kids.join(',\n');
       const x = num(p, 'x');
@@ -647,6 +676,7 @@ function emitNode(
         }
       }
 
+      if (el.type === 'pbl-group') conditionalDepth--;
       return `${indent}new Container(null, { ${groupNameProp}${layout}contents: [\n${kids.join(',\n')}\n${indent}] })`;
     }
 
@@ -843,7 +873,7 @@ const restore = () => {
   console.log = origLog;
 };
 
-// Hoisted declarations for list slots (populated during list detection below)
+// Hoisted declarations (populated during detection phases below)
 const listSlotLabels = new Set<number>();
 let listScrollSlotIndex = -1;
 
@@ -891,7 +921,7 @@ const ctx1: EmitContext = {
 };
 emitNode(app1._root, ctx1, '', null, null);
 const t1Texts = new Map(ctx1.labelTexts);
-app1.unmount();
+// Don't unmount app1 yet — we need its _root for per-subtree tree diff
 
 process.stderr.write(`State slots discovered: ${stateSlots.length}\n`);
 process.stderr.write(`Button bindings discovered: ${buttonBindings.length}\n`);
@@ -916,6 +946,63 @@ interface BranchInfo {
   perturbedLabels: Map<number, string>;
 }
 const branchInfos: BranchInfo[] = [];
+
+// Per-subtree conditionals use the hoisted `conditionalChildren` array
+// (declared before emitNode so it's accessible during rendering).
+
+/**
+ * Compare children of two pebble-dom Group nodes to find which children
+ * were added or removed when a state was perturbed.
+ *
+ * Uses a simple fingerprint match: each child is identified by its type
+ * + first text content. Children present in baseline but not perturbed
+ * are 'removed' (conditional on the truthy state).
+ */
+function diffTreeChildren(
+  baselineRoot: DOMElement,
+  perturbedRoot: DOMElement,
+  stateSlot: number,
+): ConditionalChild[] {
+  const result: ConditionalChild[] = [];
+
+  // Get the actual Group container (root → first child which is the Group)
+  const baseGroup = baselineRoot.children[0];
+  const pertGroup = perturbedRoot.children[0];
+  if (!baseGroup || baseGroup.type === '#text' || !pertGroup || pertGroup.type === '#text') {
+    return result;
+  }
+
+  const baseChildren = (baseGroup as DOMElement).children.filter(c => c.type !== '#text');
+  const pertChildren = (pertGroup as DOMElement).children.filter(c => c.type !== '#text');
+
+  // Fingerprint each child: type + first text descendant
+  function fingerprint(node: AnyNode): string {
+    if (node.type === '#text') return `#text:${node.value}`;
+    const el = node as DOMElement;
+    const firstText = el.children.find(c => c.type === '#text' || (c.type !== '#text' && getTextContent(c)));
+    const text = firstText ? getTextContent(firstText) : '';
+    return `${el.type}:${text.slice(0, 30)}`;
+  }
+
+  const baseFPs = baseChildren.map(fingerprint);
+  const pertFPs = pertChildren.map(fingerprint);
+
+  // Find children in baseline but not in perturbed (removed when state perturbed)
+  for (let i = 0; i < baseFPs.length; i++) {
+    if (!pertFPs.includes(baseFPs[i]!)) {
+      result.push({ stateSlot, childIndex: i, type: 'removed' });
+    }
+  }
+
+  // Find children in perturbed but not in baseline (added when state perturbed)
+  for (let i = 0; i < pertFPs.length; i++) {
+    if (!baseFPs.includes(pertFPs[i]!)) {
+      result.push({ stateSlot, childIndex: i, type: 'added' });
+    }
+  }
+
+  return result;
+}
 
 /**
  * For string enum states, return the set of possible values from button
@@ -1057,7 +1144,29 @@ for (const slot of stateSlots) {
             );
           }
         }
+      } else if (typeof slot.initialValue === 'boolean') {
+        // Boolean state with structural change → per-subtree conditional
+        // Diff the tree to find which specific children appeared/disappeared
+        const diffs = diffTreeChildren(app1._root, appP._root, slot.index);
+        if (diffs.length > 0) {
+          conditionalChildren.push(...diffs);
+          process.stderr.write(
+            `  State slot ${slot.index}: ${diffs.length} conditional child(ren) detected\n`,
+          );
+        } else {
+          // Fallback to whole-tree branch if diff couldn't identify subtrees
+          process.stderr.write(
+            `  State slot ${slot.index} causes structural change: ${baseKeys.length} labels → ${pertKeys.length} labels\n`,
+          );
+          branchInfos.push({
+            stateSlot: slot.index,
+            perturbedValue,
+            baselineLabels: new Map(t1Texts),
+            perturbedLabels: new Map(ctxP.labelTexts),
+          });
+        }
       } else {
+        // Non-boolean (string enum etc.) → whole-tree branching as before
         process.stderr.write(
           `  State slot ${slot.index} causes structural change: ${baseKeys.length} labels → ${pertKeys.length} labels\n`,
         );
@@ -1077,8 +1186,14 @@ for (const slot of stateSlots) {
   } // end for perturbedValues
 }
 
+// Now safe to unmount baseline
+app1.unmount();
+
 process.stderr.write(`State-dependent labels: ${stateDeps.size}\n`);
 process.stderr.write(`Structural branches: ${branchInfos.length}\n`);
+if (conditionalChildren.length > 0) {
+  process.stderr.write(`Conditional subtrees: ${conditionalChildren.length}\n`);
+}
 
 // ---------------------------------------------------------------------------
 // List slot detection: identify which labels are .map() items
@@ -1250,6 +1365,7 @@ const branchesBySlot = new Map<number, BranchOutput[]>();
 if (branchInfos.length > 0) {
 
   // Baseline tree (for each slot that has branches)
+  emitConditionals = true;
   const baselineTree = emitNode(appFinal._root, ctx, '      ', dynamicLabels, stateDeps, skinDeps);
 
   const affectedSlots = new Set(branchInfos.map((b) => b.stateSlot));
@@ -1302,6 +1418,7 @@ if (branchInfos.length > 0) {
   contents = branchLines.join(',\n');
 } else {
   // No structural branches — emit the single tree as before
+  emitConditionals = true;
   contents = emitNode(appFinal._root, ctx, '    ', dynamicLabels, stateDeps, skinDeps);
 }
 appFinal.unmount();
@@ -1332,9 +1449,10 @@ const hasTimeDeps = dynamicLabels.size > 0;
 const hasStateDeps = stateDeps.size > 0;
 const hasButtons = buttonActions.length > 0;
 const hasBranches = branchInfos.length > 0;
+const hasConditionals = conditionalChildren.length > 0;
 const hasSkinDeps = skinDeps.size > 0;
 const hasList = listInfo !== null && listSlotLabels.size > 0;
-const hasBehavior = hasTimeDeps || hasStateDeps || hasButtons || hasBranches || hasSkinDeps || hasList;
+const hasBehavior = hasTimeDeps || hasStateDeps || hasButtons || hasBranches || hasSkinDeps || hasList || hasConditionals;
 
 const lines: string[] = [
   '// Auto-generated by react-pebble compile-to-piu (v3 with state reactivity)',
@@ -1429,6 +1547,14 @@ if (hasBehavior) {
   for (const [si, branches] of branchesBySlot ?? []) {
     for (let bi = 0; bi < branches.length; bi++) {
       lines.push(`    this.br_s${si}_v${bi} = app.content("br_s${si}_v${bi}");`);
+    }
+  }
+
+  // Per-subtree conditional refs
+  for (const cc of conditionalChildren) {
+    if (cc.type === 'removed') {
+      const name = `cv_s${cc.stateSlot}_${cc.childIndex}`;
+      lines.push(`    this.${name} = c.content("${name}");`);
     }
   }
 
@@ -1579,6 +1705,13 @@ if (hasBehavior) {
       lines.push(`    this.sr${rIdx}.skin = this.s${dep.slotIndex} ? ${pertSkinVar} : ${baseSkinVar};`);
     } else {
       lines.push(`    this.sr${rIdx}.skin = (this.s${dep.slotIndex} !== ${JSON.stringify(slot?.initialValue)}) ? ${pertSkinVar} : ${baseSkinVar};`);
+    }
+  }
+  // Per-subtree conditional visibility
+  for (const cc of conditionalChildren) {
+    if (cc.type === 'removed') {
+      const name = `cv_s${cc.stateSlot}_${cc.childIndex}`;
+      lines.push(`    this.${name}.visible = !!this.s${cc.stateSlot};`);
     }
   }
   // Branch visibility toggles
