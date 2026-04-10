@@ -51,7 +51,8 @@ export async function compileToPiu(options: CompileOptions): Promise<CompileResu
   const log = options.logger ?? (() => {});
   const projectRoot = options.projectRoot ?? process.cwd();
 
-  // Resolve the entry to an example name (for backwards compat with the script)
+  // Resolve the entry path — pass the full path so the script can find it
+  // whether it's an internal example or an external project file
   const entryPath = resolve(projectRoot, options.entry);
   const exampleName = basename(entryPath).replace(/\.[jt]sx?$/, '');
 
@@ -65,7 +66,7 @@ export async function compileToPiu(options: CompileOptions): Promise<CompileResu
 
   const env: Record<string, string> = {
     ...process.env as Record<string, string>,
-    EXAMPLE: exampleName,
+    EXAMPLE: entryPath,
   };
   if (options.settleMs) {
     env.SETTLE_MS = String(options.settleMs);

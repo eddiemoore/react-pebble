@@ -36,18 +36,31 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Dynamic example import
 // ---------------------------------------------------------------------------
 
-const exampleName = process.env.EXAMPLE ?? 'watchface';
+const exampleInput = process.env.EXAMPLE ?? 'watchface';
 const settleMs = Number(process.env.SETTLE_MS ?? '0');
 const platform = process.env.PEBBLE_PLATFORM ?? 'emery';
 const settle = () =>
   settleMs > 0 ? new Promise<void>((r) => setTimeout(r, settleMs)) : Promise.resolve();
 
 // Set platform screen dimensions before importing the example
-// (so SCREEN.width/height are correct when the component renders)
 import { _setPlatform, SCREEN } from '../src/platform.js';
 _setPlatform(platform);
 
-const exampleMod = await import(`../examples/${exampleName}.js`);
+// Resolve the entry: could be a bare name (e.g., "watchface") for internal examples,
+// or an absolute/relative path (e.g., "/tmp/my-app/src/App.tsx") for external projects.
+let entryPath: string;
+let exampleName: string;
+if (exampleInput.includes('/') || exampleInput.includes('\\')) {
+  // Absolute or relative path — resolve from cwd
+  entryPath = resolve(exampleInput);
+  exampleName = entryPath.replace(/\.[jt]sx?$/, '').split('/').pop()!;
+} else {
+  // Bare name — look in ../examples/
+  entryPath = resolve(__dirname, '..', 'examples', `${exampleInput}.tsx`);
+  exampleName = exampleInput;
+}
+
+const exampleMod = await import(entryPath);
 const exampleMain: (...args: unknown[]) => ReturnType<typeof render> =
   exampleMod.main ?? exampleMod.default;
 
@@ -165,8 +178,17 @@ const buttonBindings: ButtonBinding[] = [];
  * Parse an example source file into a TypeScript AST SourceFile.
  */
 function parseExampleSource(exName: string): ts.SourceFile | null {
-  for (const ext of ['.tsx', '.ts', '.jsx']) {
-    const srcPath = resolve(__dirname, '..', 'examples', `${exName}${ext}`);
+  // If exName is an absolute path, try it directly
+  if (exName.startsWith('/')) {
+    try {
+      const source = readFileSync(exName, 'utf-8');
+      return ts.createSourceFile(exName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    } catch { /* fall through to extension search */ }
+  }
+  for (const ext of ['.tsx', '.ts', '.jsx', '']) {
+    const srcPath = exName.startsWith('/')
+      ? `${exName}${ext}`
+      : resolve(__dirname, '..', 'examples', `${exName}${ext}`);
     try {
       const source = readFileSync(srcPath, 'utf-8');
       return ts.createSourceFile(srcPath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -248,8 +270,8 @@ function buildSetterSlotMap(exName: string): Map<string, number> {
   return map;
 }
 
-const setterSlotMap = buildSetterSlotMap(exampleName);
-const listInfo = detectListPatterns(exampleName);
+const setterSlotMap = buildSetterSlotMap(entryPath);
+const listInfo = detectListPatterns(entryPath);
 if (listInfo) {
   process.stderr.write(`List detected: array="${listInfo.dataArrayName}" visible=${listInfo.visibleCount} labelsPerItem=${listInfo.labelsPerItem}\n`);
   if (listInfo.dataArrayValues) process.stderr.write(`  values: ${JSON.stringify(listInfo.dataArrayValues)}\n`);
@@ -298,7 +320,7 @@ function detectUseMessage(exName: string): MessageInfo | null {
   return { key, mockDataArrayName };
 }
 
-const messageInfo = detectUseMessage(exampleName);
+const messageInfo = detectUseMessage(entryPath);
 if (messageInfo) {
   process.stderr.write(`useMessage detected: key="${messageInfo.key}"${messageInfo.mockDataArrayName ? ` mockData=${messageInfo.mockDataArrayName}` : ''}\n`);
 }
@@ -879,7 +901,7 @@ let listScrollSlotIndex = -1;
 
 // Install interceptors BEFORE any rendering
 installUseStateInterceptor();
-extractButtonBindingsFromSource(exampleName);
+extractButtonBindingsFromSource(entryPath);
 
 // Create BOTH test dates with the REAL Date before any mocking.
 const OrigDate = globalThis.Date;
