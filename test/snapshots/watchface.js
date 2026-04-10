@@ -48,11 +48,11 @@ const WatchApp = Application.template(() => ({
   Behavior: AppBehavior,
   contents: [
       new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-        new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk0 }),
-        new Content(null, { left: 8, top: 24, width: 184, height: 1, skin: sk1 }),
+        new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
+        new Content(null, { left: 8, width: 184, top: 24, height: 1, skin: sk1 }),
         new Label(null, { top: 50, left: 0, width: 200, style: st0, horizontal: "center", name: "tl0", string: "09:07" }),
         new Label(null, { top: 110, left: 0, width: 200, style: st1, horizontal: "center", name: "tl1", string: "03" }),
-        new Content(null, { left: 8, top: 150, width: 184, height: 1, skin: sk1 }),
+        new Content(null, { left: 8, width: 184, top: 150, height: 1, skin: sk1 }),
         new Label(null, { top: 160, left: 0, width: 200, style: st2, horizontal: "center", name: "tl2", string: "Thu Jan 15" })
       ] })
   ],

@@ -51,7 +51,7 @@ const WatchApp = Application.template(() => ({
   Behavior: AppBehavior,
   contents: [
       new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-        new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk0 }),
+        new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
         new Label(null, { top: 4, left: 0, width: 200, style: st0, horizontal: "center", string: "Items" }),
         new Label(null, { top: 40, left: 10, width: 180, style: st1, name: "ls0", string: "Alpha" }),
         new Label(null, { top: 90, left: 10, width: 180, style: st1, name: "ls1", string: "Beta" }),

@@ -80,24 +80,24 @@ const WatchApp = Application.template(() => ({
   contents: [
     new Container(null, { name: "br_s0_v0", visible: true, left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk0 }),
-          new Content(null, { left: 0, top: 0, width: 200, height: 28, skin: sk1 }),
+          new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
+          new Content(null, { left: 0, right: 0, top: 0, height: 28, skin: sk1 }),
           new Label(null, { top: 4, left: 4, width: 140, style: st0, string: "JIRA Issues" }),
           new Label(null, { top: 4, left: 144, width: 52, style: st1, horizontal: "right", name: "sl1", string: "1/5" }),
           new Container(null, { name: "lg0", left: 0, top: 32, contents: [
-            new Content(null, { left: 0, top: 0, width: 200, height: 60, skin: sk2 }),
+            new Content(null, { left: 0, right: 0, top: 0, height: 60, skin: sk2 }),
             new Label(null, { top: 4, left: 8, width: 184, style: st2, name: "ls0_0", string: "PROJ-1" }),
             new Label(null, { top: 26, left: 8, width: 184, style: st3, name: "ls0_1", string: "Fix login timeout" }),
             new Label(null, { top: 42, left: 8, width: 184, style: st4, name: "ls0_2", string: "In Progress" })
           ] }),
           new Container(null, { name: "lg1", left: 0, top: 94, contents: [
-            new Content(null, { left: 0, top: 0, width: 200, height: 60, skin: sk0 }),
+            new Content(null, { left: 0, right: 0, top: 0, height: 60, skin: sk0 }),
             new Label(null, { top: 4, left: 8, width: 184, style: st2, name: "ls1_0", string: "PROJ-2" }),
             new Label(null, { top: 26, left: 8, width: 184, style: st3, name: "ls1_1", string: "Update dependencies" }),
             new Label(null, { top: 42, left: 8, width: 184, style: st4, name: "ls1_2", string: "To Do" })
           ] }),
           new Container(null, { name: "lg2", left: 0, top: 156, contents: [
-            new Content(null, { left: 0, top: 0, width: 200, height: 60, skin: sk0 }),
+            new Content(null, { left: 0, right: 0, top: 0, height: 60, skin: sk0 }),
             new Label(null, { top: 4, left: 8, width: 184, style: st2, name: "ls2_0", string: "PROJ-3" }),
             new Label(null, { top: 26, left: 8, width: 184, style: st3, name: "ls2_1", string: "Add dark mode" }),
             new Label(null, { top: 42, left: 8, width: 184, style: st4, name: "ls2_2", string: "In Review" })
@@ -106,7 +106,7 @@ const WatchApp = Application.template(() => ({
     ] }),
     new Container(null, { name: "br_s0_v1", visible: false, left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk3 }),
+          new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk3 }),
           new Label(null, { top: 8, left: 0, width: 200, style: st2, horizontal: "center", string: "PROJ-1" }),
           new Label(null, { top: 50, left: 10, width: 180, style: st5, string: "Fix login timeout" }),
           new RoundRect(null, { left: 10, top: 110, width: 16, height: 16, radius: 8, skin: sk4 }),

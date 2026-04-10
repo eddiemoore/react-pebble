@@ -40,7 +40,7 @@ const WatchApp = Application.template(() => ({
   Behavior: AppBehavior,
   contents: [
       new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-        new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk0, name: "sr0" }),
+        new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0, name: "sr0" }),
         new Label(null, { top: 90, left: 0, width: 200, style: st0, horizontal: "center", name: "sl0", string: "OFF" }),
         new Label(null, { top: 180, left: 0, width: 200, style: st1, horizontal: "center", string: "SELECT to toggle" })
       ] })

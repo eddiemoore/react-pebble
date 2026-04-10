@@ -40,11 +40,13 @@ export interface PebblePiuOptions {
   entry: string;
   /** Milliseconds to wait for async effects before snapshotting */
   settleMs?: number;
+  /** Target platform — sets screen dimensions (default: 'emery') */
+  platform?: string;
   /** Directory for the generated Pebble project (default: '.pebble-build') */
   buildDir?: string;
   /** Auto-run pebble build + install after compilation */
   deploy?: boolean;
-  /** Emulator platform for deploy (default: 'emery') */
+  /** Emulator platform for deploy (default: same as platform) */
   emulator?: string;
 }
 
@@ -67,6 +69,7 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
       const result = await compileToPiu({
         entry: options.entry,
         settleMs: options.settleMs,
+        platform: options.platform,
         logger: log,
       });
 
@@ -85,7 +88,7 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
 
       // 4. Optionally build + deploy
       if (options.deploy) {
-        const emu = options.emulator ?? 'emery';
+        const emu = options.emulator ?? options.platform ?? 'emery';
         log('Running pebble build...');
         try {
           execSync('pebble build', { cwd: buildDir, stdio: 'inherit' });
@@ -94,7 +97,7 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
             cwd: buildDir,
             stdio: 'ignore',
           });
-          execSync(`pebble install --emulator ${emu}`, {
+        execSync(`pebble install --emulator ${emu}`, {
             cwd: buildDir,
             stdio: 'inherit',
             timeout: 30000,

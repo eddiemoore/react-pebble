@@ -42,7 +42,7 @@ const WatchApp = Application.template(() => ({
   contents: [
     new Container(null, { name: "br_s0_v0", visible: true, left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk0 }),
+          new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
           new Label(null, { top: 20, left: 0, width: 200, style: st0, horizontal: "center", string: "List View" }),
           new Label(null, { top: 60, left: 10, width: 180, style: st1, string: "Item 1" }),
           new Label(null, { top: 200, left: 0, width: 200, style: st2, horizontal: "center", string: "SELECT for detail" })
@@ -50,7 +50,7 @@ const WatchApp = Application.template(() => ({
     ] }),
     new Container(null, { name: "br_s0_v1", visible: false, left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk1 }),
+          new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk1 }),
           new Label(null, { top: 20, left: 0, width: 200, style: st0, horizontal: "center", string: "Detail View" }),
           new Label(null, { top: 60, left: 10, width: 180, style: st1, string: "Name: Widget A" }),
           new Label(null, { top: 90, left: 10, width: 180, style: st1, string: "Status: Active" }),

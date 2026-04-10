@@ -23,6 +23,8 @@ export interface CompileOptions {
   entry: string;
   /** Milliseconds to wait for async effects (useEffect/setTimeout) */
   settleMs?: number;
+  /** Target platform (default: 'emery') */
+  platform?: string;
   /** Logger for diagnostic messages */
   logger?: (msg: string) => void;
   /** Project root directory (default: process.cwd()) */
@@ -67,6 +69,9 @@ export async function compileToPiu(options: CompileOptions): Promise<CompileResu
   };
   if (options.settleMs) {
     env.SETTLE_MS = String(options.settleMs);
+  }
+  if (options.platform) {
+    env.PEBBLE_PLATFORM = options.platform;
   }
 
   // Run the compiler script and capture stdout (code) + stderr (diagnostics)

@@ -44,7 +44,7 @@ const WatchApp = Application.template(() => ({
   Behavior: AppBehavior,
   contents: [
       new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-        new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk0 }),
+        new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
         new RoundRect(null, { left: 50, top: 30, width: 80, height: 80, radius: 40, skin: sk1 }),
         new RoundRect(null, { left: 110, top: 30, width: 80, height: 80, radius: 40, skin: sk2 }),
         new RoundRect(null, { left: 80, top: 100, width: 60, height: 60, radius: 30, skin: sk3 }),

@@ -58,17 +58,17 @@ const WatchApp = Application.template(() => ({
   contents: [
     new Container(null, { name: "br_s0_v0", visible: true, left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk0 }),
-          new Content(null, { left: 0, top: 0, width: 200, height: 28, skin: sk1 }),
+          new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
+          new Content(null, { left: 0, right: 0, top: 0, height: 28, skin: sk1 }),
           new Label(null, { top: 4, left: 4, width: 140, style: st0, string: "My Tasks" }),
           new Label(null, { top: 4, left: 144, width: 52, style: st1, horizontal: "right", name: "sl1", string: "1/3" }),
-          new Content(null, { left: 0, top: 30, width: 200, height: 60, skin: sk2, name: "sr2" }),
+          new Content(null, { left: 0, right: 0, top: 30, height: 60, skin: sk2, name: "sr2" }),
           new Label(null, { top: 34, left: 8, width: 184, style: st2, string: "Fix login bug" }),
           new Label(null, { top: 52, left: 8, width: 184, style: st3, string: "In Progress" }),
-          new Content(null, { left: 0, top: 92, width: 200, height: 60, skin: sk0 }),
+          new Content(null, { left: 0, right: 0, top: 92, height: 60, skin: sk0 }),
           new Label(null, { top: 96, left: 8, width: 184, style: st2, string: "Update docs" }),
           new Label(null, { top: 114, left: 8, width: 184, style: st3, string: "To Do" }),
-          new Content(null, { left: 0, top: 154, width: 200, height: 60, skin: sk0 }),
+          new Content(null, { left: 0, right: 0, top: 154, height: 60, skin: sk0 }),
           new Label(null, { top: 158, left: 8, width: 184, style: st2, string: "Deploy v2" }),
           new Label(null, { top: 176, left: 8, width: 184, style: st3, string: "Done" }),
           new Label(null, { top: 216, left: 0, width: 200, style: st1, horizontal: "center", string: "UP/DOWN nav, SELECT detail" })
@@ -76,7 +76,7 @@ const WatchApp = Application.template(() => ({
     ] }),
     new Container(null, { name: "br_s0_v1", visible: false, left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk3 }),
+          new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk3 }),
           new Label(null, { top: 16, left: 0, width: 200, style: st4, horizontal: "center", string: "Task Detail" }),
           new Label(null, { top: 60, left: 10, width: 180, style: st5, string: "Task #0" }),
           new Label(null, { top: 90, left: 10, width: 180, style: st3, string: "Status: In Progress" }),

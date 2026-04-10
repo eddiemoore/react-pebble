@@ -22,6 +22,10 @@
  *   render(<WatchFace />, { poco: Poco });
  */
 
+// Platform / screen dimensions
+export { SCREEN, PLATFORMS, _setPlatform } from './platform.js';
+export type { PebblePlatform } from './platform.js';
+
 // Core render API
 export { render } from './pebble-render.js';
 export type {

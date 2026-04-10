@@ -7,7 +7,8 @@ import {} from "piu/MC";
 import PebbleButton from "pebble/button";
 
 
-const sk0 = new Skin({ fill: "#ffffff" });
+const sk0 = new Skin({ fill: "#000000" });
+const sk1 = new Skin({ fill: "#ffffff" });
 const st0 = new Style({ font: "bold 18px Gothic", color: "#000000" });
 const st1 = new Style({ font: "bold 42px Bitham", color: "#ffffff" });
 const st2 = new Style({ font: "14px Gothic", color: "#c0c0c0" });
@@ -42,11 +43,12 @@ const WatchApp = Application.template(() => ({
   Behavior: AppBehavior,
   contents: [
       new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-        new Content(null, { left: 0, top: 16, width: 144, height: 28, skin: sk0 }),
-        new Label(null, { top: 18, left: 4, width: 136, style: st0, string: "Counter" }),
-        new Label(null, { top: 55, left: 0, width: 144, style: st1, horizontal: "center", name: "sl1", string: "0" }),
-        new Label(null, { top: 130, left: 4, width: 136, style: st2, horizontal: "center", string: "UP/DOWN to count" }),
-        new Label(null, { top: 148, left: 4, width: 136, style: st2, horizontal: "center", string: "SELECT to reset" })
+        new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
+        new Content(null, { left: 0, right: 0, top: 0, height: 32, skin: sk1 }),
+        new Label(null, { top: 6, left: 4, width: 192, style: st0, string: "Counter" }),
+        new Label(null, { top: 70, left: 0, width: 200, style: st1, horizontal: "center", name: "sl1", string: "0" }),
+        new Label(null, { top: 170, left: 0, width: 200, style: st2, horizontal: "center", string: "UP/DOWN to count" }),
+        new Label(null, { top: 190, left: 0, width: 200, style: st2, horizontal: "center", string: "SELECT to reset" })
       ] })
   ],
 }));

@@ -38,8 +38,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const exampleName = process.env.EXAMPLE ?? 'watchface';
 const settleMs = Number(process.env.SETTLE_MS ?? '0');
+const platform = process.env.PEBBLE_PLATFORM ?? 'emery';
 const settle = () =>
   settleMs > 0 ? new Promise<void>((r) => setTimeout(r, settleMs)) : Promise.resolve();
+
+// Set platform screen dimensions before importing the example
+// (so SCREEN.width/height are correct when the component renders)
+import { _setPlatform, SCREEN } from '../src/platform.js';
+_setPlatform(platform);
+
 const exampleMod = await import(`../examples/${exampleName}.js`);
 const exampleMain: (...args: unknown[]) => ReturnType<typeof render> =
   exampleMod.main ?? exampleMod.default;
@@ -660,13 +667,17 @@ function emitNode(
       const isSkinDynamic = skinDeps?.has(rectIdx) ?? false;
       const nameProp = isSkinDynamic ? `, name: "sr${rectIdx}"` : '';
 
+      // Use constraint-based layout when dimensions match screen size
+      // (so the output adapts to any screen at runtime)
+      const sizeProps = buildSizeProps(x, y, w, h);
+
       const kids = el.children
         .map((c) => emitNode(c, ctx, indent + '  ', dynamicLabels, stateDeps, skinDeps))
         .filter(Boolean);
       if (kids.length > 0) {
-        return `${indent}new Container(null, { left: ${x}, top: ${y}, width: ${w}, height: ${h}, skin: ${skinVar}${nameProp}, contents: [\n${kids.join(',\n')}\n${indent}] })`;
+        return `${indent}new Container(null, { ${sizeProps}, skin: ${skinVar}${nameProp}, contents: [\n${kids.join(',\n')}\n${indent}] })`;
       }
-      return `${indent}new Content(null, { left: ${x}, top: ${y}, width: ${w}, height: ${h}, skin: ${skinVar}${nameProp} })`;
+      return `${indent}new Content(null, { ${sizeProps}, skin: ${skinVar}${nameProp} })`;
     }
 
     case 'pbl-text': {
@@ -753,6 +764,33 @@ function buildPos(p: Record<string, unknown>): string {
   if (x) parts.push(`left: ${x}`);
   if (y) parts.push(`top: ${y}`);
   return parts.length > 0 ? parts.join(', ') + ', ' : '';
+}
+
+/**
+ * Build size props using constraint layout when dimensions match screen.
+ * full-width (w === SCREEN.width) → left: 0, right: 0
+ * full-height (h === SCREEN.height) → top: 0, bottom: 0
+ * Otherwise: absolute left/top/width/height
+ */
+function buildSizeProps(x: number, y: number, w: number, h: number): string {
+  const parts: string[] = [];
+
+  if (w >= SCREEN.width && x === 0) {
+    parts.push('left: 0', 'right: 0');
+  } else {
+    if (x !== 0) parts.push(`left: ${x}`);
+    else parts.push('left: 0');
+    parts.push(`width: ${w}`);
+  }
+
+  if (h >= SCREEN.height && y === 0) {
+    parts.push('top: 0', 'bottom: 0');
+  } else {
+    parts.push(`top: ${y}`);
+    parts.push(`height: ${h}`);
+  }
+
+  return parts.join(', ');
 }
 
 // ---------------------------------------------------------------------------

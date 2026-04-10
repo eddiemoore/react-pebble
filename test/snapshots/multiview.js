@@ -50,14 +50,14 @@ const WatchApp = Application.template(() => ({
   contents: [
     new Container(null, { name: "br_s0_v0", visible: true, left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk0 }),
+          new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
           new Label(null, { top: 40, left: 0, width: 200, style: st0, horizontal: "center", string: "Home" }),
           new Label(null, { top: 100, left: 0, width: 200, style: st1, horizontal: "center", string: "UP=Settings DOWN=About" })
         ] })
     ] }),
     new Container(null, { name: "br_s0_v1", visible: false, left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk1 }),
+          new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk1 }),
           new Label(null, { top: 40, left: 0, width: 200, style: st0, horizontal: "center", string: "Settings" }),
           new Label(null, { top: 100, left: 10, width: 180, style: st2, string: "Brightness: 80%" }),
           new Label(null, { top: 200, left: 0, width: 200, style: st3, horizontal: "center", string: "SELECT for home" })
@@ -65,7 +65,7 @@ const WatchApp = Application.template(() => ({
     ] }),
     new Container(null, { name: "br_s0_v2", visible: false, left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, top: 0, width: 200, height: 228, skin: sk2 }),
+          new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk2 }),
           new Label(null, { top: 40, left: 0, width: 200, style: st0, horizontal: "center", string: "About" }),
           new Label(null, { top: 100, left: 10, width: 180, style: st2, string: "react-pebble v0.1" }),
           new Label(null, { top: 130, left: 10, width: 180, style: st3, string: "Compiled to piu" }),
