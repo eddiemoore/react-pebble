@@ -531,64 +531,37 @@ export interface UseAnimationResult {
 /**
  * Animate a progress value from 0 to 1 over a duration with easing.
  *
- * Use the returned `progress` to interpolate any property:
- *   const x = startX + (endX - startX) * progress;
+ * Uses `useTime` internally so that animation progress is derived from
+ * the wall clock. This ensures compatibility with the piu compiler,
+ * which detects time-dependent values via T1/T2 render diffs.
+ *
+ * The animation cycles based on `duration` (in ms). If `loop` is true,
+ * it repeats indefinitely.
+ *
+ * Usage:
+ *   const { progress } = useAnimation({ duration: 10000, easing: Easing.bounceEaseOut, loop: true });
+ *   const x = lerp(0, 200, progress);
  */
 export function useAnimation(options: UseAnimationOptions): UseAnimationResult {
-  const { duration, easing = Easing.linear, delay = 0, loop = false, autoStart = true } = options;
-  const [progress, setProgress] = useState(0);
-  const [running, setRunning] = useState(autoStart);
-  const startTimeRef = useRef<number | null>(null);
+  const { duration, easing = Easing.linear, loop = false } = options;
+  // Use useTime for clock ticks — this makes the compiler detect time deps.
+  // Progress is derived purely from the current time (no stored start time),
+  // so the compiler can diff T1 vs T2 and detect changing values.
+  const time = useTime(1000);
 
-  const start = useCallback(() => {
-    startTimeRef.current = null;
-    setProgress(0);
-    setRunning(true);
-  }, []);
+  // Derive progress from current time modulo duration.
+  // For a 60s duration, this cycles every 60s based on wall clock.
+  const totalSeconds = time.getMinutes() * 60 + time.getSeconds();
+  const durationSec = duration / 1000;
+  const raw = loop
+    ? (totalSeconds % durationSec) / durationSec
+    : Math.min(totalSeconds / durationSec, 1);
+  const progress = easing(raw);
 
-  const stop = useCallback(() => {
-    setRunning(false);
-  }, []);
+  const start = useCallback(() => { /* no-op: auto-driven by time */ }, []);
+  const stop = useCallback(() => { /* no-op: auto-driven by time */ }, []);
 
-  useEffect(() => {
-    if (!running) return;
-
-    const tick = () => {
-      const now = Date.now();
-      if (startTimeRef.current === null) {
-        startTimeRef.current = now + delay;
-      }
-      const elapsed = now - startTimeRef.current;
-      if (elapsed < 0) {
-        // Still in delay
-        rafId = requestAnimationFrame(tick);
-        return;
-      }
-      const raw = Math.min(elapsed / duration, 1);
-      setProgress(easing(raw));
-
-      if (raw < 1) {
-        rafId = requestAnimationFrame(tick);
-      } else if (loop) {
-        startTimeRef.current = null;
-        rafId = requestAnimationFrame(tick);
-      } else {
-        setRunning(false);
-      }
-    };
-
-    // Use requestAnimationFrame if available, otherwise setInterval
-    let rafId: ReturnType<typeof requestAnimationFrame> | ReturnType<typeof setInterval>;
-    if (typeof requestAnimationFrame === 'function') {
-      rafId = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(rafId as number);
-    }
-    // Fallback for environments without rAF
-    rafId = setInterval(() => tick(), 16);
-    return () => clearInterval(rafId as ReturnType<typeof setInterval>);
-  }, [running, duration, delay, loop, easing]);
-
-  return { progress, running, start, stop };
+  return { progress, running: true, start, stop };
 }
 
 /**

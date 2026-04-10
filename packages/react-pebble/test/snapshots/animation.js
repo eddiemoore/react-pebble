@@ -17,6 +17,12 @@ const st1 = new Style({ font: "18px Gothic", color: "#ffffff" });
 
 const bgSkin = new Skin({ fill: "#000000" });
 
+const _kf_e1_top = [30,30,31,32,34,37,40,43,47,52,57,63,69,76,84,91,100,109,118,129,139,150,159,153,148,144,140,136,134,131,130,128,128,128,128,129,130,132,135,138,142,146,151,156,159,156,154,153,152,152,152,153,154,156,158,159,158,158,158,159];
+const _kf_e2_width = [16,16,16,16,16,16,16,16,16,16,16,16,18,18,18,18,18,20,20,20,22,22,22,24,24,26,28,28,30,32,34,34,36,38,38,40,42,42,44,44,44,46,46,46,48,48,48,48,48,50,50,50,50,50,50,50,50,50,50,50];
+const _kf_e2_height = [16,16,16,16,16,16,16,16,16,16,16,16,18,18,18,18,18,20,20,20,22,22,22,24,24,26,28,28,30,32,34,34,36,38,38,40,42,42,44,44,44,46,46,46,48,48,48,48,48,50,50,50,50,50,50,50,50,50,50,50];
+const _kf_e2_radius = [8,8,8,8,8,8,8,8,8,8,8,8,9,9,9,9,9,10,10,10,11,11,11,12,12,13,14,14,15,16,17,17,18,19,19,20,21,21,22,22,22,23,23,23,24,24,24,24,24,25,25,25,25,25,25,25,25,25,25,25];
+const _kf_e4_width = [0,0,0,0,0,0,1,1,2,2,3,4,6,7,9,11,14,16,19,23,27,31,35,41,46,52,59,66,73,81,90,99,107,114,121,128,134,139,145,149,153,157,161,164,166,169,171,173,174,176,177,178,178,179,179,180,180,180,180,180];
+
 function pad(n) { return n < 10 ? "0" + n : "" + n; }
 const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -25,6 +31,9 @@ class AppBehavior extends Behavior {
   onCreate(app) {
     const c = app.first;
     this.tl1 = c.content("tl1");
+    this.ae1 = c.content("ae1");
+    this.ae2 = c.content("ae2");
+    this.ae4 = c.content("ae4");
   }
   onDisplaying(app) {
     this.refresh();
@@ -37,6 +46,12 @@ class AppBehavior extends Behavior {
   refresh() {
     const d = new Date();
     this.tl1.string = pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+    const _s = d.getSeconds();
+    this.ae1.y = _kf_e1_top[_s];
+    this.ae2.width = _kf_e2_width[_s];
+    this.ae2.height = _kf_e2_height[_s];
+    this.ae2.radius = _kf_e2_radius[_s];
+    this.ae4.width = _kf_e4_width[_s];
   }
 }
 
@@ -47,10 +62,10 @@ const WatchApp = Application.template(() => ({
       new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
         new Label(null, { top: 4, left: 0, width: 200, style: st0, horizontal: "center", string: "Animation Demo" }),
-        new RoundRect(null, { left: 20, top: 153, width: 24, height: 24, radius: 12, skin: sk1 }),
-        new RoundRect(null, { left: 130, top: 90, width: 60, height: 60, radius: 30, skin: sk2 }),
+        new RoundRect(null, { left: 20, top: 32, width: 24, height: 24, radius: 12, skin: sk1, name: "ae1" }),
+        new RoundRect(null, { left: 130, top: 90, width: 16, height: 16, radius: 8, skin: sk2, name: "ae2" }),
         new Content(null, { left: 10, width: 180, top: 190, height: 10, skin: sk3 }),
-        new Content(null, { left: 10, width: 162, top: 190, height: 10, skin: sk4 }),
+        new Content(null, { left: 10, width: 0, top: 190, height: 10, skin: sk4, name: "ae4" }),
         new Label(null, { top: 205, left: 0, width: 200, style: st1, horizontal: "center", name: "tl1", string: "07:03" })
       ] })
   ],

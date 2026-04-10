@@ -629,6 +629,15 @@ function detectListPatterns(exName: string): ListInfo | null {
 // Emit context
 // ---------------------------------------------------------------------------
 
+interface ElementPos {
+  type: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  radius?: number;
+}
+
 interface EmitContext {
   skins: Map<string, string>;
   styles: Map<string, string>;
@@ -641,6 +650,10 @@ interface EmitContext {
   labelTexts: Map<number, string>;
   /** Map from rect sequential index → its fill color name */
   rectFills: Map<number, string>;
+  /** Sequential index for all positioned elements (circles, rects) */
+  elemIdx: number;
+  /** Map from element sequential index → its position at this render */
+  elementPositions: Map<number, ElementPos>;
 }
 
 function ensureSkin(ctx: EmitContext, fill: string): string {
@@ -675,6 +688,7 @@ interface ConditionalChild {
 }
 const conditionalChildren: ConditionalChild[] = [];
 let emitConditionals = false; // Only wrap conditionals during final emit
+const animatedElemNames = new Set<number>(); // Element indices that need names for animation
 let conditionalDepth = 0; // Track nesting — only wrap at depth 1 (root Group's children)
 
 // Emit piu tree
@@ -757,10 +771,14 @@ function emitNode(
       // Track rect fill for skin reactivity detection
       const rectIdx = ctx.rectIdx++;
       ctx.rectFills.set(rectIdx, fill);
+      // Track rect position for animation keyframing
+      const rEIdx = ctx.elemIdx++;
+      ctx.elementPositions.set(rEIdx, { type: 'rect', left: x, top: y, width: w, height: h });
 
-      // If this rect has a dynamic skin, give it a name
+      // If this rect has a dynamic skin or animated position, give it a name
       const isSkinDynamic = skinDeps?.has(rectIdx) ?? false;
-      const nameProp = isSkinDynamic ? `, name: "sr${rectIdx}"` : '';
+      const isAnimated = animatedElemNames.has(rEIdx);
+      const nameProp = isSkinDynamic ? `, name: "sr${rectIdx}"` : isAnimated ? `, name: "ae${rEIdx}"` : '';
 
       // Use constraint-based layout when dimensions match screen size
       // (so the output adapts to any screen at runtime)
@@ -844,7 +862,10 @@ function emitNode(
       const skinVar = ensureSkin(ctx, fill);
       // piu RoundRect with radius = r draws a circle when width = height = 2*r
       const size = r * 2;
-      return `${indent}new RoundRect(null, { left: ${cx}, top: ${cy}, width: ${size}, height: ${size}, radius: ${r}, skin: ${skinVar} })`;
+      const eIdx = ctx.elemIdx++;
+      ctx.elementPositions.set(eIdx, { type: 'circle', left: cx, top: cy, width: size, height: size, radius: r });
+      const animName = animatedElemNames.has(eIdx) ? `, name: "ae${eIdx}"` : '';
+      return `${indent}new RoundRect(null, { left: ${cx}, top: ${cy}, width: ${size}, height: ${size}, radius: ${r}, skin: ${skinVar}${animName} })`;
     }
 
     default:
@@ -986,6 +1007,8 @@ const ctx1: EmitContext = {
   labelTexts: new Map(),
   rectIdx: 0,
   rectFills: new Map(),
+  elemIdx: 0,
+  elementPositions: new Map(),
 };
 emitNode(app1._root, ctx1, '', null, null);
 const t1Texts = new Map(ctx1.labelTexts);
@@ -1127,6 +1150,8 @@ for (const slot of stateSlots) {
       labelTexts: new Map(),
       rectIdx: 0,
       rectFills: new Map(),
+      elemIdx: 0,
+      elementPositions: new Map(),
     };
     emitNode(appP._root, ctxP, '', null, null);
 
@@ -1303,6 +1328,7 @@ if (listInfo) {
         skins: new Map(), styles: new Map(), declarations: [],
         skinIdx: 0, styleIdx: 0, labelIdx: 0, labelTexts: new Map(),
         rectIdx: 0, rectFills: new Map(),
+        elemIdx: 0, elementPositions: new Map(),
       };
       emitNode(appScroll._root, ctxScroll, '', null, null);
 
@@ -1366,6 +1392,8 @@ const ctx2: EmitContext = {
   labelTexts: new Map(),
   rectIdx: 0,
   rectFills: new Map(),
+  elemIdx: 0,
+  elementPositions: new Map(),
 };
 emitNode(app2._root, ctx2, '', null, null);
 const t2Texts = new Map(ctx2.labelTexts);
@@ -1398,6 +1426,105 @@ process.stderr.write(
     .map(([idx, fmt]) => `tl${idx}=${fmt}`)
     .join(', ')}\n`,
 );
+
+// --- Keyframe pass: detect animated positions/sizes ---
+// Compare element positions between T1 and T2 to find elements that move.
+// For those elements, render at 60 time points (one per second over 1 minute)
+// and build keyframe arrays for position updates in onTimeChanged.
+
+interface AnimatedElement {
+  elemIdx: number;
+  prop: 'top' | 'width' | 'height' | 'radius';
+  keyframes: number[]; // 60 values (one per second)
+}
+
+const animatedElements: AnimatedElement[] = [];
+const t1Positions = ctx1.elementPositions;
+const t2Positions = ctx2.elementPositions;
+
+// Find elements with changed positions between T1 and T2
+const changedElems = new Set<number>();
+for (const [idx, pos1] of t1Positions) {
+  const pos2 = t2Positions.get(idx);
+  if (!pos2) continue;
+  if (pos1.top !== pos2.top || pos1.width !== pos2.width ||
+      pos1.height !== pos2.height || (pos1.radius !== undefined && pos1.radius !== pos2.radius)) {
+    changedElems.add(idx);
+  }
+}
+
+if (changedElems.size > 0) {
+  process.stderr.write(`Found ${changedElems.size} animated element(s), sampling keyframes...\n`);
+
+  // Sample 60 keyframes (one per second)
+  const keyframeData = new Map<number, Map<string, number[]>>(); // elemIdx → prop → values[]
+
+  for (let s = 0; s < 60; s++) {
+    const mockTime = new OrigDate(T1.getFullYear(), T1.getMonth(), T1.getDate(),
+      T1.getHours(), s, s, 0); // vary both minutes and seconds
+    // Actually set minute = T1.minute, second = s
+    const kfTime = new OrigDate(T1.getFullYear(), T1.getMonth(), T1.getDate(),
+      T1.getHours(), T1.getMinutes(), s, 0);
+
+    (globalThis as unknown as { Date: unknown }).Date = class MockDateKF extends OrigDate {
+      constructor() { super(); return kfTime; }
+      static now() { return kfTime.getTime(); }
+    };
+
+    forcedStateValues.clear();
+    resetStateTracking();
+    silence();
+    const appKF = exampleMain();
+    restore();
+
+    if (appKF) {
+      const ctxKF: EmitContext = {
+        skins: new Map(), styles: new Map(), declarations: [],
+        skinIdx: 0, styleIdx: 0, labelIdx: 0, labelTexts: new Map(),
+        rectIdx: 0, rectFills: new Map(),
+        elemIdx: 0, elementPositions: new Map(),
+      };
+      emitNode(appKF._root, ctxKF, '', null, null);
+
+      for (const eIdx of changedElems) {
+        const pos = ctxKF.elementPositions.get(eIdx);
+        if (!pos) continue;
+        if (!keyframeData.has(eIdx)) keyframeData.set(eIdx, new Map());
+        const props = keyframeData.get(eIdx)!;
+        for (const prop of ['top', 'width', 'height', 'radius'] as const) {
+          const val = pos[prop];
+          if (val === undefined) continue;
+          if (!props.has(prop)) props.set(prop, []);
+          props.get(prop)!.push(val);
+        }
+      }
+      appKF.unmount();
+    }
+  }
+
+  (globalThis as unknown as { Date: typeof Date }).Date = OrigDate;
+
+  // Build AnimatedElement entries for props that actually change
+  for (const [eIdx, props] of keyframeData) {
+    for (const [prop, values] of props) {
+      const allSame = values.every(v => v === values[0]);
+      if (!allSame) {
+        animatedElements.push({
+          elemIdx: eIdx,
+          prop: prop as AnimatedElement['prop'],
+          keyframes: values,
+        });
+      }
+    }
+  }
+
+  process.stderr.write(`  Animated properties: ${animatedElements.map(a => `e${a.elemIdx}.${a.prop}`).join(', ')}\n`);
+
+  // Mark elements for naming in the final emit pass
+  for (const ae of animatedElements) {
+    animatedElemNames.add(ae.elemIdx);
+  }
+}
 
 // --- Final render at T1 for the emitted static snapshot ---
 (globalThis as unknown as { Date: unknown }).Date = class MockDate3 extends OrigDate {
@@ -1434,6 +1561,8 @@ const ctx: EmitContext = {
   labelTexts: new Map(),
   rectIdx: 0,
   rectFills: new Map(),
+  elemIdx: 0,
+  elementPositions: new Map(),
 };
 
 let contents: string | null;
@@ -1529,7 +1658,8 @@ for (const binding of buttonBindings) {
 
 // --- Emit piu output ---
 const stateNeedsTime = [...stateDeps.values()].some(d => d.needsTime);
-const hasTimeDeps = dynamicLabels.size > 0 || stateNeedsTime;
+const hasAnimatedElements = animatedElements.length > 0;
+const hasTimeDeps = dynamicLabels.size > 0 || stateNeedsTime || hasAnimatedElements;
 const hasStateDeps = stateDeps.size > 0;
 const hasButtons = buttonActions.length > 0;
 const hasBranches = branchInfos.length > 0;
@@ -1562,6 +1692,14 @@ lines.push(
   `const bgSkin = new Skin({ fill: "${colorToHex('black')}" });`,
   '',
 );
+
+// Emit keyframe arrays for animated elements
+if (hasAnimatedElements) {
+  for (const ae of animatedElements) {
+    lines.push(`const _kf_e${ae.elemIdx}_${ae.prop} = [${ae.keyframes.join(',')}];`);
+  }
+  lines.push('');
+}
 
 if (hasTimeDeps) {
   lines.push('function pad(n) { return n < 10 ? "0" + n : "" + n; }');
@@ -1632,6 +1770,12 @@ if (hasBehavior) {
   // Skin-reactive rect refs
   for (const [rIdx] of skinDeps) {
     lines.push(`    this.sr${rIdx} = c.content("sr${rIdx}");`);
+  }
+
+  // Animated element refs
+  const animElemIndices = [...new Set(animatedElements.map(a => a.elemIdx))];
+  for (const eIdx of animElemIndices) {
+    lines.push(`    this.ae${eIdx} = c.content("ae${eIdx}");`);
   }
 
   // Branch container refs (for structural conditional rendering)
@@ -1844,6 +1988,19 @@ if (hasBehavior) {
       lines.push(`      }`);
     }
     lines.push(`    }`);
+  }
+  // Animated element position/size updates from keyframe tables
+  if (hasAnimatedElements) {
+    lines.push('    const _s = d.getSeconds();');
+    for (const ae of animatedElements) {
+      const propMap: Record<string, string> = {
+        top: 'y', width: 'width', height: 'height', radius: 'radius',
+      };
+      // piu Content uses .moveBy() or direct property access
+      // For top: use .y property; for width/height: .width/.height
+      const piuProp = propMap[ae.prop] ?? ae.prop;
+      lines.push(`    this.ae${ae.elemIdx}.${piuProp} = _kf_e${ae.elemIdx}_${ae.prop}[_s];`);
+    }
   }
   lines.push('  }');
 
