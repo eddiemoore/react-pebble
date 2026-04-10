@@ -107,6 +107,7 @@ export interface RectProps extends PositionProps, SizeProps {
   fill?: ColorName;
   stroke?: ColorName;
   strokeWidth?: number;
+  borderRadius?: number;
   children?: ReactNode;
 }
 

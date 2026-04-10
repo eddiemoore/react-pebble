@@ -214,18 +214,30 @@ export class PocoRenderer {
         const h = num(p, 'h') || num(p, 'height');
         const fill = str(p, 'fill');
         const stroke = str(p, 'stroke');
+        const br = num(p, 'borderRadius');
 
-        if (fill) {
-          this.poco.fillRectangle(this.getColor(fill), x, y, w, h);
-        }
-        if (stroke) {
-          // Emulate outline with four thin fill rects.
-          const sw = num(p, 'strokeWidth') || 1;
-          const c = this.getColor(stroke);
-          this.poco.fillRectangle(c, x, y, w, sw); // top
-          this.poco.fillRectangle(c, x, y + h - sw, w, sw); // bottom
-          this.poco.fillRectangle(c, x, y, sw, h); // left
-          this.poco.fillRectangle(c, x + w - sw, y, sw, h); // right
+        if (br > 0) {
+          // Rounded rectangle
+          if (fill) {
+            this.fillRoundRect(this.getColor(fill), x, y, w, h, br);
+          }
+          if (stroke) {
+            const sw = num(p, 'strokeWidth') || 1;
+            this.strokeRoundRect(this.getColor(stroke), x, y, w, h, br, sw);
+          }
+        } else {
+          // Sharp rectangle
+          if (fill) {
+            this.poco.fillRectangle(this.getColor(fill), x, y, w, h);
+          }
+          if (stroke) {
+            const sw = num(p, 'strokeWidth') || 1;
+            const c = this.getColor(stroke);
+            this.poco.fillRectangle(c, x, y, w, sw); // top
+            this.poco.fillRectangle(c, x, y + h - sw, w, sw); // bottom
+            this.poco.fillRectangle(c, x, y, sw, h); // left
+            this.poco.fillRectangle(c, x + w - sw, y, sw, h); // right
+          }
         }
 
         this.renderChildren(node, x, y);
@@ -237,21 +249,33 @@ export class PocoRenderer {
         if (!text) break;
 
         const boxW = num(p, 'w') || num(p, 'width') || this.poco.width - x;
+        const boxH = num(p, 'h') || num(p, 'height') || 0;
         const font = this.getFont(str(p, 'font'));
         const color = this.getColor(str(p, 'color') ?? 'white');
         const align = str(p, 'align') ?? 'left';
+        const lineHeight = (font as unknown as { height: number }).height || 16;
 
-        let tx = x;
-        if (align === 'center' || align === 'right') {
-          const tw = this.poco.getTextWidth(text, font);
-          if (align === 'center') {
-            tx = x + Math.floor((boxW - tw) / 2);
-          } else {
-            tx = x + boxW - tw;
+        // Word-wrap text into lines that fit within boxW
+        const lines = this.wrapText(text, font, boxW);
+
+        let ty = y;
+        for (const line of lines) {
+          // Stop if we'd exceed the box height (when specified)
+          if (boxH > 0 && ty - y + lineHeight > boxH) break;
+
+          let tx = x;
+          if (align === 'center' || align === 'right') {
+            const tw = this.poco.getTextWidth(line, font);
+            if (align === 'center') {
+              tx = x + Math.floor((boxW - tw) / 2);
+            } else {
+              tx = x + boxW - tw;
+            }
           }
-        }
 
-        this.poco.drawText(text, font, color, tx, y);
+          this.poco.drawText(line, font, color, tx, ty);
+          ty += lineHeight;
+        }
         break;
       }
 
@@ -314,10 +338,53 @@ export class PocoRenderer {
         break;
       }
 
-      case 'pbl-statusbar':
+      case 'pbl-statusbar': {
+        // Render a simple status bar: background + time text
+        const sbBg = str(p, 'backgroundColor') ?? 'black';
+        const sbColor = str(p, 'color') ?? 'white';
+        const sbH = 16;
+        const sbW = this.poco.width;
+
+        this.poco.fillRectangle(this.getColor(sbBg), 0, 0, sbW, sbH);
+
+        // Draw current time in the center
+        const sbFont = this.getFont('gothic14');
+        const now = new Date();
+        const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        const tw = this.poco.getTextWidth(timeStr, sbFont);
+        this.poco.drawText(timeStr, sbFont, this.getColor(sbColor), Math.floor((sbW - tw) / 2), 1);
+
+        // Separator line
+        const sep = str(p, 'separator') ?? 'none';
+        if (sep === 'line') {
+          this.poco.fillRectangle(this.getColor(sbColor), 0, sbH - 1, sbW, 1);
+        } else if (sep === 'dotted') {
+          for (let dx = 0; dx < sbW; dx += 3) {
+            this.poco.fillRectangle(this.getColor(sbColor), dx, sbH - 1, 1, 1);
+          }
+        }
+        break;
+      }
+
       case 'pbl-actionbar': {
-        // Alloy has no built-in status/action bar UI; these are no-ops for now.
-        // An app that wants a status bar should draw its own.
+        // Render an action bar on the right edge: background column + icon placeholders
+        const abBg = str(p, 'backgroundColor') ?? 'darkGray';
+        const abW = 30;
+        const abX = this.poco.width - abW;
+        const abH = this.poco.height;
+
+        this.poco.fillRectangle(this.getColor(abBg), abX, 0, abW, abH);
+
+        // Draw dot placeholders for up/select/down icons
+        const dotColor = this.getColor('white');
+        const dotR = 3;
+        const centerX = abX + Math.floor(abW / 2);
+        // Up icon area (top third)
+        this.poco.fillRectangle(dotColor, centerX - dotR, Math.floor(abH / 6) - dotR, dotR * 2, dotR * 2);
+        // Select icon area (middle)
+        this.poco.fillRectangle(dotColor, centerX - dotR, Math.floor(abH / 2) - dotR, dotR * 2, dotR * 2);
+        // Down icon area (bottom third)
+        this.poco.fillRectangle(dotColor, centerX - dotR, Math.floor(abH * 5 / 6) - dotR, dotR * 2, dotR * 2);
         break;
       }
 
@@ -429,6 +496,141 @@ export class PocoRenderer {
         cy += sy;
       }
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Rounded rectangle rendering
+  // -------------------------------------------------------------------------
+
+  /** Fill a rounded rectangle by combining rects and quarter-circle corners. */
+  private fillRoundRect(
+    color: PocoColor, x: number, y: number, w: number, h: number, r: number,
+  ): void {
+    const { poco } = this;
+    const cr = Math.min(r, Math.floor(w / 2), Math.floor(h / 2));
+
+    // Center body
+    poco.fillRectangle(color, x, y + cr, w, h - cr * 2);
+    // Top strip (between corners)
+    poco.fillRectangle(color, x + cr, y, w - cr * 2, cr);
+    // Bottom strip (between corners)
+    poco.fillRectangle(color, x + cr, y + h - cr, w - cr * 2, cr);
+
+    // Four quarter-circle corners via midpoint algorithm
+    this.fillQuarterCircles(color, x + cr, y + cr, x + w - cr - 1, y + h - cr - 1, cr);
+  }
+
+  /** Stroke a rounded rectangle outline. */
+  private strokeRoundRect(
+    color: PocoColor, x: number, y: number, w: number, h: number, r: number, sw: number,
+  ): void {
+    const { poco } = this;
+    const cr = Math.min(r, Math.floor(w / 2), Math.floor(h / 2));
+
+    // Straight edges
+    poco.fillRectangle(color, x + cr, y, w - cr * 2, sw);              // top
+    poco.fillRectangle(color, x + cr, y + h - sw, w - cr * 2, sw);     // bottom
+    poco.fillRectangle(color, x, y + cr, sw, h - cr * 2);              // left
+    poco.fillRectangle(color, x + w - sw, y + cr, sw, h - cr * 2);     // right
+
+    // Corner arcs
+    this.strokeQuarterCircles(color, x + cr, y + cr, x + w - cr - 1, y + h - cr - 1, cr, sw);
+  }
+
+  /** Fill four quarter-circles at the corners of a rounded rect. */
+  private fillQuarterCircles(
+    color: PocoColor, cx1: number, cy1: number, cx2: number, cy2: number, r: number,
+  ): void {
+    const { poco } = this;
+    let x0 = r;
+    let y0 = 0;
+    let err = 1 - r;
+
+    while (x0 >= y0) {
+      // Top-left corner
+      poco.fillRectangle(color, cx1 - x0, cy1 - y0, x0, 1);
+      poco.fillRectangle(color, cx1 - y0, cy1 - x0, y0, 1);
+      // Top-right corner
+      poco.fillRectangle(color, cx2 + 1, cy1 - y0, x0, 1);
+      poco.fillRectangle(color, cx2 + 1, cy1 - x0, y0, 1);
+      // Bottom-left corner
+      poco.fillRectangle(color, cx1 - x0, cy2 + y0, x0, 1);
+      poco.fillRectangle(color, cx1 - y0, cy2 + x0, y0, 1);
+      // Bottom-right corner
+      poco.fillRectangle(color, cx2 + 1, cy2 + y0, x0, 1);
+      poco.fillRectangle(color, cx2 + 1, cy2 + x0, y0, 1);
+
+      y0++;
+      if (err < 0) {
+        err += 2 * y0 + 1;
+      } else {
+        x0--;
+        err += 2 * (y0 - x0) + 1;
+      }
+    }
+  }
+
+  /** Stroke four quarter-circle arcs at the corners of a rounded rect. */
+  private strokeQuarterCircles(
+    color: PocoColor, cx1: number, cy1: number, cx2: number, cy2: number, r: number, sw: number,
+  ): void {
+    const { poco } = this;
+    let x0 = r;
+    let y0 = 0;
+    let err = 1 - r;
+
+    while (x0 >= y0) {
+      // Top-left
+      poco.fillRectangle(color, cx1 - x0, cy1 - y0, sw, sw);
+      poco.fillRectangle(color, cx1 - y0, cy1 - x0, sw, sw);
+      // Top-right
+      poco.fillRectangle(color, cx2 + x0, cy1 - y0, sw, sw);
+      poco.fillRectangle(color, cx2 + y0, cy1 - x0, sw, sw);
+      // Bottom-left
+      poco.fillRectangle(color, cx1 - x0, cy2 + y0, sw, sw);
+      poco.fillRectangle(color, cx1 - y0, cy2 + x0, sw, sw);
+      // Bottom-right
+      poco.fillRectangle(color, cx2 + x0, cy2 + y0, sw, sw);
+      poco.fillRectangle(color, cx2 + y0, cy2 + x0, sw, sw);
+
+      y0++;
+      if (err < 0) {
+        err += 2 * y0 + 1;
+      } else {
+        x0--;
+        err += 2 * (y0 - x0) + 1;
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Text wrapping
+  // -------------------------------------------------------------------------
+
+  /** Break text into lines that fit within maxWidth. */
+  private wrapText(text: string, font: PocoFont, maxWidth: number): string[] {
+    // If the full text fits, skip wrapping
+    if (this.poco.getTextWidth(text, font) <= maxWidth) {
+      return [text];
+    }
+
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      if (this.poco.getTextWidth(testLine, font) <= maxWidth) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) lines.push(currentLine);
+        // If a single word exceeds maxWidth, it goes on its own line (truncated visually)
+        currentLine = word;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+
+    return lines;
   }
 }
 
