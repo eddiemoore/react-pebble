@@ -78,9 +78,8 @@ pebble install --emulator emery --logs
 Components use standard Preact JSX with a small set of Pebble-specific primitives:
 
 ```tsx
-import { render } from '../src/index.js';
-import { Text, Rect, Group } from '../src/components/index.js';
-import { useTime, useButton, useState } from '../src/hooks/index.js';
+import { render, Text, Rect, Group } from 'react-pebble';
+import { useTime, useButton, useState } from 'react-pebble/hooks';
 
 function WatchFace() {
   const time = useTime();
@@ -97,8 +96,8 @@ function WatchFace() {
   );
 }
 
-export function main(PocoCtor?) {
-  return render(<WatchFace />, { poco: PocoCtor });
+export function main() {
+  return render(<WatchFace />);
 }
 ```
 
