@@ -24,7 +24,6 @@ const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 class AppBehavior extends Behavior {
   onCreate(app) {
     const c = app.first;
-    this.s0 = "2026-01-14T22:07:03.000Z";
     this.tl0 = c.content("tl0");
     this.tl1 = c.content("tl1");
   }

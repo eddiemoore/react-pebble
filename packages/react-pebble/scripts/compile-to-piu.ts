@@ -1400,9 +1400,14 @@ if (hasBehavior) {
     lines.push('    const c = app.first;');
   }
 
-  // State fields
+  // State fields (skip non-serializable values like Date objects)
   for (const slot of stateSlots) {
-    lines.push(`    this.s${slot.index} = ${JSON.stringify(slot.initialValue)};`);
+    const v = slot.initialValue;
+    if (v instanceof Date || (typeof v === 'object' && v !== null && !(Array.isArray(v)))) {
+      // Skip — internal hook state (e.g., useTime's Date) shouldn't be baked
+      continue;
+    }
+    lines.push(`    this.s${slot.index} = ${JSON.stringify(v)};`);
   }
 
   // Time-dependent label refs
