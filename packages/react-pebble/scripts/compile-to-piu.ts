@@ -424,6 +424,32 @@ function analyzeSetterCall(call: ts.CallExpression, sf: ts.SourceFile): HandlerA
     if (ts.isPrefixUnaryExpression(body) && body.operator === ts.SyntaxKind.ExclamationToken) {
       return { type: 'toggle', slotIndex, value: 0 };
     }
+    // param => Math.min(param + N, max)  (clamped increment)
+    // param => Math.max(param - N, min)  (clamped decrement)
+    if (ts.isCallExpression(body) && ts.isPropertyAccessExpression(body.expression)) {
+      const obj = body.expression.expression;
+      const method = body.expression.name.text;
+      if (ts.isIdentifier(obj) && obj.text === 'Math' && body.arguments.length === 2) {
+        const [a0, a1] = [body.arguments[0]!, body.arguments[1]!];
+        if (method === 'min' && ts.isBinaryExpression(a0)) {
+          if (a0.operatorToken.kind === ts.SyntaxKind.PlusToken && ts.isNumericLiteral(a0.right)) {
+            return { type: 'increment', slotIndex, value: Number(a0.right.text) };
+          }
+        }
+        if (method === 'max' && ts.isBinaryExpression(a0)) {
+          if (a0.operatorToken.kind === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(a0.right)) {
+            return { type: 'decrement', slotIndex, value: Number(a0.right.text) };
+          }
+        }
+      }
+    }
+    // param => (param + N) % M  (modular increment)
+    if (ts.isBinaryExpression(body) && body.operatorToken.kind === ts.SyntaxKind.PercentToken) {
+      const left = ts.isParenthesizedExpression(body.left) ? body.left.expression : body.left;
+      if (ts.isBinaryExpression(left) && left.operatorToken.kind === ts.SyntaxKind.PlusToken && ts.isNumericLiteral(left.right)) {
+        return { type: 'increment', slotIndex, value: Number(left.right.text) };
+      }
+    }
   }
 
   return null;

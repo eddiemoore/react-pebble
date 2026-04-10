@@ -4,7 +4,7 @@
 // Regenerate: npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
 
 import {} from "piu/MC";
-
+import PebbleButton from "pebble/button";
 
 
 const sk0 = new Skin({ fill: "#000000" });
@@ -25,6 +25,15 @@ class AppBehavior extends Behavior {
   }
   onDisplaying(app) {
     this.refresh();
+    new PebbleButton({ type: "up", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });
+    new PebbleButton({ type: "down", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });
+    new PebbleButton({ type: "select", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });
+  }
+  onButton(e) {
+    const name = e && e.button;
+    if (name === "up") { this.s1 += 2; this.refresh(); }
+    if (name === "down") { this.s1 -= 2; this.refresh(); }
+    if (name === "select") { this.s0 += 1; this.refresh(); }
   }
   refresh() {
     this.sl4.string = "" + this.s1;

@@ -1,20 +1,24 @@
 /**
- * examples/settings.tsx — Persistent settings app using useLocalStorage.
+ * examples/settings.tsx — Settings app with button-driven state.
  *
  * Demonstrates:
- *   - useLocalStorage hook (persists across restarts)
- *   - useButton for navigation
+ *   - useState with button navigation
  *   - Rounded rectangles for UI cards
  *   - ActionBar component
+ *   - Clamped increment/decrement and modular cycling
+ *
+ * Note: Uses useState (not useLocalStorage) so the piu compiler can
+ * track setter→slot mappings for button handler emission.
+ * useLocalStorage works at Preact runtime but not in compiled piu mode.
  */
 
 import type Poco from 'commodetto/Poco';
 import { render, Group, Rect, Text, ActionBar } from '../src/index.js';
-import { useButton, useLocalStorage } from '../src/hooks/index.js';
+import { useButton, useState } from '../src/hooks/index.js';
 
 function Settings() {
-  const [themeIdx, setThemeIdx] = useLocalStorage<number>('themeIdx', 0);
-  const [fontSize, setFontSize] = useLocalStorage<number>('fontSize', 18);
+  const [themeIdx, setThemeIdx] = useState(0);
+  const [fontSize, setFontSize] = useState(18);
 
   const themes = ['dark', 'light', 'blue'];
   const bgs    = ['black', 'white', 'blue'];
