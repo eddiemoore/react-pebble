@@ -7,8 +7,8 @@ node_modules/
 .pebble-build/
 .pebble-build-vite-tmp/
 
-# pnpm
-pnpm-lock.yaml
+# pnpm store (lockfile should be committed)
+
 
 # OS
 .DS_Store
