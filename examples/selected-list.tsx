@@ -34,7 +34,7 @@ function SelectedList() {
       <Text x={4} y={5} w={140} font="gothic18Bold" color="black">
         Tasks
       </Text>
-      <Text x={144} y={5} w={52} font="gothic14" color="darkGray" align="right">
+      <Text x={148} y={5} w={48} font="gothic14" color="darkGray" align="right">
         {sel + 1}/{ITEMS.length}
       </Text>
       {visible.map((item, i) => (
@@ -44,7 +44,7 @@ function SelectedList() {
           <Text x={8} y={6} w={140} font="gothic18Bold" color="white">
             {item.title}
           </Text>
-          <Text x={8} y={30} w={100} font="gothic14" color="lightGray">
+          <Text x={8} y={30} w={140} font="gothic14" color="lightGray">
             {item.tag}
           </Text>
         </Group>

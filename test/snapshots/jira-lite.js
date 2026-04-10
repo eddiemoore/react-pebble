@@ -83,7 +83,7 @@ const WatchApp = Application.template(() => ({
           new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
           new Content(null, { left: 0, right: 0, top: 0, height: 28, skin: sk1 }),
           new Label(null, { top: 4, left: 4, width: 140, style: st0, string: "JIRA Issues" }),
-          new Label(null, { top: 4, left: 144, width: 52, style: st1, horizontal: "right", name: "sl1", string: "1/5" }),
+          new Label(null, { top: 4, left: 148, width: 48, style: st1, horizontal: "right", name: "sl1", string: "1/5" }),
           new Container(null, { name: "lg0", left: 0, top: 32, contents: [
             new Content(null, { left: 0, right: 0, top: 0, height: 60, skin: sk2 }),
             new Label(null, { top: 4, left: 8, width: 184, style: st2, name: "ls0_0", string: "PROJ-1" }),

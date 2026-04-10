@@ -69,7 +69,7 @@ function JiraLite() {
       <Text x={4} y={4} w={140} font="gothic18Bold" color="black">
         JIRA Issues
       </Text>
-      <Text x={144} y={4} w={52} font="gothic14" color="darkGray" align="right">
+      <Text x={148} y={4} w={48} font="gothic14" color="darkGray" align="right">
         {sel + 1}/{ISSUES.length}
       </Text>
       {visible.map((issue, i) => (

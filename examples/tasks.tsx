@@ -58,7 +58,7 @@ function TaskApp() {
       <Text x={4} y={4} w={140} font="gothic18Bold" color="black">
         My Tasks
       </Text>
-      <Text x={144} y={4} w={52} font="gothic14" color="darkGray" align="right">
+      <Text x={148} y={4} w={48} font="gothic14" color="darkGray" align="right">
         {selected + 1}/3
       </Text>
 

@@ -38,13 +38,13 @@ interface IssueCardProps {
 function IssueCard({ issue, isSelected }: IssueCardProps) {
   return (
     <Group>
-      {isSelected && <Rect x={0} y={0} w={144} h={52} fill="darkGray" />}
+      {isSelected && <Rect x={0} y={0} w={200} h={52} fill="darkGray" />}
 
-      <Text x={4} y={2} w={136} h={18} font="gothic14Bold" color="white">
+      <Text x={4} y={2} w={192} h={18} font="gothic14Bold" color="white">
         {issue.key}
       </Text>
 
-      <Text x={4} y={18} w={136} h={16} font="gothic14" color="lightGray">
+      <Text x={4} y={18} w={192} h={16} font="gothic14" color="lightGray">
         {issue.summary}
       </Text>
 
@@ -79,12 +79,12 @@ function IssueDetail({ issue, onBack }: IssueDetailProps) {
     <Group>
       <StatusBar />
 
-      <Rect x={0} y={16} w={144} h={24} fill="white" />
-      <Text x={4} y={18} w={136} h={20} font="gothic18Bold" color="black">
+      <Rect x={0} y={16} w={200} h={24} fill="white" />
+      <Text x={4} y={18} w={192} h={20} font="gothic18Bold" color="black">
         {issue.key}
       </Text>
 
-      <Text x={4} y={46} w={136} h={40} font="gothic18" color="white">
+      <Text x={4} y={46} w={192} h={40} font="gothic18" color="white">
         {issue.summary}
       </Text>
 
@@ -109,7 +109,7 @@ function IssueDetail({ issue, onBack }: IssueDetailProps) {
         {issue.priority}
       </Text>
 
-      <Text x={4} y={148} w={136} h={16} font="gothic14" color="darkGray" align="center">
+      <Text x={4} y={148} w={192} h={16} font="gothic14" color="darkGray" align="center">
         BACK to return
       </Text>
     </Group>
@@ -142,8 +142,8 @@ function JiraApp() {
   if (loading) {
     return (
       <Group>
-        <Rect x={0} y={0} w={144} h={168} fill="black" />
-        <Text x={0} y={70} w={144} h={30} font="gothic18" color="white" align="center">
+        <Rect x={0} y={0} w={200} h={228} fill="black" />
+        <Text x={0} y={70} w={200} h={30} font="gothic18" color="white" align="center">
           Loading...
         </Text>
       </Group>
@@ -162,8 +162,8 @@ function JiraApp() {
     <Group>
       <StatusBar />
 
-      <Rect x={0} y={16} w={144} h={20} fill="white" />
-      <Text x={4} y={17} w={100} h={18} font="gothic14Bold" color="black">
+      <Rect x={0} y={16} w={200} h={20} fill="white" />
+      <Text x={4} y={17} w={140} h={18} font="gothic14Bold" color="black">
         JIRA Issues
       </Text>
       <Text x={104} y={17} w={36} h={18} font="gothic14" color="darkGray" align="right">
