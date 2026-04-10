@@ -1,8 +1,16 @@
 # react-pebble
 
-Write Pebble watchfaces and apps in JSX, compile them to native Pebble Alloy code that runs on the watch.
+[![CI](https://github.com/eddiemoore/react-pebble/actions/workflows/ci.yml/badge.svg)](https://github.com/eddiemoore/react-pebble/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/react-pebble)](https://www.npmjs.com/package/react-pebble)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **Status**: Working proof of concept. Watchface, counter, and JIRA list examples all compile and deploy to the Pebble emulator.
+Write Pebble watchfaces and apps in JSX — compiles to native piu code that runs on the watch.
+
+```bash
+npx create-pebble-app my-watchface
+cd my-watchface
+npx vite build
+```
 
 ## How it works
 
@@ -65,10 +73,10 @@ The plugin automatically:
 npm install
 
 # Compile the watchface example to piu
-EXAMPLE=watchface npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
+EXAMPLE=watchface npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
 
 # Build and deploy to emulator
-cd pebble-spike
+cd .pebble-build
 pebble build
 pebble install --emulator emery --logs
 ```
@@ -157,43 +165,43 @@ The compiler renders your component multiple times with different state values a
 
 ### Watchface (live clock)
 ```bash
-EXAMPLE=watchface npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
+EXAMPLE=watchface npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
 ```
 Displays hours:minutes, seconds, and date. Updates every second via piu `onTimeChanged`.
 
 ### Counter (interactive buttons)
 ```bash
-EXAMPLE=counter npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
+EXAMPLE=counter npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
 ```
 UP increments, DOWN decrements, SELECT resets to 0. Uses `PebbleButton` native module.
 
 ### Toggle (boolean state + skin reactivity)
 ```bash
-EXAMPLE=toggle npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
+EXAMPLE=toggle npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
 ```
 SELECT toggles between ON/OFF text and swaps background red↔green (skin reactivity).
 
 ### Views (structural branching)
 ```bash
-EXAMPLE=views npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
+EXAMPLE=views npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
 ```
 SELECT switches between a list view (3 labels) and detail view (5 labels, blue background). Uses piu `.visible` toggling on pre-rendered branch Containers.
 
 ### Multiview (3-way string enum)
 ```bash
-EXAMPLE=multiview npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
+EXAMPLE=multiview npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
 ```
 UP=Settings, DOWN=About, SELECT=Home. Three named branch Containers with string-equality visibility conditions.
 
 ### Simple List (scrollable .map())
 ```bash
-EXAMPLE=simple-list npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
+EXAMPLE=simple-list npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
 ```
 5 string items, 3 visible at a time, UP/DOWN scrolls. Pre-allocated Label slots updated via `.string` on scroll.
 
 ### Tasks (multi-feature app)
 ```bash
-EXAMPLE=tasks npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
+EXAMPLE=tasks npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
 ```
 List/detail view switching (string enum branching) + selection counter (numeric state) + selection highlight (skin reactivity) + 4-button navigation. The most complex working example.
 
@@ -223,7 +231,7 @@ Full JIRA-style issue tracker: list/detail view switching + scrollable multi-lab
 
 ### JIRA List (async data + complex layout)
 ```bash
-EXAMPLE=jira-list SETTLE_MS=200 npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
+EXAMPLE=jira-list SETTLE_MS=200 npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
 ```
 Renders 5 JIRA issues with keys, summaries, statuses, and priorities. Static snapshot of the loaded state.
 
@@ -236,10 +244,10 @@ One-command deploy:
 ./scripts/deploy.sh counter             # auto-detects watchapp mode for buttons
 ```
 
-Manual steps (if needed):
+Manual steps (from packages/react-pebble/):
 ```bash
-EXAMPLE=watchface npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
-cd pebble-spike && pebble build && pebble install --emulator emery --logs
+EXAMPLE=watchface npx tsx scripts/compile-to-piu.ts > .pebble-build/src/embeddedjs/main.js
+cd .pebble-build && pebble build && pebble install --emulator emery --logs
 pebble screenshot /tmp/screenshot.png   # capture the screen
 pebble emu-button click up              # simulate button press
 pebble kill                             # stop emulator
@@ -250,33 +258,24 @@ Requires Pebble SDK v4.9+ (Rebble fork) with the Alloy project type.
 ## Architecture
 
 ```
-src/
-  components/index.tsx    — JSX wrappers (<Rect>, <Text>, <Group>, etc.)
-  hooks/index.ts          — Pebble hooks (useTime, useButton, useState wrapper)
-  pebble-dom.ts           — Virtual DOM (type, props, children tree)
-  pebble-dom-shim.ts      — DOM-like adapter so Preact can render into pebble-dom
-  pebble-reconciler.ts    — Thin wrapper: Preact render() → pebble-dom
-  pebble-render.ts        — Entry point: creates Poco mock or real renderer
-  pebble-output.ts        — Poco drawing layer (used in mock mode for draw-log)
-  types/moddable.d.ts     — Ambient types for Moddable globals (screen, watch, Poco)
-  index.ts                — Public API re-exports
-
-scripts/
-  compile-to-piu.ts       — The compiler: mock render → pebble-dom → piu output
-
-examples/
-  watchface.tsx            — Digital clock watchface
-  counter.tsx              — Interactive counter with buttons
-  toggle.tsx               — Boolean state toggle
-  views.tsx                — Structural conditional rendering
-  jira-list.tsx            — JIRA issue list with async data
-  multiview.tsx            — 3-way string enum view switching
-  simple-list.tsx          — Scrollable .map() list
-  tasks.tsx                — Multi-feature app (list/detail + selection)
-
-pebble-spike/             — Pebble SDK project for emulator deployment
-  src/embeddedjs/main.js  — Auto-generated by compile-to-piu.ts (gitignored)
-  entry/watchface.tsx      — Alloy entry shim (imports Poco + calls main)
+packages/
+  react-pebble/              — npm: react-pebble
+    src/
+      compiler/index.ts      — Programmatic compiler API
+      plugin/index.ts        — Vite plugin (pebblePiu)
+      components/index.tsx   — JSX wrappers (<Rect>, <Text>, <Circle>, etc.)
+      hooks/index.ts         — Hooks (useTime, useButton, useState, useMessage)
+      pebble-dom.ts          — Virtual DOM
+      pebble-dom-shim.ts     — DOM adapter for Preact
+      pebble-render.ts       — Mock renderer entry point
+      platform.ts            — Screen dimensions (SCREEN.width/height)
+      index.ts               — Public API
+    scripts/
+      compile-to-piu.ts      — The compiler: JSX → pebble-dom → piu output
+    examples/                — 17 working examples
+    test/                    — 14 snapshot tests
+  create-pebble-app/         — npm: create-pebble-app
+    index.js                 — Project scaffolder CLI
 ```
 
 ## Limitations
