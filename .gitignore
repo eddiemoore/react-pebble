@@ -8,6 +8,9 @@ pebble-spike/build/
 pebble-spike/src/embeddedjs/main.js
 pebble-spike/.lock-waf*
 
+# Vite plugin generated pebble project
+.pebble-build/
+
 # OS
 .DS_Store
 

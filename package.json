@@ -21,11 +21,21 @@
       "types": "./dist/lib/src/components/index.d.ts",
       "import": "./dist/lib/components.js",
       "require": "./dist/lib/components.cjs"
+    },
+    "./plugin": {
+      "types": "./dist/lib/src/plugin/index.d.ts",
+      "import": "./dist/lib/plugin.js"
+    },
+    "./compiler": {
+      "types": "./dist/lib/src/compiler/index.d.ts",
+      "import": "./dist/lib/compiler.js"
     }
   },
   "files": [
     "dist/lib",
-    "src"
+    "src",
+    "scripts",
+    "pebble-spike/wscript"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
