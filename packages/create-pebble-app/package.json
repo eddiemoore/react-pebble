@@ -1,6 +1,6 @@
 {
   "name": "create-pebble-app",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Scaffold a new react-pebble watchface or app project",
   "type": "module",
   "bin": {
