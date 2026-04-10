@@ -866,7 +866,7 @@ function buildSizeProps(x: number, y: number, w: number, h: number): string {
 // Time format inference
 // ---------------------------------------------------------------------------
 
-type TimeFormat = 'HHMM' | 'SS' | 'DATE';
+type TimeFormat = 'HHMM' | 'MMSS' | 'SS' | 'DATE';
 
 function inferTimeFormat(textAtT1: string, t1: Date): TimeFormat | null {
   const hh = pad2(t1.getHours());
@@ -879,6 +879,7 @@ function inferTimeFormat(textAtT1: string, t1: Date): TimeFormat | null {
   ];
 
   if (textAtT1 === `${hh}:${mm}`) return 'HHMM';
+  if (textAtT1 === `${mm}:${ss}`) return 'MMSS';
   if (textAtT1 === ss) return 'SS';
   if (
     textAtT1.includes(days[t1.getDay()]!) &&
@@ -893,6 +894,8 @@ function emitTimeExpr(fmt: TimeFormat): string {
   switch (fmt) {
     case 'HHMM':
       return 'pad(d.getHours()) + ":" + pad(d.getMinutes())';
+    case 'MMSS':
+      return 'pad(d.getMinutes()) + ":" + pad(d.getSeconds())';
     case 'SS':
       return 'pad(d.getSeconds())';
     case 'DATE':

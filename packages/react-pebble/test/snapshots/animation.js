@@ -13,26 +13,30 @@ const sk1 = new Skin({ fill: "#ff0000" });
 const sk2 = new Skin({ fill: "#00ffff" });
 const sk3 = new Skin({ fill: "#404040" });
 const sk4 = new Skin({ fill: "#00ff00" });
-const st1 = new Style({ font: "14px Gothic", color: "#c0c0c0" });
+const st1 = new Style({ font: "18px Gothic", color: "#ffffff" });
 
 const bgSkin = new Skin({ fill: "#000000" });
+
+function pad(n) { return n < 10 ? "0" + n : "" + n; }
+const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 class AppBehavior extends Behavior {
   onCreate(app) {
     const c = app.first;
-    this.s0 = 0;
-    this.s1 = true;
-    this.s2 = 0;
-    this.s3 = true;
-    this.s4 = 0;
-    this.s5 = true;
-    this.sl1 = c.content("sl1");
+    this.tl1 = c.content("tl1");
   }
   onDisplaying(app) {
     this.refresh();
+    app.interval = 1000;
+    app.start();
+  }
+  onTimeChanged() {
+    this.refresh();
   }
   refresh() {
-    this.sl1.string = "" + this.s4;
+    const d = new Date();
+    this.tl1.string = pad(d.getMinutes()) + ":" + pad(d.getSeconds());
   }
 }
 
@@ -43,11 +47,11 @@ const WatchApp = Application.template(() => ({
       new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
         new Label(null, { top: 4, left: 0, width: 200, style: st0, horizontal: "center", string: "Animation Demo" }),
-        new RoundRect(null, { left: 20, top: 10, width: 24, height: 24, radius: 12, skin: sk1 }),
-        new RoundRect(null, { left: 100, top: 100, width: 10, height: 10, radius: 5, skin: sk2 }),
-        new Content(null, { left: 10, width: 180, top: 200, height: 8, skin: sk3 }),
-        new Content(null, { left: 10, width: 0, top: 200, height: 8, skin: sk4 }),
-        new Label(null, { top: 212, left: 0, width: 200, style: st1, horizontal: "center", name: "sl1", string: "0%" })
+        new RoundRect(null, { left: 20, top: 153, width: 24, height: 24, radius: 12, skin: sk1 }),
+        new RoundRect(null, { left: 130, top: 90, width: 60, height: 60, radius: 30, skin: sk2 }),
+        new Content(null, { left: 10, width: 180, top: 190, height: 10, skin: sk3 }),
+        new Content(null, { left: 10, width: 162, top: 190, height: 10, skin: sk4 }),
+        new Label(null, { top: 205, left: 0, width: 200, style: st1, horizontal: "center", name: "tl1", string: "07:03" })
       ] })
   ],
 }));
