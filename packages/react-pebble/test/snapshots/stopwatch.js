@@ -16,28 +16,39 @@ const sk2 = new Skin({ fill: "#00ff00" });
 
 const bgSkin = new Skin({ fill: "#000000" });
 
+function pad(n) { return n < 10 ? "0" + n : "" + n; }
+const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
 class AppBehavior extends Behavior {
   onCreate(app) {
     const c = app.first;
     this.s0 = false;
-    this.s1 = 0;
-    this.sl1 = c.content("sl1");
+    this.s1 = "00:00";
+    this._startTime_s0 = Date.now();
     this.sl0 = c.content("sl0");
+    this.sl1 = c.content("sl1");
     this.sr0 = c.content("sr0");
   }
   onDisplaying(app) {
     this.refresh();
+    app.interval = 1000;
+    app.start();
     new PebbleButton({ type: "select", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });
     new PebbleButton({ type: "down", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });
   }
+  onTimeChanged() {
+    this.refresh();
+  }
   onButton(e) {
     const name = e && e.button;
-    if (name === "select") { this.s0 = !this.s0; this.refresh(); }
-    if (name === "down") { this.s1 = 0; this.refresh(); }
+    if (name === "select") { this.s0 = !this.s0; if (this.s0) this._startTime_s0 = Date.now(); this.refresh(); }
+    if (name === "down") { this.s1 = "00:00"; this.refresh(); }
   }
   refresh() {
+    const d = new Date();
+    this.sl0.string = this.s0 ? (function(e) { return pad(Math.floor(e / 60)) + ":" + pad(e % 60); })(Math.floor((Date.now() - this._startTime_s0) / 1000)) : "00:00";
     this.sl1.string = this.s0 ? "RUNNING" : "STOPPED";
-    this.sl0.string = "" + this.s1;
     this.sr0.skin = this.s0 ? sk2 : sk0;
   }
 }

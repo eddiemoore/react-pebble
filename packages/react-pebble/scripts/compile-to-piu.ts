@@ -1001,7 +1001,7 @@ for (const b of buttonBindings) {
 // Perturbation pipeline — discover state-dependent labels
 // ---------------------------------------------------------------------------
 
-const stateDeps = new Map<number, { slotIndex: number; formatExpr: string }>();
+const stateDeps = new Map<number, { slotIndex: number; formatExpr: string; needsTime?: boolean }>();
 const skinDeps = new Map<number, { slotIndex: number; skins: [string, string] }>();
 
 // Branch info: when tree structure changes between baseline and perturbed,
@@ -1145,8 +1145,23 @@ for (const slot of stateSlots) {
           if (String(perturbedValue) === pertText) {
             formatExpr = `"" + this.s${slot.index}`;
           } else if (typeof slot.initialValue === 'boolean') {
-            // Boolean state produced different text — emit a ternary
-            formatExpr = `this.s${slot.index} ? "${pertText.replace(/"/g, '\\"')}" : "${baseText.replace(/"/g, '\\"')}"`;
+            // Boolean state produced different text — emit a ternary.
+            // If the perturbed text looks like a time format, emit a live
+            // time expression instead of a frozen compile-time snapshot.
+            const pertTimeFmt = inferTimeFormat(pertText, T1);
+            if (pertTimeFmt && (pertTimeFmt === 'MMSS' || pertTimeFmt === 'HHMM')) {
+              // State toggles between static text and live time.
+              // Emit elapsed-time tracking: capture start time when toggled on,
+              // compute elapsed seconds in refresh().
+              formatExpr = `this.s${slot.index} ? (function(e) { return pad(Math.floor(e / 60)) + ":" + pad(e % 60); })(Math.floor((Date.now() - this._startTime_s${slot.index}) / 1000)) : "${baseText.replace(/"/g, '\\"')}"`;
+              stateDeps.set(idx, { slotIndex: slot.index, formatExpr, needsTime: true });
+              process.stderr.write(
+                `  Label ${idx} depends on state slot ${slot.index} (base="${baseText}", perturbed=ELAPSED:${pertTimeFmt})\n`,
+              );
+              continue; // skip the default stateDeps.set below
+            } else {
+              formatExpr = `this.s${slot.index} ? "${pertText.replace(/"/g, '\\"')}" : "${baseText.replace(/"/g, '\\"')}"`;
+            }
           } else {
             formatExpr = `"" + this.s${slot.index}`;
           }
@@ -1513,7 +1528,8 @@ for (const binding of buttonBindings) {
 }
 
 // --- Emit piu output ---
-const hasTimeDeps = dynamicLabels.size > 0;
+const stateNeedsTime = [...stateDeps.values()].some(d => d.needsTime);
+const hasTimeDeps = dynamicLabels.size > 0 || stateNeedsTime;
 const hasStateDeps = stateDeps.size > 0;
 const hasButtons = buttonActions.length > 0;
 const hasBranches = branchInfos.length > 0;
@@ -1594,6 +1610,13 @@ if (hasBehavior) {
       continue;
     }
     lines.push(`    this.s${slot.index} = ${JSON.stringify(v)};`);
+  }
+
+  // Elapsed-time start markers for state+time hybrid labels
+  for (const [, dep] of stateDeps) {
+    if (dep.needsTime) {
+      lines.push(`    this._startTime_s${dep.slotIndex} = Date.now();`);
+    }
   }
 
   // Time-dependent label refs
@@ -1741,9 +1764,16 @@ if (hasBehavior) {
         case 'reset':
           stmt = `this.s${action.slotIndex} = ${action.value}; this.refresh();`;
           break;
-        case 'toggle':
-          stmt = `this.s${action.slotIndex} = !this.s${action.slotIndex}; this.refresh();`;
+        case 'toggle': {
+          // Check if any state-dependent label needs elapsed time tracking for this slot
+          const needsElapsed = [...stateDeps.values()].some(d => d.slotIndex === action.slotIndex && d.needsTime);
+          if (needsElapsed) {
+            stmt = `this.s${action.slotIndex} = !this.s${action.slotIndex}; if (this.s${action.slotIndex}) this._startTime_s${action.slotIndex} = Date.now(); this.refresh();`;
+          } else {
+            stmt = `this.s${action.slotIndex} = !this.s${action.slotIndex}; this.refresh();`;
+          }
           break;
+        }
         case 'set_string':
           stmt = `this.s${action.slotIndex} = "${action.stringValue}"; this.refresh();`;
           break;
