@@ -78,6 +78,7 @@ function colorToHex(name: string): string {
 }
 
 const FONT_TO_PIU: Record<string, string> = {
+  // Gothic family
   gothic14: '14px Gothic',
   gothic14Bold: 'bold 14px Gothic',
   gothic18: '18px Gothic',
@@ -86,9 +87,25 @@ const FONT_TO_PIU: Record<string, string> = {
   gothic24Bold: 'bold 24px Gothic',
   gothic28: '28px Gothic',
   gothic28Bold: 'bold 28px Gothic',
+  // Bitham family
   bitham30Black: 'black 30px Bitham',
   bitham42Bold: 'bold 42px Bitham',
   bitham42Light: 'light 42px Bitham',
+  bitham34MediumNumbers: '34px Bitham',
+  bitham42MediumNumbers: '42px Bitham',
+  // Roboto family
+  robotoCondensed21: '21px Roboto Condensed',
+  roboto21: '21px Roboto',
+  // Droid Serif
+  droid28: '28px Droid Serif',
+  // LECO family
+  leco20: '20px LECO',
+  leco26: '26px LECO',
+  leco28: '28px LECO',
+  leco32: '32px LECO',
+  leco36: '36px LECO',
+  leco38: '38px LECO',
+  leco42: '42px LECO',
 };
 
 function fontToPiu(name: string | undefined): string {

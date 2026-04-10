@@ -44,13 +44,20 @@ interface WatchButtonPayload {
   [key: string]: unknown;
 }
 
+interface WatchConnected {
+  /** Whether the Pebble companion app is connected. */
+  app: boolean;
+  /** Whether PebbleKit JS is available. */
+  pebblekit: boolean;
+}
+
 interface ModdableWatch {
-  addEventListener(event: WatchEvent, handler: (payload?: WatchButtonPayload) => void): void;
-  removeEventListener(event: WatchEvent, handler: (payload?: WatchButtonPayload) => void): void;
+  addEventListener(event: WatchEvent, handler: (...args: any[]) => void): void;
+  removeEventListener(event: WatchEvent, handler: (...args: any[]) => void): void;
   /** Unexplained method on the prototype — possibly the internal dispatch path. */
   do?: (...args: unknown[]) => unknown;
-  /** Connection / pairing state — unexplored. */
-  connected?: unknown;
+  /** Connection / pairing state. */
+  connected?: WatchConnected;
 }
 
 declare const watch: ModdableWatch | undefined;
@@ -147,6 +154,21 @@ declare module 'commodetto/Poco' {
 declare module 'commodetto/PocoCore' {
   export { default } from 'commodetto/Poco';
 }
+
+// ---------------------------------------------------------------------------
+// Battery — Alloy provides static properties on a Battery object.
+// ---------------------------------------------------------------------------
+
+interface PebbleBattery {
+  /** Battery percentage (0–100). */
+  readonly percent: number;
+  /** Whether the watch is currently charging. */
+  readonly charging: boolean;
+  /** Whether the watch is plugged in. */
+  readonly plugged: boolean;
+}
+
+declare const Battery: PebbleBattery | undefined;
 
 // Outline extension module — adds blendOutline / blendPolygon to Poco.prototype.
 // Importing this module has the side-effect of installing those methods.

@@ -142,10 +142,9 @@ export function useLongButton(button: PebbleButton, handler: PebbleButtonHandler
 // Time hooks
 //
 // On Alloy, `watch.addEventListener('secondchange'|'minutechange', fn)` is
-// the canonical tick source. In Node mock mode we fall back to setInterval.
-// Both paths are abstracted away by the renderer, which pumps the tick into
-// the hook via React state — here we just use setInterval directly, which
-// works in both XS and Node. (`watch` is used for redraws, not hook state.)
+// the canonical tick source — it fires exactly on boundaries and is far more
+// battery-efficient than setInterval. In Node mock mode we fall back to
+// setInterval.
 // ---------------------------------------------------------------------------
 
 export function useTime(intervalMs = 1000): Date {
@@ -153,6 +152,15 @@ export function useTime(intervalMs = 1000): Date {
 
   useEffect(() => {
     const tick = () => setTime(new Date());
+
+    // On Alloy: use watch tick events for battery efficiency
+    if (typeof watch !== 'undefined' && watch) {
+      const event = intervalMs <= 1000 ? 'secondchange' : 'minutechange';
+      watch.addEventListener(event, tick);
+      return () => watch!.removeEventListener(event, tick);
+    }
+
+    // Mock mode: fall back to setInterval
     const id = setInterval(tick, intervalMs);
     return () => clearInterval(id);
   }, [intervalMs]);
@@ -292,20 +300,104 @@ export function useMessage<T>(options: UseMessageOptions<T>): UseMessageResult<T
 }
 
 // ---------------------------------------------------------------------------
-// REMOVED HOOKS — reference for future reimplementation
+// Battery hook — reads Alloy's Battery sensor (percent, charging, plugged)
+// ---------------------------------------------------------------------------
+
+export interface BatteryState {
+  percent: number;
+  charging: boolean;
+  plugged: boolean;
+}
+
+/**
+ * Returns the current battery state. On Alloy, reads the `Battery` global.
+ * In mock mode (Node), returns a static default (100%, not charging).
+ *
+ * Re-reads on each render; battery updates arrive via watch tick events
+ * which trigger redraws, so the value stays fresh.
+ */
+export function useBattery(): BatteryState {
+  if (typeof Battery !== 'undefined' && Battery) {
+    return {
+      percent: Battery.percent,
+      charging: Battery.charging,
+      plugged: Battery.plugged,
+    };
+  }
+  // Mock mode — return a sensible default
+  return { percent: 100, charging: false, plugged: false };
+}
+
+// ---------------------------------------------------------------------------
+// Connection hook — reads watch.connected (app + pebblekit)
+// ---------------------------------------------------------------------------
+
+export interface ConnectionState {
+  app: boolean;
+  pebblekit: boolean;
+}
+
+/**
+ * Returns the current phone connection state. On Alloy, reads
+ * `watch.connected`. In mock mode, returns connected for both.
+ */
+export function useConnection(): ConnectionState {
+  if (typeof watch !== 'undefined' && watch?.connected) {
+    return {
+      app: watch.connected.app,
+      pebblekit: watch.connected.pebblekit,
+    };
+  }
+  // Mock mode
+  return { app: true, pebblekit: true };
+}
+
+// ---------------------------------------------------------------------------
+// localStorage hook — persists state across app restarts and reboots
+// ---------------------------------------------------------------------------
+
+/**
+ * Like useState, but backed by localStorage so the value persists across
+ * app restarts and watch reboots.
+ *
+ * On Alloy, `localStorage` is a standard Web API global.
+ * In mock mode (Node), falls back to a plain in-memory useState.
+ *
+ * Values are JSON-serialized. Only use with JSON-safe types.
+ */
+export function useLocalStorage<T>(key: string, defaultValue: T): [T, (v: T | ((prev: T) => T)) => void] {
+  const [value, setValue] = useState<T>(() => {
+    if (typeof localStorage === 'undefined') return defaultValue;
+    try {
+      const stored = localStorage.getItem(key);
+      return stored !== null ? JSON.parse(stored) as T : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  });
+
+  const setAndPersist = useCallback((v: T | ((prev: T) => T)) => {
+    setValue((prev) => {
+      const next = typeof v === 'function' ? (v as (p: T) => T)(prev) : v;
+      if (typeof localStorage !== 'undefined') {
+        try {
+          localStorage.setItem(key, JSON.stringify(next));
+        } catch {
+          // Storage full or unavailable — silently ignore
+        }
+      }
+      return next;
+    });
+  }, [key]);
+
+  return [value, setAndPersist];
+}
+
+// ---------------------------------------------------------------------------
+// FUTURE HOOKS — reference for reimplementation
 //
-//   - useBattery         — previously read Pebble.battery (fictional global).
-//                          Alloy equivalent: probably a Moddable power
-//                          module; not yet explored.
-//   - useConnection      — previously Pebble.connection.isConnected().
-//                          Alloy equivalent: `watch.connected` property was
-//                          observed on the watch prototype but its shape is
-//                          unknown.
-//   - useAccelerometer   — previously Pebble.accel. Alloy has Moddable
-//                          sensor modules; specific import path unknown.
-//   - useAppMessage      — previously Pebble.sendAppMessage / addEventListener
-//                          for 'appmessage'. Alloy has no direct equivalent;
-//                          phone↔watch messaging goes through PebbleKit JS on
-//                          the phone side (`src/pkjs/index.js`) and is a
-//                          separate concern.
+//   - useAccelerometer   — Alloy has Moddable sensor modules;
+//                          specific import path unknown.
+//   - useAppMessage      — phone↔watch messaging goes through PebbleKit JS
+//                          on the phone side (`src/pkjs/index.js`).
 // ---------------------------------------------------------------------------

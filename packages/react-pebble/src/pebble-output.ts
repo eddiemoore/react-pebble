@@ -12,9 +12,10 @@
  *   named color / font exactly once.
  * - **No native line, circle, or stroked rectangle.** Poco only has
  *   `fillRectangle`, `drawText`, and bitmap draws. Outlines (stroke) are
- *   emulated as four thin fillRectangles. Axis-aligned lines likewise.
- *   Circles and diagonal lines would need the `commodetto/outline` extension
- *   — they're currently stubbed (TODO for a later pass).
+ *   emulated as four thin fillRectangles. Axis-aligned lines use
+ *   fillRectangles. Circles use a midpoint circle algorithm and diagonal
+ *   lines use Bresenham's algorithm — both decomposed into fillRectangle
+ *   calls so they work on mock and real Poco without requiring extensions.
  * - **Text alignment is manual.** `drawText(text, font, color, x, y)` only
  *   draws at a point. For center/right alignment we measure with
  *   `getTextWidth` and compute the origin ourselves.
@@ -53,10 +54,9 @@ export const COLOR_PALETTE: Readonly<Record<string, RGB>> = {
 // ---------------------------------------------------------------------------
 // Named font shortcuts — mapped to (family, size) pairs.
 //
-// The family names here need to match fonts available in the Moddable
-// manifest. The Alloy scaffold ships "Bitham-Black" as a default — we use
-// it for every logical font for now. Revisit once we add custom font
-// resources to the library manifest.
+// The family names must match fonts available in the Moddable manifest.
+// These correspond to the Pebble system font families available in Alloy.
+// The piu compiler uses the same families via FONT_TO_PIU in compile-to-piu.ts.
 // ---------------------------------------------------------------------------
 
 export interface FontSpec {
@@ -65,19 +65,38 @@ export interface FontSpec {
 }
 
 export const FONT_PALETTE: Readonly<Record<string, FontSpec>> = {
-  gothic14: { family: 'Bitham-Black', size: 14 },
-  gothic14Bold: { family: 'Bitham-Black', size: 14 },
-  gothic18: { family: 'Bitham-Black', size: 18 },
-  gothic18Bold: { family: 'Bitham-Black', size: 18 },
-  gothic24: { family: 'Bitham-Black', size: 24 },
-  gothic24Bold: { family: 'Bitham-Black', size: 24 },
-  gothic28: { family: 'Bitham-Black', size: 28 },
-  gothic28Bold: { family: 'Bitham-Black', size: 28 },
-  bitham30Black: { family: 'Bitham-Black', size: 30 },
-  bitham42Bold: { family: 'Bitham-Black', size: 42 },
-  bitham42Light: { family: 'Bitham-Black', size: 42 },
-  bitham34MediumNumbers: { family: 'Bitham-Black', size: 34 },
-  bitham42MediumNumbers: { family: 'Bitham-Black', size: 42 },
+  // Gothic family — standard UI text
+  gothic14:     { family: 'Gothic', size: 14 },
+  gothic14Bold: { family: 'Gothic-Bold', size: 14 },
+  gothic18:     { family: 'Gothic', size: 18 },
+  gothic18Bold: { family: 'Gothic-Bold', size: 18 },
+  gothic24:     { family: 'Gothic', size: 24 },
+  gothic24Bold: { family: 'Gothic-Bold', size: 24 },
+  gothic28:     { family: 'Gothic', size: 28 },
+  gothic28Bold: { family: 'Gothic-Bold', size: 28 },
+
+  // Bitham family — large display fonts
+  bitham30Black:         { family: 'Bitham-Black', size: 30 },
+  bitham42Bold:          { family: 'Bitham-Bold', size: 42 },
+  bitham42Light:         { family: 'Bitham-Light', size: 42 },
+  bitham34MediumNumbers: { family: 'Bitham', size: 34 },
+  bitham42MediumNumbers: { family: 'Bitham', size: 42 },
+
+  // Roboto family
+  robotoCondensed21: { family: 'Roboto-Condensed', size: 21 },
+  roboto21:          { family: 'Roboto', size: 21 },
+
+  // Droid Serif
+  droid28: { family: 'Droid-Serif', size: 28 },
+
+  // LECO family — LED-style numeric fonts
+  leco20: { family: 'LECO', size: 20 },
+  leco26: { family: 'LECO', size: 26 },
+  leco28: { family: 'LECO', size: 28 },
+  leco32: { family: 'LECO', size: 32 },
+  leco36: { family: 'LECO', size: 36 },
+  leco38: { family: 'LECO', size: 38 },
+  leco42: { family: 'LECO', size: 42 },
 };
 
 const DEFAULT_FONT_KEY = 'gothic18';
@@ -255,13 +274,30 @@ export class PocoRenderer {
           const w = Math.abs(x2 - x) || 1;
           this.poco.fillRectangle(c, left, y, w, sw);
         }
-        // else: diagonal line — silently skipped for now
+        else {
+          // Diagonal line via Bresenham's algorithm
+          this.drawDiagonalLine(c, x, y, x2, y2, sw);
+        }
         break;
       }
 
       case 'pbl-circle': {
-        // TODO: implement via commodetto/outline extension (blendOutline)
-        // or a Bresenham-style approximation. Stubbed for now.
+        const r = num(p, 'r') || num(p, 'radius');
+        if (r <= 0) break;
+        const fill = str(p, 'fill');
+        const stroke = str(p, 'stroke');
+        const sw = num(p, 'strokeWidth') || 1;
+
+        // Midpoint circle algorithm — works on any Poco (real or mock)
+        // without requiring the commodetto/outline extension.
+        if (fill) {
+          const fc = this.getColor(fill);
+          this.fillCircle(fc, x + r, y + r, r);
+        }
+        if (stroke) {
+          const sc = this.getColor(stroke);
+          this.strokeCircle(sc, x + r, y + r, r, sw);
+        }
         break;
       }
 
@@ -288,6 +324,109 @@ export class PocoRenderer {
       case 'pbl-root': {
         this.renderChildren(node, ox, oy);
         break;
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Circle rendering — midpoint circle algorithm
+  // -------------------------------------------------------------------------
+
+  /** Fill a circle by drawing horizontal spans for each row. */
+  private fillCircle(color: PocoColor, cx: number, cy: number, r: number): void {
+    const { poco } = this;
+    let x0 = r;
+    let y0 = 0;
+    let err = 1 - r;
+
+    // Track the last drawn y to avoid duplicate spans
+    let lastY1 = -1;
+    let lastY2 = -1;
+
+    while (x0 >= y0) {
+      // Draw horizontal spans for each octant pair
+      if (cy + y0 !== lastY1) {
+        poco.fillRectangle(color, cx - x0, cy + y0, x0 * 2 + 1, 1);
+        lastY1 = cy + y0;
+      }
+      if (cy - y0 !== lastY2 && y0 !== 0) {
+        poco.fillRectangle(color, cx - x0, cy - y0, x0 * 2 + 1, 1);
+        lastY2 = cy - y0;
+      }
+      if (cy + x0 !== lastY1) {
+        poco.fillRectangle(color, cx - y0, cy + x0, y0 * 2 + 1, 1);
+        lastY1 = cy + x0;
+      }
+      if (cy - x0 !== lastY2) {
+        poco.fillRectangle(color, cx - y0, cy - x0, y0 * 2 + 1, 1);
+        lastY2 = cy - x0;
+      }
+
+      y0++;
+      if (err < 0) {
+        err += 2 * y0 + 1;
+      } else {
+        x0--;
+        err += 2 * (y0 - x0) + 1;
+      }
+    }
+  }
+
+  /** Stroke a circle outline by drawing small rects at each perimeter point. */
+  private strokeCircle(color: PocoColor, cx: number, cy: number, r: number, sw: number): void {
+    const { poco } = this;
+    let x0 = r;
+    let y0 = 0;
+    let err = 1 - r;
+
+    while (x0 >= y0) {
+      // 8 octant points
+      poco.fillRectangle(color, cx + x0, cy + y0, sw, sw);
+      poco.fillRectangle(color, cx - x0, cy + y0, sw, sw);
+      poco.fillRectangle(color, cx + x0, cy - y0, sw, sw);
+      poco.fillRectangle(color, cx - x0, cy - y0, sw, sw);
+      poco.fillRectangle(color, cx + y0, cy + x0, sw, sw);
+      poco.fillRectangle(color, cx - y0, cy + x0, sw, sw);
+      poco.fillRectangle(color, cx + y0, cy - x0, sw, sw);
+      poco.fillRectangle(color, cx - y0, cy - x0, sw, sw);
+
+      y0++;
+      if (err < 0) {
+        err += 2 * y0 + 1;
+      } else {
+        x0--;
+        err += 2 * (y0 - x0) + 1;
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Diagonal line rendering — Bresenham's line algorithm
+  // -------------------------------------------------------------------------
+
+  private drawDiagonalLine(
+    color: PocoColor, x1: number, y1: number, x2: number, y2: number, sw: number,
+  ): void {
+    const { poco } = this;
+    let dx = Math.abs(x2 - x1);
+    let dy = Math.abs(y2 - y1);
+    const sx = x1 < x2 ? 1 : -1;
+    const sy = y1 < y2 ? 1 : -1;
+    let err = dx - dy;
+    let cx = x1;
+    let cy = y1;
+
+    for (;;) {
+      poco.fillRectangle(color, cx, cy, sw, sw);
+      if (cx === x2 && cy === y2) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        cx += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        cy += sy;
       }
     }
   }

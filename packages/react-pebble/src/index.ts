@@ -79,6 +79,9 @@ export {
   useFormattedTime,
   useInterval,
   useListNavigation,
+  useBattery,
+  useConnection,
+  useLocalStorage,
   ButtonRegistry,
   PebbleAppContext,
 } from './hooks/index.js';
@@ -87,6 +90,8 @@ export type {
   PebbleButtonHandler,
   ListNavigationOptions,
   ListNavigationResult,
+  BatteryState,
+  ConnectionState,
 } from './hooks/index.js';
 
 // Low-level access (for advanced usage / custom renderers / tests)
