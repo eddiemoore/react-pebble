@@ -34,8 +34,7 @@
   "files": [
     "dist/lib",
     "src",
-    "scripts",
-    "pebble-spike/wscript"
+    "scripts"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",

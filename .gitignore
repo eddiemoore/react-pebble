@@ -3,13 +3,9 @@ dist/
 node_modules/
 *.tsbuildinfo
 
-# Pebble spike project build artifacts
-pebble-spike/build/
-pebble-spike/src/embeddedjs/main.js
-pebble-spike/.lock-waf*
-
 # Vite plugin generated pebble project
 .pebble-build/
+.pebble-build-vite-tmp/
 
 # OS
 .DS_Store

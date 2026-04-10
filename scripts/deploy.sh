@@ -1,6 +1,9 @@
 #!/bin/bash
 # Deploy a react-pebble example to the Pebble Alloy emulator.
 #
+# Uses the Vite plugin to compile + scaffold .pebble-build/, then
+# builds and installs to the emulator.
+#
 # Usage:
 #   ./scripts/deploy.sh watchface          # compile + build + install + screenshot
 #   ./scripts/deploy.sh counter --logs     # with live log streaming
@@ -14,15 +17,14 @@ if [ "$2" = "--logs" ]; then LOGS_FLAG="--logs"; fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-SPIKE_DIR="$PROJECT_DIR/pebble-spike"
+BUILD_DIR="$PROJECT_DIR/.pebble-build"
 
-echo "=== Compiling $EXAMPLE ==="
+echo "=== Compiling + scaffolding $EXAMPLE ==="
 cd "$PROJECT_DIR"
-EXAMPLE="$EXAMPLE" npx tsx scripts/compile-to-piu.ts > "$SPIKE_DIR/src/embeddedjs/main.js" 2>/tmp/react-pebble-compile.log
-cat /tmp/react-pebble-compile.log >&2
+ENTRY="examples/${EXAMPLE}.tsx" npx vite build --config vite.config.plugin-test.js 2>&1 | grep "\[react-pebble\]"
 
 echo "=== Building ==="
-cd "$SPIKE_DIR"
+cd "$BUILD_DIR"
 pebble build 2>&1 | tail -5
 
 echo "=== Installing to emery emulator ==="

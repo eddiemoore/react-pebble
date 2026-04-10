@@ -1654,25 +1654,3 @@ lines.push(
 );
 
 process.stdout.write(lines.join('\n'));
-
-// ---------------------------------------------------------------------------
-// Auto-set watchface mode in pebble-spike/package.json.
-// PebbleButton crashes in watchface mode, so any example with buttons
-// must deploy as a watchapp (watchface: false).
-// ---------------------------------------------------------------------------
-
-const needsWatchapp = hasButtons;
-const pkgPath = resolve(__dirname, '..', 'pebble-spike', 'package.json');
-try {
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
-  const currentWatchface = pkg?.pebble?.watchapp?.watchface ?? true;
-  const desiredWatchface = !needsWatchapp;
-  if (currentWatchface !== desiredWatchface) {
-    pkg.pebble.watchapp.watchface = desiredWatchface;
-    const { writeFileSync } = await import('node:fs');
-    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-    process.stderr.write(`Set watchface: ${desiredWatchface} (${needsWatchapp ? 'has buttons → watchapp' : 'no buttons → watchface'})\n`);
-  }
-} catch {
-  // Non-critical — skip silently if package.json not found
-}
