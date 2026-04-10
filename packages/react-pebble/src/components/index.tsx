@@ -158,12 +158,81 @@ export function Image(props: ImageProps) {
   return React.createElement('pbl-image', props);
 }
 
-export interface GroupProps extends PositionProps {
+export interface GroupProps extends PositionProps, SizeProps {
   children?: ReactNode;
 }
 
 export function Group({ children, ...props }: GroupProps) {
   return React.createElement('pbl-group', props, children);
+}
+
+// ---------------------------------------------------------------------------
+// Flow layout containers
+// ---------------------------------------------------------------------------
+
+export interface ColumnProps extends PositionProps, SizeProps {
+  /** Gap between children in pixels (default 0). */
+  gap?: number;
+  children?: ReactNode;
+}
+
+/**
+ * Stacks children vertically, auto-computing each child's `y` offset.
+ * Children should specify `h` (or `height`) for correct stacking;
+ * children without a height are given a default of 20px.
+ */
+export function Column({ x = 0, y = 0, gap = 0, children, ...props }: ColumnProps) {
+  let offsetY = 0;
+  const mapped = toArray(children).map((child, i) => {
+    if (!child || typeof child !== 'object') return child;
+    const vnode = child as { type: unknown; props: Record<string, unknown> };
+    if (!vnode.type || !vnode.props) return child;
+    const childH = (vnode.props.h ?? vnode.props.height ?? 20) as number;
+    const el = React.createElement(
+      vnode.type as string,
+      { ...(vnode.props as object), y: offsetY, key: i },
+    );
+    offsetY += childH + gap;
+    return el;
+  });
+
+  return React.createElement('pbl-group', { x, y, ...props }, ...(mapped as ReactNode[]));
+}
+
+export interface RowProps extends PositionProps, SizeProps {
+  /** Gap between children in pixels (default 0). */
+  gap?: number;
+  children?: ReactNode;
+}
+
+/**
+ * Stacks children horizontally, auto-computing each child's `x` offset.
+ * Children should specify `w` (or `width`) for correct stacking;
+ * children without a width are given a default of 40px.
+ */
+export function Row({ x = 0, y = 0, gap = 0, children, ...props }: RowProps) {
+  let offsetX = 0;
+  const mapped = toArray(children).map((child, i) => {
+    if (!child || typeof child !== 'object') return child;
+    const vnode = child as { type: unknown; props: Record<string, unknown> };
+    if (!vnode.type || !vnode.props) return child;
+    const childW = (vnode.props.w ?? vnode.props.width ?? 40) as number;
+    const el = React.createElement(
+      vnode.type as string,
+      { ...(vnode.props as object), x: offsetX, key: i },
+    );
+    offsetX += childW + gap;
+    return el;
+  });
+
+  return React.createElement('pbl-group', { x, y, ...props }, ...(mapped as ReactNode[]));
+}
+
+/** Flatten ComponentChildren into an array, filtering nulls. */
+function toArray(children: ReactNode): unknown[] {
+  if (children == null) return [];
+  if (Array.isArray(children)) return children.filter(Boolean);
+  return [children];
 }
 
 export interface StatusBarProps {

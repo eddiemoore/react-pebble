@@ -45,6 +45,8 @@ export {
   Line,
   Image,
   Group,
+  Column,
+  Row,
   StatusBar,
   ActionBar,
   Card,
@@ -58,6 +60,8 @@ export type {
   LineProps,
   ImageProps,
   GroupProps,
+  ColumnProps,
+  RowProps,
   StatusBarProps,
   ActionBarProps,
   CardProps,
@@ -82,6 +86,7 @@ export {
   useBattery,
   useConnection,
   useLocalStorage,
+  useFetch,
   ButtonRegistry,
   PebbleAppContext,
 } from './hooks/index.js';
@@ -92,6 +97,8 @@ export type {
   ListNavigationResult,
   BatteryState,
   ConnectionState,
+  UseFetchOptions,
+  UseFetchResult,
 } from './hooks/index.js';
 
 // Low-level access (for advanced usage / custom renderers / tests)
