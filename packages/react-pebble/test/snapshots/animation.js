@@ -45,7 +45,7 @@ class AppBehavior extends Behavior {
   }
   refresh() {
     const d = new Date();
-    this.tl1.string = pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+    if (this.tl1) this.tl1.string = pad(d.getMinutes()) + ":" + pad(d.getSeconds());
     const _s = d.getSeconds();
     this.ae1.y = _kf_e1_top[_s];
     this.ae2.width = _kf_e2_width[_s];

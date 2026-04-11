@@ -47,9 +47,9 @@ class AppBehavior extends Behavior {
   }
   refresh() {
     const d = new Date();
-    this.sl0.string = this.s0 ? (function(e) { return pad(Math.floor(e / 60)) + ":" + pad(e % 60); })(Math.floor((Date.now() - this._startTime_s0) / 1000)) : "00:00";
-    this.sl1.string = this.s0 ? "RUNNING" : "STOPPED";
-    this.sr0.skin = this.s0 ? sk2 : sk0;
+    if (this.sl0) this.sl0.string = this.s0 ? (function(e) { return pad(Math.floor(e / 60)) + ":" + pad(e % 60); })(Math.floor((Date.now() - this._startTime_s0) / 1000)) : "00:00";
+    if (this.sl1) this.sl1.string = this.s0 ? "RUNNING" : "STOPPED";
+    if (this.sr0) this.sr0.skin = this.s0 ? sk2 : sk0;
   }
 }
 

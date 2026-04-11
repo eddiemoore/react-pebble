@@ -30,8 +30,8 @@ class AppBehavior extends Behavior {
     if (name === "select") { this.s0 = !this.s0; this.refresh(); }
   }
   refresh() {
-    this.sl0.string = this.s0 ? "ON" : "OFF";
-    this.sr0.skin = this.s0 ? sk1 : sk0;
+    if (this.sl0) this.sl0.string = this.s0 ? "ON" : "OFF";
+    if (this.sr0) this.sr0.skin = this.s0 ? sk1 : sk0;
   }
 }
 

@@ -34,7 +34,7 @@ class AppBehavior extends Behavior {
   }
   refresh() {
     const d = new Date();
-    this.tl0.string = pad(d.getSeconds());
+    if (this.tl0) this.tl0.string = pad(d.getSeconds());
   }
 }
 

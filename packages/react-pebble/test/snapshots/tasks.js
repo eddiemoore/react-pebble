@@ -45,8 +45,8 @@ class AppBehavior extends Behavior {
     if (name === "back") { this.s0 = "list"; this.refresh(); }
   }
   refresh() {
-    this.sl1.string = "" + this.s1;
-    this.sr2.skin = (this.s1 !== 0) ? sk0 : sk2;
+    if (this.sl1) this.sl1.string = "" + this.s1;
+    if (this.sr2) this.sr2.skin = (this.s1 !== 0) ? sk0 : sk2;
     this.br_s0_v0.visible = (this.s0 === "list");
     this.br_s0_v1.visible = (this.s0 === "detail");
   }

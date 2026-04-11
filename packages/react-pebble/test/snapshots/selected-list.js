@@ -43,7 +43,7 @@ class AppBehavior extends Behavior {
     if (name === "down") { this.s0 = Math.min(_data.length - 3, this.s0 + 1); this.refresh(); }
   }
   refresh() {
-    this.sl1.string = (this.s0 + 1) + "/5";
+    if (this.sl1) this.sl1.string = (this.s0 + 1) + "/5";
     const _start = this.s0;
     for (let _i = 0; _i < 3; _i++) {
       const _item = _data[_start + _i];

@@ -55,7 +55,7 @@ class AppBehavior extends Behavior {
     if (name === "back") { this.s0 = "list"; this.refresh(); }
   }
   refresh() {
-    this.sl1.string = (this.s1 + 1) + "/5";
+    if (this.sl1) this.sl1.string = (this.s1 + 1) + "/5";
     this.br_s0_v0.visible = (this.s0 === "list");
     this.br_s0_v1.visible = (this.s0 === "detail");
     const _start = this.s1;

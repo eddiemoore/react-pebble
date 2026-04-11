@@ -261,33 +261,73 @@ interface HandlerAction {
  * Extract a setter→slot index map from source by walking the AST for
  * `const [name, setName] = useState(...)` variable declarations.
  */
-function buildSetterSlotMap(exName: string): Map<string, number> {
-  const map = new Map<string, number>();
+/**
+ * Extract setter names and their initial values from source AST.
+ * Returns { setterName → initialValue } pairs. The actual slot index
+ * is resolved AFTER the first render by matching initial values to
+ * runtime state slots (since internal hook useState calls shift indices).
+ */
+function buildSetterInfo(exName: string): { name: string; initValue: unknown }[] {
+  const result: { name: string; initValue: unknown }[] = [];
   const sf = parseExampleSource(exName);
-  if (!sf) return map;
+  if (!sf) return result;
 
-  let idx = 0;
   walkAST(sf, (node) => {
     if (!ts.isVariableDeclaration(node)) return;
-    // Must have an initializer that calls useState
     if (!node.initializer || !ts.isCallExpression(node.initializer)) return;
     const callee = node.initializer.expression;
     if (!ts.isIdentifier(callee) || callee.text !== 'useState') return;
-    // Must be an array binding pattern with 2 elements: [value, setter]
     if (!ts.isArrayBindingPattern(node.name)) return;
     const elements = node.name.elements;
     if (elements.length < 2) return;
     const setterElement = elements[1]!;
     if (ts.isOmittedExpression(setterElement)) return;
     const setterName = setterElement.name;
-    if (ts.isIdentifier(setterName)) {
-      map.set(setterName.text, idx++);
+    if (!ts.isIdentifier(setterName)) return;
+
+    // Extract initial value from the useState argument
+    let initValue: unknown = undefined;
+    const arg = node.initializer.arguments[0];
+    if (arg) {
+      if (ts.isNumericLiteral(arg)) initValue = Number(arg.text);
+      else if (ts.isStringLiteral(arg)) initValue = arg.text;
+      else if (arg.kind === ts.SyntaxKind.TrueKeyword) initValue = true;
+      else if (arg.kind === ts.SyntaxKind.FalseKeyword) initValue = false;
     }
+
+    result.push({ name: setterName.text, initValue });
   });
-  return map;
+  return result;
 }
 
-const setterSlotMap = buildSetterSlotMap(entryPath);
+const _setterInfo = buildSetterInfo(entryPath);
+// Actual setterSlotMap is populated after first render (see below)
+let setterSlotMap = new Map<string, number>();
+
+/** Resolve setter names to runtime slot indices by matching initial values. */
+function resolveSetterSlotMap(): void {
+  setterSlotMap = new Map<string, number>();
+  const usedSlots = new Set<number>();
+  for (const info of _setterInfo) {
+    // Find the runtime slot with matching initial value
+    for (const slot of stateSlots) {
+      if (usedSlots.has(slot.index)) continue;
+      if (slot.initialValue === info.initValue ||
+          (typeof slot.initialValue === 'number' && typeof info.initValue === 'number' && slot.initialValue === info.initValue) ||
+          (typeof slot.initialValue === 'string' && typeof info.initValue === 'string' && slot.initialValue === info.initValue) ||
+          (typeof slot.initialValue === 'boolean' && typeof info.initValue === 'boolean' && slot.initialValue === info.initValue)) {
+        setterSlotMap.set(info.name, slot.index);
+        usedSlots.add(slot.index);
+        break;
+      }
+    }
+  }
+  if (setterSlotMap.size > 0) {
+    process.stderr.write(`Setter→slot mapping: ${[...setterSlotMap.entries()].map(([n, i]) => `${n}→s${i}`).join(', ')}\n`);
+  }
+}
+
+// setterSlotMap is populated after first render via resolveSetterSlotMap()
 const listInfo = detectListPatterns(entryPath);
 if (listInfo) {
   process.stderr.write(`List detected: array="${listInfo.dataArrayName}" visible=${listInfo.visibleCount} labelsPerItem=${listInfo.labelsPerItem}\n`);
@@ -449,15 +489,14 @@ function analyzeSetterCall(call: ts.CallExpression, sf: ts.SourceFile): HandlerA
       const method = body.expression.name.text;
       if (ts.isIdentifier(obj) && obj.text === 'Math' && body.arguments.length === 2) {
         const [a0, a1] = [body.arguments[0]!, body.arguments[1]!];
-        if (method === 'min' && ts.isBinaryExpression(a0)) {
-          if (a0.operatorToken.kind === ts.SyntaxKind.PlusToken && ts.isNumericLiteral(a0.right)) {
-            return { type: 'increment', slotIndex, value: Number(a0.right.text) };
-          }
+        // Check both argument positions: Math.min(x+N, max) or Math.min(max, x+N)
+        const minExpr = method === 'min' ? (ts.isBinaryExpression(a0) ? a0 : ts.isBinaryExpression(a1) ? a1 : null) : null;
+        if (minExpr && minExpr.operatorToken.kind === ts.SyntaxKind.PlusToken && ts.isNumericLiteral(minExpr.right)) {
+          return { type: 'increment', slotIndex, value: Number(minExpr.right.text) };
         }
-        if (method === 'max' && ts.isBinaryExpression(a0)) {
-          if (a0.operatorToken.kind === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(a0.right)) {
-            return { type: 'decrement', slotIndex, value: Number(a0.right.text) };
-          }
+        const maxExpr = method === 'max' ? (ts.isBinaryExpression(a0) ? a0 : ts.isBinaryExpression(a1) ? a1 : null) : null;
+        if (maxExpr && maxExpr.operatorToken.kind === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(maxExpr.right)) {
+          return { type: 'decrement', slotIndex, value: Number(maxExpr.right.text) };
         }
       }
     }
@@ -1009,6 +1048,9 @@ const app1 = exampleMain();
 restore();
 await settle(); // Let async effects (useEffect + setTimeout) fire
 
+// Resolve setter→slot mapping now that runtime state slots are known
+resolveSetterSlotMap();
+
 if (!app1) {
   process.stderr.write('Failed to render at T1\n');
   process.exit(1);
@@ -1089,7 +1131,7 @@ function diffTreeChildren(
     if (node.type === '#text') return `#text:${node.value}`;
     const el = node as DOMElement;
     const firstText = el.children.find(c => c.type === '#text' || (c.type !== '#text' && getTextContent(c)));
-    const text = firstText ? getTextContent(firstText) : '';
+    const text = firstText ? String(getTextContent(firstText) ?? '') : '';
     return `${el.type}:${text.slice(0, 30)}`;
   }
 
@@ -1989,10 +2031,10 @@ if (hasBehavior) {
     lines.push('    const d = new Date();');
   }
   for (const [idx, fmt] of labelFormats) {
-    lines.push(`    this.tl${idx}.string = ${emitTimeExpr(fmt)};`);
+    lines.push(`    if (this.tl${idx}) this.tl${idx}.string = ${emitTimeExpr(fmt)};`);
   }
   for (const [idx, dep] of stateDeps) {
-    lines.push(`    this.sl${idx}.string = ${dep.formatExpr};`);
+    lines.push(`    if (this.sl${idx}) this.sl${idx}.string = ${dep.formatExpr};`);
   }
   // Skin reactivity — swap skins on state change
   for (const [rIdx, dep] of skinDeps) {
@@ -2000,9 +2042,9 @@ if (hasBehavior) {
     const pertSkinVar = ensureSkin(ctx, dep.skins[1]!);
     const slot = stateSlots[dep.slotIndex];
     if (typeof slot?.initialValue === 'boolean') {
-      lines.push(`    this.sr${rIdx}.skin = this.s${dep.slotIndex} ? ${pertSkinVar} : ${baseSkinVar};`);
+      lines.push(`    if (this.sr${rIdx}) this.sr${rIdx}.skin = this.s${dep.slotIndex} ? ${pertSkinVar} : ${baseSkinVar};`);
     } else {
-      lines.push(`    this.sr${rIdx}.skin = (this.s${dep.slotIndex} !== ${JSON.stringify(slot?.initialValue)}) ? ${pertSkinVar} : ${baseSkinVar};`);
+      lines.push(`    if (this.sr${rIdx}) this.sr${rIdx}.skin = (this.s${dep.slotIndex} !== ${JSON.stringify(slot?.initialValue)}) ? ${pertSkinVar} : ${baseSkinVar};`);
     }
   }
   // Per-subtree conditional visibility (skipped for message-driven apps)

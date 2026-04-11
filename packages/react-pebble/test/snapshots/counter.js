@@ -34,7 +34,7 @@ class AppBehavior extends Behavior {
     if (name === "select") { this.s0 = 0; this.refresh(); }
   }
   refresh() {
-    this.sl1.string = "" + this.s0;
+    if (this.sl1) this.sl1.string = "" + this.s0;
   }
 }
 

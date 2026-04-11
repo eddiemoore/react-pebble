@@ -27,8 +27,8 @@ class AppBehavior extends Behavior {
     this.refresh();
   }
   refresh() {
-    this.sl0.string = "" + this.s0;
-    this.sl1.string = "" + this.s0;
+    if (this.sl0) this.sl0.string = "" + this.s0;
+    if (this.sl1) this.sl1.string = "" + this.s0;
   }
 }
 

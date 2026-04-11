@@ -36,7 +36,7 @@ class AppBehavior extends Behavior {
   }
   refresh() {
     const d = new Date();
-    this.tl0.string = pad(d.getHours()) + ":" + pad(d.getMinutes());
+    if (this.tl0) this.tl0.string = pad(d.getHours()) + ":" + pad(d.getMinutes());
   }
 }
 

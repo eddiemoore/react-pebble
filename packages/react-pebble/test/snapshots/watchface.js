@@ -36,9 +36,9 @@ class AppBehavior extends Behavior {
   }
   refresh() {
     const d = new Date();
-    this.tl0.string = pad(d.getHours()) + ":" + pad(d.getMinutes());
-    this.tl1.string = pad(d.getSeconds());
-    this.tl2.string = days[d.getDay()] + " " + months[d.getMonth()] + " " + d.getDate();
+    if (this.tl0) this.tl0.string = pad(d.getHours()) + ":" + pad(d.getMinutes());
+    if (this.tl1) this.tl1.string = pad(d.getSeconds());
+    if (this.tl2) this.tl2.string = days[d.getDay()] + " " + months[d.getMonth()] + " " + d.getDate();
   }
 }
 
