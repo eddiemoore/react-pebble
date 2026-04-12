@@ -45,9 +45,12 @@ export interface RenderOptions {
   backgroundColor?: string;
 }
 
+export type AppExitReason = 'default' | 'watchface' | 'actionPerformed';
+
 export interface PebbleApp {
   update(newElement: ComponentChild): void;
   unmount(): void;
+  setExitReason(reason: AppExitReason): void;
   readonly platform: PebblePlatformInfo;
   readonly drawLog: readonly DrawCall[];
   readonly _root: DOMElement;
@@ -297,6 +300,14 @@ export function render(element: ComponentChild, options: RenderOptionsExt = {}):
       opts._commit = prevCommit;
       opts.__c = prevCommit;
       unwireButtons();
+    },
+    setExitReason(reason) {
+      if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).AppExit) {
+        const ae = (globalThis as Record<string, unknown>).AppExit as {
+          setReason?: (r: string) => void;
+        };
+        ae.setReason?.(reason);
+      }
     },
     get platform() {
       return info;

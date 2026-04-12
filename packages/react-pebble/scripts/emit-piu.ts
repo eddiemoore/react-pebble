@@ -180,6 +180,11 @@ function emitIRNode(
       const escaped = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
       const nameProp = el.name ? `, name: "${el.name}"` : '';
 
+      // Use piu Text for wrapping multi-line text, Label for single-line
+      if (el.isWrapping) {
+        const heightProp = el.h > 0 ? `, height: ${el.h}` : '';
+        return `${indent}new Text(null, { ${posProps.join(', ')}${heightProp}, style: ${styleVar}${horizProp}${nameProp}, string: "${escaped}" })`;
+      }
       return `${indent}new Label(null, { ${posProps.join(', ')}, style: ${styleVar}${horizProp}${nameProp}, string: "${escaped}" })`;
     }
 
@@ -208,6 +213,59 @@ function emitIRNode(
       const size = r * 2;
       const animName = el.name ? `, name: "${el.name}"` : '';
       return `${indent}new RoundRect(null, { left: ${el.x}, top: ${el.y}, width: ${size}, height: ${size}, radius: ${r}, skin: ${skinVar}${animName} })`;
+    }
+
+    case 'arc': {
+      // Arc rendering via piu Port with drawSkin scanline fill.
+      const r = el.radius ?? 40;
+      const innerR = el.innerRadius ?? 0;
+      const startAngle = el.startAngle ?? 0;
+      const endAngle = el.endAngle ?? 360;
+      const size = r * 2;
+      const fillHex = el.fill;
+      const strokeHex = el.stroke;
+      const sw = el.strokeWidth ?? 1;
+
+      const behaviorName = `_ab${ctx.declarations.length}`;
+      const fillSkinVar = fillHex ? ensureSkin(ctx, fillHex) : null;
+      const strokeSkinVar = strokeHex ? ensureSkin(ctx, strokeHex) : null;
+
+      const lines: string[] = [];
+      lines.push(`class ${behaviorName} extends Behavior {`);
+      lines.push(`  onDraw(port, x, y, w, h) {`);
+      lines.push(`    const cx = ${r}, cy = ${r}, oR = ${r}, iR = ${innerR};`);
+      lines.push(`    const sA = ${startAngle}, eA = ${endAngle};`);
+      lines.push(`    const rSq = oR * oR, iSq = iR * iR;`);
+      if (fillSkinVar) {
+        lines.push(`    for (let dy = -oR; dy <= oR; dy++) {`);
+        lines.push(`      let ss = -1, sp = false;`);
+        lines.push(`      for (let dx = -oR; dx <= oR; dx++) {`);
+        lines.push(`        const d = dx*dx + dy*dy;`);
+        lines.push(`        if (d <= rSq && d >= iSq) {`);
+        lines.push(`          const a = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;`);
+        lines.push(`          const s = ((sA%360)+360)%360, e = ((eA%360)+360)%360;`);
+        lines.push(`          const ok = s<=e ? (a>=s&&a<=e) : (a>=s||a<=e);`);
+        lines.push(`          if (ok) { if (!sp) { ss = cx+dx; sp = true; } }`);
+        lines.push(`          else if (sp) { port.drawSkin(${fillSkinVar}, ss, cy+dy, (cx+dx)-ss, 1); sp = false; }`);
+        lines.push(`        } else if (sp) { port.drawSkin(${fillSkinVar}, ss, cy+dy, (cx+dx)-ss, 1); sp = false; }`);
+        lines.push(`      }`);
+        lines.push(`      if (sp) port.drawSkin(${fillSkinVar}, ss, cy+dy, (cx+oR+1)-ss, 1);`);
+        lines.push(`    }`);
+      }
+      if (strokeSkinVar) {
+        lines.push(`    const steps = Math.max(Math.round(2*Math.PI*oR*2), 60);`);
+        lines.push(`    const sR = (sA-90)*Math.PI/180, eR = (eA-90)*Math.PI/180;`);
+        lines.push(`    let tR = eR - sR; if (tR<=0) tR += 2*Math.PI;`);
+        lines.push(`    for (let i=0; i<=steps; i++) {`);
+        lines.push(`      const r = sR + (i/steps)*tR;`);
+        lines.push(`      port.drawSkin(${strokeSkinVar}, Math.round(cx+oR*Math.cos(r)), Math.round(cy+oR*Math.sin(r)), ${sw}, ${sw});`);
+        lines.push(`    }`);
+      }
+      lines.push(`  }`);
+      lines.push(`}`);
+      ctx.declarations.push(...lines);
+
+      return `${indent}new Port(null, { left: ${el.x}, top: ${el.y}, width: ${size}, height: ${size}, Behavior: ${behaviorName} })`;
     }
 
     default:

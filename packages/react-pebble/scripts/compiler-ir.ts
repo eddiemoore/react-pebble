@@ -9,7 +9,7 @@
 // Visual tree
 // ---------------------------------------------------------------------------
 
-export type IRElementType = 'root' | 'group' | 'rect' | 'text' | 'circle' | 'line';
+export type IRElementType = 'root' | 'group' | 'rect' | 'text' | 'circle' | 'line' | 'arc' | 'textflow';
 
 export interface IRElement {
   type: IRElementType;
@@ -28,6 +28,11 @@ export interface IRElement {
   strokeWidth?: number; // line stroke width
   x2?: number;          // line endpoint
   y2?: number;          // line endpoint
+  innerRadius?: number; // arc inner radius (0 = pie slice)
+  startAngle?: number;  // arc start angle in degrees
+  endAngle?: number;    // arc end angle in degrees
+  stroke?: string;      // arc stroke color
+  isWrapping?: boolean; // textflow: multi-line wrapping text
   /** Children (for root, group, rect with children) */
   children?: IRElement[];
   /** Sequential indices assigned during tree collection */

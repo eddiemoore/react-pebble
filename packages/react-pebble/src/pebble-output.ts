@@ -37,19 +37,131 @@ export interface RGB {
 }
 
 export const COLOR_PALETTE: Readonly<Record<string, RGB>> = {
-  black: { r: 0, g: 0, b: 0 },
-  white: { r: 255, g: 255, b: 255 },
-  red: { r: 255, g: 0, b: 0 },
-  green: { r: 0, g: 255, b: 0 },
-  blue: { r: 0, g: 0, b: 255 },
-  yellow: { r: 255, g: 255, b: 0 },
-  orange: { r: 255, g: 128, b: 0 },
-  cyan: { r: 0, g: 255, b: 255 },
-  magenta: { r: 255, g: 0, b: 255 },
-  clear: { r: 0, g: 0, b: 0 },
+  // Basic aliases (backwards compatible)
+  black:     { r: 0, g: 0, b: 0 },
+  white:     { r: 255, g: 255, b: 255 },
+  red:       { r: 255, g: 0, b: 0 },
+  green:     { r: 0, g: 255, b: 0 },
+  blue:      { r: 0, g: 0, b: 255 },
+  yellow:    { r: 255, g: 255, b: 0 },
+  orange:    { r: 255, g: 128, b: 0 },
+  cyan:      { r: 0, g: 255, b: 255 },
+  magenta:   { r: 255, g: 0, b: 255 },
+  clear:     { r: 0, g: 0, b: 0 },
   lightGray: { r: 192, g: 192, b: 192 },
-  darkGray: { r: 64, g: 64, b: 64 },
+  darkGray:  { r: 64, g: 64, b: 64 },
+
+  // Full Pebble 64-color GColor palette (2-bit per channel: 0x00, 0x55, 0xAA, 0xFF)
+  oxfordBlue:           { r: 0, g: 0, b: 85 },
+  dukeBlue:             { r: 0, g: 0, b: 170 },
+  darkBlue:             { r: 0, g: 0, b: 170 },
+  darkGreen:            { r: 0, g: 85, b: 0 },
+  midnightGreen:        { r: 0, g: 85, b: 85 },
+  cobaltBlue:           { r: 0, g: 85, b: 170 },
+  blueMoon:             { r: 0, g: 85, b: 255 },
+  islamicGreen:         { r: 0, g: 170, b: 0 },
+  jaegerGreen:          { r: 0, g: 170, b: 85 },
+  tiffanyBlue:          { r: 0, g: 170, b: 170 },
+  vividCerulean:        { r: 0, g: 170, b: 255 },
+  springBud:            { r: 0, g: 255, b: 85 },
+  mintGreen:            { r: 0, g: 255, b: 170 },
+  celeste:              { r: 0, g: 255, b: 255 },
+  bulgarianRose:        { r: 85, g: 0, b: 0 },
+  imperialPurple:       { r: 85, g: 0, b: 85 },
+  indigo:               { r: 85, g: 0, b: 170 },
+  electricUltramarine:  { r: 85, g: 0, b: 255 },
+  armyGreen:            { r: 85, g: 85, b: 0 },
+  liberty:              { r: 85, g: 85, b: 170 },
+  veryLightBlue:        { r: 85, g: 85, b: 255 },
+  kellyGreen:           { r: 85, g: 170, b: 0 },
+  mayGreen:             { r: 85, g: 170, b: 85 },
+  cadetBlue:            { r: 85, g: 170, b: 170 },
+  pictonBlue:           { r: 85, g: 170, b: 255 },
+  brightGreen:          { r: 85, g: 255, b: 0 },
+  screaminGreen:        { r: 85, g: 255, b: 85 },
+  mediumAquamarine:     { r: 85, g: 255, b: 170 },
+  electricBlue:         { r: 85, g: 255, b: 255 },
+  darkCandyAppleRed:    { r: 170, g: 0, b: 0 },
+  jazzberryJam:         { r: 170, g: 0, b: 85 },
+  purple:               { r: 170, g: 0, b: 170 },
+  vividViolet:          { r: 170, g: 0, b: 255 },
+  windsorTan:           { r: 170, g: 85, b: 0 },
+  roseVale:             { r: 170, g: 85, b: 85 },
+  purpureus:            { r: 170, g: 85, b: 170 },
+  lavenderIndigo:       { r: 170, g: 85, b: 255 },
+  limerick:             { r: 170, g: 170, b: 0 },
+  brass:                { r: 170, g: 170, b: 85 },
+  babyBlueEyes:         { r: 170, g: 170, b: 255 },
+  chromeYellow:         { r: 255, g: 170, b: 0 },
+  rajah:                { r: 255, g: 170, b: 85 },
+  melon:                { r: 255, g: 170, b: 170 },
+  richBrilliantLavender: { r: 255, g: 170, b: 255 },
+  icterine:             { r: 255, g: 255, b: 85 },
+  pastelYellow:         { r: 255, g: 255, b: 170 },
+  sunsetOrange:         { r: 255, g: 85, b: 0 },
+  brilliantRose:        { r: 255, g: 85, b: 170 },
+  shockingPink:         { r: 255, g: 0, b: 170 },
+  fashionMagenta:       { r: 255, g: 0, b: 85 },
+  followMeToTheOrange:  { r: 255, g: 85, b: 85 },
 };
+
+// ---------------------------------------------------------------------------
+// Color utility functions
+// ---------------------------------------------------------------------------
+
+/** Pebble's valid 2-bit channel values */
+const PEBBLE_CHANNEL_VALUES = [0x00, 0x55, 0xAA, 0xFF] as const;
+
+function snapChannel(v: number): number {
+  let best = 0;
+  let bestDist = 256;
+  for (const c of PEBBLE_CHANNEL_VALUES) {
+    const d = Math.abs(v - c);
+    if (d < bestDist) { bestDist = d; best = c; }
+  }
+  return best;
+}
+
+/**
+ * Convert a hex color string to the nearest Pebble 64-color RGB value.
+ * Accepts "#RRGGBB" or "#RGB" format.
+ */
+export function colorFromHex(hex: string): RGB {
+  let r = 0, g = 0, b = 0;
+  const h = hex.replace('#', '');
+  if (h.length === 3) {
+    r = parseInt(h[0]! + h[0], 16);
+    g = parseInt(h[1]! + h[1], 16);
+    b = parseInt(h[2]! + h[2], 16);
+  } else if (h.length === 6) {
+    r = parseInt(h.substring(0, 2), 16);
+    g = parseInt(h.substring(2, 4), 16);
+    b = parseInt(h.substring(4, 6), 16);
+  }
+  return { r: snapChannel(r), g: snapChannel(g), b: snapChannel(b) };
+}
+
+/**
+ * Compute the Euclidean distance between two colors.
+ * Useful for finding the closest palette match.
+ */
+export function colorDistance(a: RGB, b: RGB): number {
+  return Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2);
+}
+
+/**
+ * Find the closest named Pebble color for a given RGB value.
+ */
+export function nearestColorName(color: RGB): string {
+  let bestName = 'black';
+  let bestDist = Infinity;
+  for (const [name, rgb] of Object.entries(COLOR_PALETTE)) {
+    if (name === 'clear') continue;
+    const d = colorDistance(color, rgb);
+    if (d < bestDist) { bestDist = d; bestName = name; }
+  }
+  return bestName;
+}
 
 // ---------------------------------------------------------------------------
 // Named font shortcuts — mapped to (family, size) pairs.
@@ -102,6 +214,31 @@ export const FONT_PALETTE: Readonly<Record<string, FontSpec>> = {
 const DEFAULT_FONT_KEY = 'gothic18';
 
 // ---------------------------------------------------------------------------
+// Custom font registration — allows apps to register additional fonts
+// ---------------------------------------------------------------------------
+
+const customFonts: Record<string, FontSpec> = {};
+
+/**
+ * Register a custom font for use with the `font` prop on Text components.
+ * The family name must match a font available in the Moddable manifest.
+ *
+ * Usage:
+ *   registerFont('myFont', { family: 'MyCustomFont', size: 24 });
+ *   // Then use: <Text font="myFont">Hello</Text>
+ */
+export function registerFont(name: string, spec: FontSpec): void {
+  customFonts[name] = spec;
+}
+
+/**
+ * Look up a font spec by name, checking custom fonts then system fonts.
+ */
+export function lookupFontSpec(name: string): FontSpec | undefined {
+  return customFonts[name] ?? FONT_PALETTE[name];
+}
+
+// ---------------------------------------------------------------------------
 // Prop accessors — the DOM is loosely typed so we coerce here.
 // ---------------------------------------------------------------------------
 
@@ -136,9 +273,15 @@ export class PocoRenderer {
   readonly poco: Poco;
   private readonly colorCache = new Map<string, PocoColor>();
   private readonly fontCache = new Map<string, PocoFont>();
+  readonly screenWidth: number;
+  readonly screenHeight: number;
+  readonly isRound: boolean;
 
-  constructor(poco: Poco) {
+  constructor(poco: Poco, options?: { screenWidth?: number; screenHeight?: number; isRound?: boolean }) {
     this.poco = poco;
+    this.screenWidth = options?.screenWidth ?? poco.width ?? 200;
+    this.screenHeight = options?.screenHeight ?? poco.height ?? 228;
+    this.isRound = options?.isRound ?? false;
   }
 
   /**
@@ -182,7 +325,7 @@ export class PocoRenderer {
     const cached = this.fontCache.get(key);
     if (cached !== undefined) return cached;
 
-    const spec = FONT_PALETTE[key] ?? FONT_PALETTE[DEFAULT_FONT_KEY]!;
+    const spec = lookupFontSpec(key) ?? FONT_PALETTE[DEFAULT_FONT_KEY]!;
     // `poco.Font` is a constructor hanging off the Poco instance.
     const FontCtor = this.poco.Font;
     const font = new FontCtor(spec.family, spec.size);
@@ -462,6 +605,48 @@ export class PocoRenderer {
         this.renderChildren(node, ox, -scrollOffset);
         // Restore clip
         this.poco.clip();
+        break;
+      }
+
+      case 'pbl-arc': {
+        const r = num(p, 'r') || 40;
+        const innerR = num(p, 'innerR') || 0;
+        const startAngle = num(p, 'startAngle') ?? 0;
+        const endAngle = num(p, 'endAngle') ?? 360;
+
+        // Center of the arc
+        const cx = x + r;
+        const cy = y + r;
+
+        if (p.fill) {
+          const fillColor = this.getColor(str(p, 'fill'));
+          this.fillArc(fillColor, cx, cy, r, innerR, startAngle, endAngle);
+        }
+        if (p.stroke) {
+          const strokeColor = this.getColor(str(p, 'stroke'));
+          const sw = num(p, 'strokeWidth') || 1;
+          // Stroke the outer edge
+          this.strokeArc(strokeColor, cx, cy, r, startAngle, endAngle, sw);
+          // Stroke the inner edge if it's a donut
+          if (innerR > 0) {
+            this.strokeArc(strokeColor, cx, cy, innerR, startAngle, endAngle, sw);
+          }
+        }
+        break;
+      }
+
+      case 'pbl-textflow': {
+        const w = num(p, 'w') || num(p, 'width') || 200;
+        const h = num(p, 'h') || num(p, 'height') || 200;
+        const font = this.getFont(str(p, 'font'));
+        const color = this.getColor(str(p, 'color') ?? 'white');
+        const align = str(p, 'align') || 'left';
+        const flowAround = p.flowAroundDisplay !== false;
+        const text = getTextContent(node);
+
+        if (text) {
+          this.renderFlowText(text, x, y, w, h, font, color, align, flowAround);
+        }
         break;
       }
 
@@ -755,6 +940,166 @@ export class PocoRenderer {
 
     return lines;
   }
+
+  // -------------------------------------------------------------------------
+  // Arc rendering — scanline fill with angle bounds
+  // -------------------------------------------------------------------------
+
+  /**
+   * Normalize an angle to 0-360 range.
+   */
+  private normalizeAngle(deg: number): number {
+    return ((deg % 360) + 360) % 360;
+  }
+
+  /**
+   * Check if an angle is within the arc's angular range.
+   * Handles wrap-around (e.g., 350° to 30°).
+   */
+  private angleInRange(angle: number, start: number, end: number): boolean {
+    const a = this.normalizeAngle(angle);
+    const s = this.normalizeAngle(start);
+    const e = this.normalizeAngle(end);
+    if (s <= e) return a >= s && a <= e;
+    // Wraps around 0°
+    return a >= s || a <= e;
+  }
+
+  /**
+   * Fill an arc/donut sector using scanline rendering.
+   * Angles: 0° = north (12 o'clock), clockwise.
+   */
+  private fillArc(
+    color: PocoColor, cx: number, cy: number,
+    outerR: number, innerR: number,
+    startAngle: number, endAngle: number,
+  ): void {
+    const { poco } = this;
+    const rSq = outerR * outerR;
+    const irSq = innerR * innerR;
+
+    for (let dy = -outerR; dy <= outerR; dy++) {
+      let spanStart = -1;
+      let inSpan = false;
+
+      for (let dx = -outerR; dx <= outerR; dx++) {
+        const distSq = dx * dx + dy * dy;
+        // Must be within outer circle and outside inner circle
+        if (distSq <= rSq && distSq >= irSq) {
+          // Compute angle: atan2 with north=0°, clockwise
+          const angle = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+          if (this.angleInRange(angle, startAngle, endAngle)) {
+            if (!inSpan) {
+              spanStart = cx + dx;
+              inSpan = true;
+            }
+          } else if (inSpan) {
+            poco.fillRectangle(color, spanStart, cy + dy, (cx + dx) - spanStart, 1);
+            inSpan = false;
+          }
+        } else if (inSpan) {
+          poco.fillRectangle(color, spanStart, cy + dy, (cx + dx) - spanStart, 1);
+          inSpan = false;
+        }
+      }
+      if (inSpan) {
+        poco.fillRectangle(color, spanStart, cy + dy, (cx + outerR + 1) - spanStart, 1);
+      }
+    }
+  }
+
+  /**
+   * Stroke an arc outline using pixel plotting along the circle at given radius.
+   */
+  private strokeArc(
+    color: PocoColor, cx: number, cy: number,
+    r: number, startAngle: number, endAngle: number, sw: number,
+  ): void {
+    const { poco } = this;
+    // Plot points along the arc
+    const circumference = 2 * Math.PI * r;
+    const steps = Math.max(Math.round(circumference * 2), 60);
+    const startRad = (startAngle - 90) * Math.PI / 180;
+    const endRad = (endAngle - 90) * Math.PI / 180;
+    let totalRad = endRad - startRad;
+    if (totalRad <= 0) totalRad += 2 * Math.PI;
+
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const rad = startRad + t * totalRad;
+      const px = Math.round(cx + r * Math.cos(rad));
+      const py = Math.round(cy + r * Math.sin(rad));
+      poco.fillRectangle(color, px, py, sw, sw);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Text flow rendering — per-line width for round displays
+  // -------------------------------------------------------------------------
+
+  /**
+   * Render text that flows around round display edges.
+   * Each line's width is adjusted based on the chord length at that y position.
+   */
+  private renderFlowText(
+    text: string, x: number, y: number, w: number, h: number,
+    font: PocoFont, color: PocoColor, align: string, flowAround: boolean,
+  ): void {
+    const { poco } = this;
+    const lineHeight = font.height || 18;
+    const screenW = this.screenWidth;
+    const screenH = this.screenHeight;
+    const isRound = this.isRound;
+
+    const words = text.split(' ');
+    let curY = y;
+
+    let wordIdx = 0;
+    while (wordIdx < words.length && curY + lineHeight <= y + h) {
+      // Compute available width at this y position
+      let lineWidth = w;
+      if (flowAround && isRound) {
+        const r = Math.min(screenW, screenH) / 2;
+        const centerY = screenH / 2;
+        const dy = Math.abs(curY + lineHeight / 2 - centerY);
+        if (dy < r) {
+          const chordHalf = Math.sqrt(r * r - dy * dy);
+          const chordWidth = chordHalf * 2;
+          lineWidth = Math.min(w, chordWidth - 4); // 4px margin
+        }
+      }
+
+      // Build line from words
+      let currentLine = '';
+      while (wordIdx < words.length) {
+        const testLine = currentLine ? `${currentLine} ${words[wordIdx]}` : words[wordIdx]!;
+        if (poco.getTextWidth(testLine, font) <= lineWidth) {
+          currentLine = testLine;
+          wordIdx++;
+        } else {
+          break;
+        }
+      }
+
+      if (currentLine) {
+        // Center the line horizontally for round displays
+        let lineX = x;
+        if (flowAround && isRound) {
+          const textW = poco.getTextWidth(currentLine, font);
+          lineX = Math.round((screenW - textW) / 2);
+        } else if (align === 'center') {
+          const textW = poco.getTextWidth(currentLine, font);
+          lineX = x + Math.round((w - textW) / 2);
+        } else if (align === 'right') {
+          const textW = poco.getTextWidth(currentLine, font);
+          lineX = x + w - textW;
+        }
+        poco.drawText(currentLine, font, color, lineX, curY);
+      }
+
+      curY += lineHeight;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -765,10 +1110,17 @@ export class PocoRenderer {
 
 export function resolveColorName(color: string | undefined): string {
   if (!color) return 'black';
-  return color in COLOR_PALETTE ? color : 'black';
+  if (color in COLOR_PALETTE) return color;
+  // Support hex strings — find nearest palette color
+  if (color.startsWith('#')) {
+    const rgb = colorFromHex(color);
+    return nearestColorName(rgb);
+  }
+  return 'black';
 }
 
 export function resolveFontName(font: string | undefined): string {
   if (!font) return DEFAULT_FONT_KEY;
-  return font in FONT_PALETTE ? font : DEFAULT_FONT_KEY;
+  if (font in FONT_PALETTE || font in customFonts) return font;
+  return DEFAULT_FONT_KEY;
 }

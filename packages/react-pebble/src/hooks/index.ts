@@ -572,6 +572,92 @@ export function lerp(from: number, to: number, progress: number): number {
 }
 
 // ---------------------------------------------------------------------------
+// Polar coordinate helpers — essential for analog watchfaces
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert degrees to radians.
+ */
+export function degreesToRadians(deg: number): number {
+  return (deg * Math.PI) / 180;
+}
+
+/**
+ * Convert radians to degrees.
+ */
+export function radiansToDegrees(rad: number): number {
+  return (rad * 180) / Math.PI;
+}
+
+/**
+ * Compute {x, y} at a given angle and radius from a center point.
+ * Angle is in degrees, 0 = 12 o'clock (north), clockwise.
+ */
+export function polarPoint(
+  cx: number,
+  cy: number,
+  radius: number,
+  angleDeg: number,
+): { x: number; y: number } {
+  // Convert to math radians: 0° north = -90° in standard math
+  const rad = degreesToRadians(angleDeg - 90);
+  return {
+    x: Math.round(cx + radius * Math.cos(rad)),
+    y: Math.round(cy + radius * Math.sin(rad)),
+  };
+}
+
+/**
+ * Compute the angle in degrees between two points.
+ * Returns 0-360 with 0 = north, clockwise.
+ */
+export function angleBetweenPoints(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): number {
+  const rad = Math.atan2(x2 - x1, -(y2 - y1));
+  return ((rad * 180) / Math.PI + 360) % 360;
+}
+
+// ---------------------------------------------------------------------------
+// Pebble-convention trig utilities (0-65536 angle range)
+// ---------------------------------------------------------------------------
+
+/**
+ * Pebble's full-circle angle constant (equivalent to 360°).
+ */
+export const TRIG_MAX_ANGLE = 0x10000; // 65536
+
+/**
+ * Sine lookup using Pebble angle convention.
+ * Input: angle in 0-65536 range (0 = 0°, 16384 = 90°, 32768 = 180°).
+ * Output: scaled to -65536..+65536 (divide by TRIG_MAX_ANGLE for -1..1).
+ */
+export function sinLookup(angle: number): number {
+  const rad = (angle / TRIG_MAX_ANGLE) * 2 * Math.PI;
+  return Math.round(Math.sin(rad) * TRIG_MAX_ANGLE);
+}
+
+/**
+ * Cosine lookup using Pebble angle convention.
+ * Same scale as sinLookup.
+ */
+export function cosLookup(angle: number): number {
+  const rad = (angle / TRIG_MAX_ANGLE) * 2 * Math.PI;
+  return Math.round(Math.cos(rad) * TRIG_MAX_ANGLE);
+}
+
+/**
+ * atan2 returning Pebble-convention angle (0-65536).
+ */
+export function atan2Lookup(y: number, x: number): number {
+  const rad = Math.atan2(y, x);
+  return Math.round(((rad / (2 * Math.PI)) * TRIG_MAX_ANGLE + TRIG_MAX_ANGLE) % TRIG_MAX_ANGLE);
+}
+
+// ---------------------------------------------------------------------------
 // useAccelerometer — motion sensing via Moddable sensor API
 // ---------------------------------------------------------------------------
 
@@ -1536,6 +1622,338 @@ export function useTimeline(): UseTimelineResult {
   }, []);
 
   return { pushPin, removePin };
+}
+
+// ---------------------------------------------------------------------------
+// useQuietTime — detect Do Not Disturb mode
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns whether the watch is in Quiet Time (Do Not Disturb) mode.
+ * Useful for watchfaces that should suppress animations or reduce
+ * update frequency during Quiet Time.
+ *
+ * On Alloy: reads the `QuietTime` global.
+ * In mock mode: returns false.
+ */
+export function useQuietTime(): boolean {
+  const [isQuiet, setIsQuiet] = useState(false);
+
+  useEffect(() => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).QuietTime) {
+      const qt = (globalThis as Record<string, unknown>).QuietTime as {
+        isActive?: () => boolean;
+      };
+      setIsQuiet(qt.isActive?.() ?? false);
+    }
+  }, []);
+
+  return isQuiet;
+}
+
+// ---------------------------------------------------------------------------
+// useAppFocus — detect when app is obscured by system UI
+// ---------------------------------------------------------------------------
+
+export interface AppFocusOptions {
+  onFocus?: () => void;
+  onBlur?: () => void;
+}
+
+export interface AppFocusResult {
+  focused: boolean;
+}
+
+/**
+ * Track whether the app is currently in focus (not obscured by
+ * notifications or system UI).
+ *
+ * On Alloy: subscribes to watch focus/blur events.
+ * In mock mode: returns { focused: true }.
+ */
+export function useAppFocus(options?: AppFocusOptions): AppFocusResult {
+  const [focused, setFocused] = useState(true);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
+  useEffect(() => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).watch) {
+      const w = (globalThis as Record<string, unknown>).watch as {
+        addEventListener?: (event: string, handler: () => void) => void;
+        removeEventListener?: (event: string, handler: () => void) => void;
+      };
+      const handleFocus = () => {
+        setFocused(true);
+        optionsRef.current?.onFocus?.();
+      };
+      const handleBlur = () => {
+        setFocused(false);
+        optionsRef.current?.onBlur?.();
+      };
+      w.addEventListener?.('focus', handleFocus);
+      w.addEventListener?.('blur', handleBlur);
+      return () => {
+        w.removeEventListener?.('focus', handleFocus);
+        w.removeEventListener?.('blur', handleBlur);
+      };
+    }
+    return undefined;
+  }, []);
+
+  return { focused };
+}
+
+// ---------------------------------------------------------------------------
+// useContentSize — user's preferred content size (accessibility)
+// ---------------------------------------------------------------------------
+
+export type ContentSize = 'small' | 'default' | 'large' | 'extraLarge';
+
+/**
+ * Returns the user's preferred content size setting.
+ * Useful for adapting font sizes and spacing for accessibility.
+ *
+ * On Alloy: reads the `ContentSize` global.
+ * In mock mode: returns 'default'.
+ */
+export function useContentSize(): ContentSize {
+  if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).ContentSize) {
+    const cs = (globalThis as Record<string, unknown>).ContentSize as {
+      preferred?: () => string;
+    };
+    const pref = cs.preferred?.();
+    if (pref === 'small' || pref === 'large' || pref === 'extraLarge') return pref;
+  }
+  return 'default';
+}
+
+// ---------------------------------------------------------------------------
+// useDisplayBounds — content rect that accounts for round displays
+// ---------------------------------------------------------------------------
+
+export interface DisplayBounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  isRound: boolean;
+}
+
+/**
+ * Returns the usable content rectangle for the current display shape.
+ * On round displays, this inscribes a rectangle inside the circle,
+ * inset by the given padding. On rectangular displays, returns the
+ * full screen minus padding.
+ */
+export function useDisplayBounds(padding: number = 0): DisplayBounds {
+  // Import SCREEN lazily to avoid circular deps
+  const screen = (globalThis as Record<string, unknown>).__PEBBLE_SCREEN__ as
+    | { width: number; height: number; isRound: boolean }
+    | undefined;
+
+  const w = screen?.width ?? 200;
+  const h = screen?.height ?? 228;
+  const isRound = screen?.isRound ?? false;
+
+  if (isRound) {
+    // Inscribe a rectangle in the circle (largest rect with ~70.7% of diameter)
+    const r = Math.min(w, h) / 2;
+    const inset = Math.round(r - (r * Math.SQRT1_2)) + padding;
+    return {
+      x: inset,
+      y: inset,
+      w: w - inset * 2,
+      h: h - inset * 2,
+      isRound: true,
+    };
+  }
+
+  return {
+    x: padding,
+    y: padding,
+    w: w - padding * 2,
+    h: h - padding * 2,
+    isRound: false,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// useConfiguration — phone-side settings page
+// ---------------------------------------------------------------------------
+
+export interface UseConfigurationOptions<T extends Record<string, unknown>> {
+  /** URL of the phone-side configuration page */
+  url: string;
+  /** Default settings values */
+  defaults: T;
+}
+
+export interface UseConfigurationResult<T extends Record<string, unknown>> {
+  settings: T;
+  openConfiguration: () => void;
+  updateSettings: (partial: Partial<T>) => void;
+}
+
+/**
+ * Manage app configuration via a phone-side settings page.
+ * Settings are persisted to localStorage and synced when the
+ * config page sends data back.
+ *
+ * On Alloy: opens config URL on phone via PebbleKit JS.
+ * In mock mode: uses defaults, updateSettings mutates in-memory.
+ */
+export function useConfiguration<T extends Record<string, unknown>>(
+  options: UseConfigurationOptions<T>,
+): UseConfigurationResult<T> {
+  const [settings, setSettings] = useState<T>(() => {
+    // Try to load from localStorage
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).localStorage) {
+      try {
+        const stored = (globalThis as Record<string, unknown>).localStorage as Storage;
+        const raw = stored.getItem('__pebble_config__');
+        if (raw) return { ...options.defaults, ...JSON.parse(raw) };
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return options.defaults;
+  });
+
+  const openConfiguration = useCallback(() => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Pebble) {
+      const pbl = (globalThis as Record<string, unknown>).Pebble as {
+        openURL?: (url: string) => void;
+      };
+      pbl.openURL?.(options.url);
+    }
+  }, [options.url]);
+
+  const updateSettings = useCallback((partial: Partial<T>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...partial };
+      if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).localStorage) {
+        try {
+          const stored = (globalThis as Record<string, unknown>).localStorage as Storage;
+          stored.setItem('__pebble_config__', JSON.stringify(next));
+        } catch {
+          // ignore storage errors
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  // Listen for config data coming back from the phone
+  useEffect(() => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Pebble) {
+      const pbl = (globalThis as Record<string, unknown>).Pebble as {
+        addEventListener?: (event: string, handler: (e: { response: string }) => void) => void;
+        removeEventListener?: (event: string, handler: (e: { response: string }) => void) => void;
+      };
+      const handler = (e: { response: string }) => {
+        try {
+          const data = JSON.parse(decodeURIComponent(e.response)) as Partial<T>;
+          updateSettings(data);
+        } catch {
+          // ignore parse errors
+        }
+      };
+      pbl.addEventListener?.('webviewclosed', handler);
+      return () => {
+        pbl.removeEventListener?.('webviewclosed', handler);
+      };
+    }
+    return undefined;
+  }, [updateSettings]);
+
+  return { settings, openConfiguration, updateSettings };
+}
+
+// ---------------------------------------------------------------------------
+// useAppSync — simplified bidirectional phone-watch data sync
+// ---------------------------------------------------------------------------
+
+export interface UseAppSyncOptions<T extends Record<string, unknown>> {
+  /** Initial key-value pairs to synchronize */
+  keys: T;
+}
+
+export interface UseAppSyncResult<T extends Record<string, unknown>> {
+  values: T;
+  update: (partial: Partial<T>) => void;
+}
+
+/**
+ * Simplified phone↔watch data synchronization.
+ * Maintains a synchronized set of key-value pairs between phone and watch.
+ *
+ * On Alloy: uses AppMessage for bidirectional sync.
+ * In mock mode: uses local state with initial keys.
+ */
+export function useAppSync<T extends Record<string, unknown>>(
+  options: UseAppSyncOptions<T>,
+): UseAppSyncResult<T> {
+  const [values, setValues] = useState<T>(options.keys);
+
+  const update = useCallback((partial: Partial<T>) => {
+    setValues((prev) => {
+      const next = { ...prev, ...partial };
+      // Send update to phone via AppMessage
+      if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).AppMessage) {
+        const am = (globalThis as Record<string, unknown>).AppMessage as {
+          send?: (data: Record<string, unknown>) => void;
+        };
+        am.send?.(partial);
+      }
+      return next;
+    });
+  }, []);
+
+  // Listen for incoming sync updates from phone
+  useEffect(() => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).AppMessage) {
+      const am = (globalThis as Record<string, unknown>).AppMessage as {
+        addEventListener?: (event: string, handler: (data: Record<string, unknown>) => void) => void;
+        removeEventListener?: (event: string, handler: (data: Record<string, unknown>) => void) => void;
+      };
+      const handler = (data: Record<string, unknown>) => {
+        setValues((prev) => ({ ...prev, ...data } as T));
+      };
+      am.addEventListener?.('received', handler);
+      return () => {
+        am.removeEventListener?.('received', handler);
+      };
+    }
+    return undefined;
+  }, []);
+
+  return { values, update };
+}
+
+// ---------------------------------------------------------------------------
+// Logging utility — wraps APP_LOG on device, console.log in mock mode
+// ---------------------------------------------------------------------------
+
+export type LogLevel = 'error' | 'warning' | 'info' | 'debug';
+
+/**
+ * Log a message for development debugging.
+ * On Alloy: uses APP_LOG equivalent via Bluetooth.
+ * In mock mode: uses console.log/warn/error.
+ */
+export function pebbleLog(level: LogLevel, ...args: unknown[]): void {
+  if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).trace) {
+    // Moddable's trace() function outputs to the debug console
+    const t = (globalThis as Record<string, unknown>).trace as (msg: string) => void;
+    t(`[${level.toUpperCase()}] ${args.map(String).join(' ')}\n`);
+    return;
+  }
+  // Mock mode — use console
+  switch (level) {
+    case 'error': console.error('[PEBBLE]', ...args); break;
+    case 'warning': console.warn('[PEBBLE]', ...args); break;
+    default: console.log(`[PEBBLE:${level.toUpperCase()}]`, ...args);
+  }
 }
 
 // ---------------------------------------------------------------------------

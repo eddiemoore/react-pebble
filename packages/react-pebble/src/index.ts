@@ -34,6 +34,7 @@ export type {
   RenderOptions,
   RenderOptionsExt,
   DrawCall,
+  AppExitReason,
 } from './pebble-render.js';
 
 // Component wrappers
@@ -56,6 +57,13 @@ export {
   MenuLayer,
   NumberWindow,
   ActionMenu,
+  Arc,
+  TextFlow,
+  RoundSafeArea,
+  SimpleMenu,
+  WindowStack,
+  useNavigation,
+  AnimatedImage,
 } from './components/index.js';
 export type {
   WindowProps,
@@ -85,6 +93,15 @@ export type {
   ColorName,
   FontName,
   Alignment,
+  ArcProps,
+  TextFlowProps,
+  RoundSafeAreaProps,
+  SimpleMenuItem,
+  SimpleMenuProps,
+  WindowStackProps,
+  NavigationResult,
+  AnimatedImageProps,
+  CompositeOp,
 } from './components/index.js';
 
 // Hooks
@@ -121,8 +138,23 @@ export {
   useDataLogging,
   useAppGlance,
   useTimeline,
+  useQuietTime,
+  useAppFocus,
+  useContentSize,
+  useDisplayBounds,
+  useConfiguration,
+  useAppSync,
+  pebbleLog,
   Easing,
   lerp,
+  polarPoint,
+  degreesToRadians,
+  radiansToDegrees,
+  angleBetweenPoints,
+  sinLookup,
+  cosLookup,
+  atan2Lookup,
+  TRIG_MAX_ANGLE,
   ButtonRegistry,
   PebbleAppContext,
 } from './hooks/index.js';
@@ -162,6 +194,15 @@ export type {
   UseAppGlanceResult,
   TimelinePin,
   UseTimelineResult,
+  AppFocusOptions,
+  AppFocusResult,
+  ContentSize,
+  DisplayBounds,
+  UseConfigurationOptions,
+  UseConfigurationResult,
+  UseAppSyncOptions,
+  UseAppSyncResult,
+  LogLevel,
 } from './hooks/index.js';
 
 // Low-level access (for advanced usage / custom renderers / tests)
@@ -193,6 +234,11 @@ export {
   FONT_PALETTE,
   resolveColorName,
   resolveFontName,
+  colorFromHex,
+  colorDistance,
+  nearestColorName,
+  registerFont,
+  lookupFontSpec,
 } from './pebble-output.js';
 export type {
   RGB,

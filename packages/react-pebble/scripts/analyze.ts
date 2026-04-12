@@ -289,6 +289,61 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       };
     }
 
+    case 'pbl-arc': {
+      const r = num(p, 'r') || 40;
+      const innerR = num(p, 'innerR') || 0;
+      const startAngle = num(p, 'startAngle') || 0;
+      const endAngle = num(p, 'endAngle') || 360;
+      const fill = str(p, 'fill');
+      const stroke = str(p, 'stroke');
+
+      if (!fill && !stroke) return null;
+
+      const cx = num(p, 'x');
+      const cy = num(p, 'y');
+      const size = r * 2;
+      const elemIdx = ctx.elemIdx++;
+      ctx.elementPositions.set(elemIdx, { type: 'circle', left: cx, top: cy, width: size, height: size, radius: r });
+
+      return {
+        type: 'arc' as const,
+        x: cx, y: cy, w: size, h: size,
+        radius: r,
+        innerRadius: innerR,
+        startAngle,
+        endAngle,
+        fill: fill ? colorToHex(fill) : undefined,
+        stroke: stroke ? colorToHex(stroke) : undefined,
+        strokeWidth: num(p, 'strokeWidth') || 1,
+        elemIndex: elemIdx,
+      };
+    }
+
+    case 'pbl-textflow': {
+      const text = getTextContent(el);
+      if (!text) return null;
+
+      const fontName = str(p, 'font') ?? 'gothic18';
+      const colorName = str(p, 'color') ?? 'white';
+      const align = str(p, 'align') ?? 'left';
+      const w = num(p, 'w') || num(p, 'width') || SCREEN.width;
+      const h = num(p, 'h') || num(p, 'height') || SCREEN.height;
+
+      const labelIdx = ctx.labelIdx++;
+      ctx.labelTexts.set(labelIdx, text);
+
+      return {
+        type: 'text' as const,
+        x: num(p, 'x'), y: num(p, 'y'), w, h,
+        text,
+        font: fontName,
+        color: colorToHex(colorName),
+        align,
+        labelIndex: labelIdx,
+        isWrapping: true,
+      };
+    }
+
     case 'pbl-statusbar':
     case 'pbl-actionbar':
       // Already handled upstream — fall through to null for now

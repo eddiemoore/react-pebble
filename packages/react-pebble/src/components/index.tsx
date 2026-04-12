@@ -8,7 +8,9 @@
 import { h } from 'preact';
 import type { ComponentChildren } from 'preact';
 import type { PebbleButtonHandler } from '../hooks/index.js';
-import { useState, useButton, useLongButton } from '../hooks/index.js';
+import { useState, useButton, useLongButton, useDisplayBounds } from '../hooks/index.js';
+import { createContext } from 'preact';
+import { useContext, useCallback, useRef } from 'preact/hooks';
 
 // Use Preact's `h` as a stand-in for `React.createElement` so we can keep
 // the factory-based element construction that was in the react version.
@@ -82,6 +84,8 @@ declare module 'preact' {
       'pbl-actionbar': IntrinsicPblProps;
       'pbl-path': IntrinsicPblProps;
       'pbl-scrollable': IntrinsicPblProps;
+      'pbl-arc': IntrinsicPblProps;
+      'pbl-textflow': IntrinsicPblProps;
     }
   }
 }
@@ -153,12 +157,20 @@ export function Line(props: LineProps) {
   return React.createElement('pbl-line', props);
 }
 
+export type CompositeOp = 'assign' | 'set' | 'and' | 'or' | 'clear';
+
 export interface ImageProps extends PositionProps {
   bitmap: unknown;
   /** Rotation in radians. */
   rotation?: number;
   /** Scale factor (1 = original size). */
   scale?: number;
+  /** Bitmap compositing mode for blending. */
+  compositeOp?: CompositeOp;
+  /** X pivot point for rotation (default: center of image). */
+  pivotX?: number;
+  /** Y pivot point for rotation (default: center of image). */
+  pivotY?: number;
 }
 
 export function Image(props: ImageProps) {
@@ -761,4 +773,233 @@ export function ActionMenu({
       }
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Arc — circular arcs, pie slices, and donut/ring shapes
+// ---------------------------------------------------------------------------
+
+export interface ArcProps extends PositionProps {
+  /** Outer radius */
+  r: number;
+  /** Inner radius (0 = pie slice, >0 = donut/ring) */
+  innerR?: number;
+  /** Start angle in degrees (0 = 12 o'clock / north, clockwise) */
+  startAngle: number;
+  /** End angle in degrees */
+  endAngle: number;
+  fill?: ColorName;
+  stroke?: ColorName;
+  strokeWidth?: number;
+}
+
+export function Arc(props: ArcProps) {
+  return React.createElement('pbl-arc', props);
+}
+
+// ---------------------------------------------------------------------------
+// TextFlow — text that flows around round display edges
+// ---------------------------------------------------------------------------
+
+export interface TextFlowProps extends PositionProps, SizeProps {
+  font?: FontName;
+  color?: ColorName;
+  align?: Alignment;
+  /** Enable flow around round display edges (default: true) */
+  flowAroundDisplay?: boolean;
+  children?: ReactNode;
+}
+
+export function TextFlow({ children, ...props }: TextFlowProps) {
+  return React.createElement('pbl-textflow', { flowAroundDisplay: true, ...props }, children);
+}
+
+// ---------------------------------------------------------------------------
+// RoundSafeArea — auto-insets children on round displays
+// ---------------------------------------------------------------------------
+
+export interface RoundSafeAreaProps {
+  padding?: number;
+  children?: ReactNode;
+}
+
+/**
+ * Wrapper that automatically insets children to avoid clipping on
+ * round displays. On rectangular displays, renders with zero inset.
+ */
+export function RoundSafeArea({ padding = 0, children }: RoundSafeAreaProps) {
+  const bounds = useDisplayBounds(padding);
+  return React.createElement(
+    'pbl-group',
+    { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h },
+    children,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SimpleMenu — flat list menu without manual section setup
+// ---------------------------------------------------------------------------
+
+export interface SimpleMenuItem {
+  title: string;
+  subtitle?: string;
+  icon?: string;
+  onSelect?: () => void;
+}
+
+export interface SimpleMenuProps {
+  items: SimpleMenuItem[];
+  backgroundColor?: ColorName;
+  highlightColor?: ColorName;
+}
+
+/**
+ * A simpler menu for quick selection without custom row rendering.
+ * Wraps MenuLayer with a single auto-generated section.
+ */
+export function SimpleMenu({
+  items,
+  backgroundColor = 'black',
+  highlightColor = 'white',
+}: SimpleMenuProps) {
+  const section: MenuSection = {
+    items: items.map((item) => ({
+      title: item.title,
+      subtitle: item.subtitle,
+    })),
+  };
+
+  return React.createElement(MenuLayer, {
+    sections: [section],
+    backgroundColor,
+    highlightColor,
+    onSelect: (_s: number, i: number) => {
+      items[i]?.onSelect?.();
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// WindowStack — multi-window push/pop navigation
+// ---------------------------------------------------------------------------
+
+export interface NavigationResult {
+  push: (element: ReactNode) => void;
+  pop: () => void;
+  replace: (element: ReactNode) => void;
+  stackDepth: number;
+}
+
+const NavigationContext = createContext<NavigationResult | null>(null);
+
+/**
+ * Hook to access the navigation stack from within a WindowStack.
+ */
+export function useNavigation(): NavigationResult {
+  const nav = useContext(NavigationContext);
+  if (!nav) {
+    // Fallback for components outside a WindowStack
+    return {
+      push: () => {},
+      pop: () => {},
+      replace: () => {},
+      stackDepth: 1,
+    };
+  }
+  return nav;
+}
+
+export interface WindowStackProps {
+  initial: ReactNode;
+}
+
+/**
+ * Multi-window navigation with push/pop/replace.
+ * The back button automatically pops when stack depth > 1.
+ */
+export function WindowStack({ initial }: WindowStackProps) {
+  const [stack, setStack] = useState<ReactNode[]>([initial]);
+  const stackRef = useRef(stack);
+  stackRef.current = stack;
+
+  const push = useCallback((element: ReactNode) => {
+    setStack((s) => [...s, element]);
+  }, []);
+
+  const pop = useCallback(() => {
+    setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
+  }, []);
+
+  const replace = useCallback((element: ReactNode) => {
+    setStack((s) => [...s.slice(0, -1), element]);
+  }, []);
+
+  // Back button auto-pops when stack has more than one window
+  useButton('back', () => {
+    if (stackRef.current.length > 1) {
+      pop();
+    }
+  });
+
+  const nav: NavigationResult = {
+    push,
+    pop,
+    replace,
+    stackDepth: stack.length,
+  };
+
+  // Render only the top window, wrapped in navigation context
+  const topWindow = stack[stack.length - 1];
+  return h(NavigationContext.Provider, { value: nav }, topWindow);
+}
+
+// ---------------------------------------------------------------------------
+// AnimatedImage — frame sequence animation
+// ---------------------------------------------------------------------------
+
+export interface AnimatedImageProps extends PositionProps, SizeProps {
+  /** Array of bitmap frame references */
+  frames: unknown[];
+  /** Frames per second (default: 10) */
+  fps?: number;
+  /** Loop the animation (default: true) */
+  loop?: boolean;
+}
+
+/**
+ * Displays an animated sequence of bitmap frames.
+ * Uses a timer to cycle through frames at the given FPS.
+ */
+export function AnimatedImage({
+  frames,
+  fps = 10,
+  loop = true,
+  ...posProps
+}: AnimatedImageProps) {
+  const [frameIdx, setFrameIdx] = useState(0);
+
+  // Advance frames using a simple interval
+  // (useInterval is available but to avoid circular imports, use raw effect)
+  const frameRef = useRef(frameIdx);
+  frameRef.current = frameIdx;
+
+  // Manual interval using the available hooks system
+  useState(() => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Timer) {
+      const T = (globalThis as Record<string, unknown>).Timer as {
+        repeat?: (callback: () => void, interval: number) => number;
+      };
+      T.repeat?.(() => {
+        setFrameIdx((i) => {
+          const next = i + 1;
+          if (next >= frames.length) return loop ? 0 : i;
+          return next;
+        });
+      }, Math.round(1000 / fps));
+    }
+    return 0;
+  });
+
+  const currentFrame = frames[frameIdx];
+  return React.createElement('pbl-image', { ...posProps, bitmap: currentFrame });
 }
