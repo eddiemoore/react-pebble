@@ -1,0 +1,961 @@
+/**
+ * scripts/emit-c.ts — Pebble C SDK code generation backend.
+ *
+ * Consumes a CompilerIR and produces a complete main.c for classic Pebble
+ * platforms (basalt, chalk, diorite, aplite). Uses TextLayer for text,
+ * a custom Layer with update_proc for graphics, and the full Pebble C SDK
+ * for buttons, timers, and AppMessage.
+ */
+
+import type { CompilerIR, IRElement, IRStateSlot, TimeFormat } from './compiler-ir.js';
+import { stripThisPrefix } from './compiler-ir.js';
+
+// ---------------------------------------------------------------------------
+// Font mapping
+// ---------------------------------------------------------------------------
+
+const FONT_TO_C: Record<string, string> = {
+  gothic14: 'FONT_KEY_GOTHIC_14',
+  gothic14Bold: 'FONT_KEY_GOTHIC_14_BOLD',
+  gothic18: 'FONT_KEY_GOTHIC_18',
+  gothic18Bold: 'FONT_KEY_GOTHIC_18_BOLD',
+  gothic24: 'FONT_KEY_GOTHIC_24',
+  gothic24Bold: 'FONT_KEY_GOTHIC_24_BOLD',
+  gothic28: 'FONT_KEY_GOTHIC_28',
+  gothic28Bold: 'FONT_KEY_GOTHIC_28_BOLD',
+  bitham30Black: 'FONT_KEY_BITHAM_30_BLACK',
+  bitham42Bold: 'FONT_KEY_BITHAM_42_BOLD',
+  bitham42Light: 'FONT_KEY_BITHAM_42_LIGHT',
+  bitham34MediumNumbers: 'FONT_KEY_BITHAM_34_MEDIUM_NUMBERS',
+  bitham42MediumNumbers: 'FONT_KEY_BITHAM_42_MEDIUM_NUMBERS',
+  robotoCondensed21: 'FONT_KEY_ROBOTO_CONDENSED_21',
+  roboto21: 'FONT_KEY_ROBOTO_CONDENSED_21',
+  droid28: 'FONT_KEY_DROID_SERIF_28_BOLD',
+  leco20: 'FONT_KEY_LECO_20_BOLD_NUMBERS',
+  leco26: 'FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM',
+  leco28: 'FONT_KEY_LECO_28_LIGHT_NUMBERS',
+  leco32: 'FONT_KEY_LECO_32_BOLD_NUMBERS',
+  leco36: 'FONT_KEY_LECO_36_BOLD_NUMBERS',
+  leco38: 'FONT_KEY_LECO_38_BOLD_NUMBERS',
+  leco42: 'FONT_KEY_LECO_42_NUMBERS',
+};
+
+function fontToC(name: string | undefined): string {
+  if (!name) return 'FONT_KEY_GOTHIC_18';
+  return FONT_TO_C[name] ?? 'FONT_KEY_GOTHIC_18';
+}
+
+// ---------------------------------------------------------------------------
+// Color mapping
+// ---------------------------------------------------------------------------
+
+function colorToGColor(hex: string): string {
+  if (hex === '#000000') return 'GColorBlack';
+  if (hex === '#ffffff') return 'GColorWhite';
+  if (hex === '#00000000' || hex === 'transparent') return 'GColorClear';
+  // Strip '#' and convert to 0xRRGGBB
+  const h = hex.replace('#', '');
+  return `GColorFromHEX(0x${h})`;
+}
+
+// ---------------------------------------------------------------------------
+// Alignment mapping
+// ---------------------------------------------------------------------------
+
+function alignToC(align: string | undefined): string {
+  switch (align) {
+    case 'center': return 'GTextAlignmentCenter';
+    case 'right': return 'GTextAlignmentRight';
+    default: return 'GTextAlignmentLeft';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Button ID mapping
+// ---------------------------------------------------------------------------
+
+const BUTTON_MAP: Record<string, string> = {
+  up: 'BUTTON_ID_UP',
+  down: 'BUTTON_ID_DOWN',
+  select: 'BUTTON_ID_SELECT',
+  back: 'BUTTON_ID_BACK',
+};
+
+// ---------------------------------------------------------------------------
+// Time format → strftime
+// ---------------------------------------------------------------------------
+
+function timeFormatToStrftime(fmt: TimeFormat): string {
+  switch (fmt) {
+    case 'HHMM': return '%H:%M';
+    case 'MMSS': return '%M:%S';
+    case 'SS': return '%S';
+    case 'DATE': return '%a %b %e';
+  }
+}
+
+function timeBufSize(fmt: TimeFormat): number {
+  switch (fmt) {
+    case 'HHMM': return 8;
+    case 'MMSS': return 8;
+    case 'SS': return 4;
+    case 'DATE': return 16;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Element classification
+// ---------------------------------------------------------------------------
+
+interface CTextElement {
+  el: IRElement;
+  absX: number;         // absolute X after parent group offsets
+  absY: number;         // absolute Y after parent group offsets
+  varName: string;      // e.g. "s_tl0"
+  bufName: string;      // e.g. "s_tl0_buf"
+  bufSize: number;
+}
+
+interface CGraphicsElement {
+  el: IRElement;
+  absX: number;
+  absY: number;
+}
+
+interface ClassifiedTree {
+  bgColor: string;
+  textElements: { el: IRElement; isDynamic: boolean; dynamicVar?: CTextElement }[];
+  graphicsElements: CGraphicsElement[];
+  needsDrawLayer: boolean;
+}
+
+/** Shared counter so dynamic var names are unique across branches */
+let _dynamicIdx = 0;
+
+function classifyElements(
+  elements: IRElement[],
+  ir: CompilerIR,
+  skipBgDetection = false,
+): ClassifiedTree {
+  let bgColor = '#000000';
+  const textElements: ClassifiedTree['textElements'] = [];
+  const graphicsElements: CGraphicsElement[] = [];
+
+  function walk(el: IRElement, isFirst: boolean, offX: number, offY: number) {
+    switch (el.type) {
+      case 'root':
+      case 'group': {
+        const gx = offX + el.x;
+        const gy = offY + el.y;
+        for (let i = 0; i < (el.children ?? []).length; i++) {
+          walk(el.children![i]!, isFirst && i === 0, gx, gy);
+        }
+        break;
+      }
+
+      case 'rect': {
+        const ax = offX + el.x;
+        const ay = offY + el.y;
+        if (!skipBgDetection && isFirst && ax === 0 && ay === 0 && el.w >= ir.platform.width && el.h >= ir.platform.height) {
+          bgColor = el.fill ?? '#000000';
+        } else {
+          graphicsElements.push({ el, absX: ax, absY: ay });
+        }
+        for (const child of el.children ?? []) {
+          walk(child, false, offX, offY);
+        }
+        break;
+      }
+
+      case 'text': {
+        const ax = offX + el.x;
+        const ay = offY + el.y;
+        const isDynamic = !!(el.isTimeDynamic || el.isStateDynamic || el.isListSlot);
+        let dynamicVar: CTextElement | undefined;
+        if (isDynamic) {
+          const varName = `s_tl${_dynamicIdx}`;
+          const bufName = `s_tl${_dynamicIdx}_buf`;
+          let bufSize = 32;
+          if (el.isTimeDynamic && el.labelIndex !== undefined) {
+            const fmt = ir.timeDeps.get(el.labelIndex);
+            if (fmt) bufSize = timeBufSize(fmt);
+          }
+          dynamicVar = { el, absX: ax, absY: ay, varName, bufName, bufSize };
+          _dynamicIdx++;
+        }
+        textElements.push({ el, isDynamic, dynamicVar });
+        // Store absolute position on the element for non-dynamic text too
+        (el as any)._absX = ax;
+        (el as any)._absY = ay;
+        break;
+      }
+
+      case 'circle':
+      case 'line':
+        graphicsElements.push({ el, absX: offX + el.x, absY: offY + el.y });
+        break;
+    }
+  }
+
+  for (const el of elements) {
+    walk(el, true, 0, 0);
+  }
+
+  return {
+    bgColor,
+    textElements,
+    graphicsElements,
+    needsDrawLayer: graphicsElements.length > 0,
+  };
+}
+
+interface BranchClassified {
+  slotIndex: number;
+  branchIndex: number;
+  value: unknown;
+  isBaseline: boolean;
+  layerVar: string;         // e.g. "s_br_s1_v0"
+  classified: ClassifiedTree;
+}
+
+// ---------------------------------------------------------------------------
+// Format expression translation (JS → C)
+// ---------------------------------------------------------------------------
+
+function translateFormatExpr(
+  expr: string,
+  bufVar: string,
+  bufSize: number,
+  stateSlots: IRStateSlot[],
+): { kind: 'snprintf' | 'direct'; code: string } {
+  const e = stripThisPrefix(expr);
+
+  // Pattern: s0 ? "A" : "B" (boolean ternary with string literals)
+  const ternaryMatch = e.match(/^s(\d+)\s*\?\s*"([^"]*)"\s*:\s*"([^"]*)"$/);
+  if (ternaryMatch) {
+    const [, slotStr, trueVal, falseVal] = ternaryMatch;
+    return { kind: 'direct', code: `s${slotStr} ? "${trueVal}" : "${falseVal}"` };
+  }
+
+  // Pattern: s0 ? (function(e) { ... elapsed time ... }) : "text"
+  // Detected by needsTime flag — handle in caller
+  if (e.includes('Math.floor') && e.includes('_startTime_s')) {
+    const slotMatch = e.match(/_startTime_s(\d+)/);
+    const slot = slotMatch ? slotMatch[1] : '0';
+    const falseMatch = e.match(/:\s*"([^"]*)"\s*$/);
+    const falseText = falseMatch ? falseMatch[1] : '';
+    return {
+      kind: 'snprintf',
+      code: `if (s${slot}) {\n    int _elapsed = (int)(time(NULL) - _startTime_s${slot});\n    snprintf(${bufVar}, sizeof(${bufVar}), "%02d:%02d", _elapsed / 60, _elapsed % 60);\n  } else {\n    snprintf(${bufVar}, sizeof(${bufVar}), "${falseText}");\n  }`,
+    };
+  }
+
+  // Pattern: "" + s0 (simple number toString)
+  const simpleNumMatch = e.match(/^""\s*\+\s*s(\d+)$/);
+  if (simpleNumMatch) {
+    const slot = simpleNumMatch[1];
+    const slotInfo = stateSlots.find(s => s.index === Number(slot));
+    if (slotInfo?.type === 'string') {
+      return { kind: 'direct', code: `s${slot}` };
+    }
+    return { kind: 'snprintf', code: `snprintf(${bufVar}, sizeof(${bufVar}), "%d", s${slot})` };
+  }
+
+  // Pattern: "prefix" + (s0 + N) + "suffix" or "prefix" + s0 + "suffix"
+  const concatMatch = e.match(/^(?:"([^"]*)" \+ )?(?:\(s(\d+) \+ (\d+)\)|s(\d+))(?:\s*\+\s*"([^"]*)")?$/);
+  if (concatMatch) {
+    const [, prefix, slotPlus, offset, slotDirect, suffix] = concatMatch;
+    const slot = slotPlus ?? slotDirect;
+    const hasOffset = slotPlus !== undefined;
+    const fmtParts: string[] = [];
+    const args: string[] = [];
+    if (prefix) fmtParts.push(prefix);
+    fmtParts.push('%d');
+    args.push(hasOffset ? `s${slot} + ${offset}` : `s${slot}`);
+    if (suffix) fmtParts.push(suffix);
+    return { kind: 'snprintf', code: `snprintf(${bufVar}, sizeof(${bufVar}), "${fmtParts.join('')}", ${args.join(', ')})` };
+  }
+
+  // Fallback: emit as snprintf with %d
+  const slotRef = e.match(/s(\d+)/);
+  if (slotRef) {
+    return { kind: 'snprintf', code: `snprintf(${bufVar}, sizeof(${bufVar}), "%d", s${slotRef[1]})` };
+  }
+
+  return { kind: 'snprintf', code: `snprintf(${bufVar}, sizeof(${bufVar}), "?")` };
+}
+
+// ---------------------------------------------------------------------------
+// Main entry point
+// ---------------------------------------------------------------------------
+
+export function emitC(ir: CompilerIR): string {
+  _dynamicIdx = 0; // Reset counter
+
+  // Classify elements — either per-branch or single tree
+  const branchClassifieds: BranchClassified[] = [];
+  let mainClassified: ClassifiedTree;
+
+  if (ir.hasBranches && ir.branches.size > 0) {
+    // Use the first branch's baseline for bg color detection
+    const firstBranches = [...ir.branches.values()][0]!;
+    const baselineBranch = firstBranches.find(b => b.isBaseline);
+    mainClassified = classifyElements(baselineBranch?.tree ?? ir.tree, ir);
+
+    // Classify each branch separately
+    for (const [si, branchList] of ir.branches) {
+      for (let bi = 0; bi < branchList.length; bi++) {
+        const branch = branchList[bi]!;
+        const classified = classifyElements(branch.tree, ir, true); // skip bg detection
+        branchClassifieds.push({
+          slotIndex: si,
+          branchIndex: bi,
+          value: branch.value,
+          isBaseline: branch.isBaseline,
+          layerVar: `s_br_s${si}_v${bi}`,
+          classified,
+        });
+      }
+    }
+  } else {
+    mainClassified = classifyElements(ir.tree, ir);
+  }
+
+  // Merge all classified trees for global declarations
+  const allClassifieds = branchClassifieds.length > 0
+    ? branchClassifieds.map(b => b.classified)
+    : [mainClassified];
+  const allTextElements = allClassifieds.flatMap(c => c.textElements);
+  const allGraphicsElements = allClassifieds.flatMap(c => c.graphicsElements);
+  const needsDrawLayer = allGraphicsElements.length > 0;
+
+  const classified = mainClassified;
+  const lines: string[] = [];
+
+  const hasBehavior = ir.hasTimeDeps || ir.hasStateDeps || ir.hasButtons ||
+    ir.hasBranches || ir.hasSkinDeps || ir.hasList || ir.hasConditionals;
+  const needsTick = ir.hasTimeDeps;
+  const hasSeconds = [...ir.timeDeps.values()].some(fmt => fmt === 'SS' || fmt === 'MMSS') || ir.hasAnimatedElements;
+
+  // =========================================================================
+  // Header
+  // =========================================================================
+
+  lines.push('// Auto-generated by react-pebble (C SDK backend for classic Pebble)');
+  lines.push(`// Target: ${ir.platform.name} (${ir.platform.width}x${ir.platform.height})`);
+  lines.push('');
+  lines.push('#include <pebble.h>');
+  lines.push('');
+
+  // =========================================================================
+  // Static globals
+  // =========================================================================
+
+  lines.push('static Window *s_window;');
+  if (needsDrawLayer) {
+    lines.push('static Layer *s_draw_layer;');
+  }
+  // Branch parent layers
+  for (const bc of branchClassifieds) {
+    lines.push(`static Layer *${bc.layerVar};`);
+  }
+  lines.push('');
+
+  // State variables
+  for (const slot of ir.stateSlots) {
+    const v = slot.initialValue;
+    if (v instanceof Date || (typeof v === 'object' && v !== null && !(Array.isArray(v)))) continue;
+    switch (slot.type) {
+      case 'number':
+        lines.push(`static int s${slot.index} = ${v};`);
+        break;
+      case 'boolean':
+        lines.push(`static bool s${slot.index} = ${v ? 'true' : 'false'};`);
+        break;
+      case 'string':
+        lines.push(`static char s${slot.index}[64] = "${String(v).replace(/"/g, '\\"')}";`);
+        break;
+      default:
+        lines.push(`static int s${slot.index} = 0;`);
+    }
+  }
+
+  // Elapsed time markers
+  for (const [, dep] of ir.stateDeps) {
+    if (dep.needsTime) {
+      lines.push(`static time_t _startTime_s${dep.slotIndex} = 0;`);
+    }
+  }
+
+  if (ir.stateSlots.length > 0) lines.push('');
+
+  // Dynamic TextLayer globals and buffers
+  for (const te of allTextElements) {
+    if (te.isDynamic && te.dynamicVar) {
+      const dv = te.dynamicVar;
+      lines.push(`static TextLayer *${dv.varName};`);
+      lines.push(`static char ${dv.bufName}[${dv.bufSize}];`);
+    }
+  }
+
+  // List TextLayer array
+  if (ir.hasList && ir.listInfo) {
+    const count = ir.listInfo.visibleCount * ir.listInfo.labelsPerItem;
+    lines.push(`static TextLayer *s_ls[${count}];`);
+    lines.push(`static char s_ls_buf[${count}][32];`);
+  }
+
+  // Data arrays for lists
+  if (ir.hasList && !ir.messageInfo && ir.listInfo) {
+    const li = ir.listInfo;
+    if (li.dataArrayValues) {
+      lines.push(`static const char *_data[] = {${li.dataArrayValues.map(v => `"${v}"`).join(', ')}};`);
+      lines.push(`static int _data_len = ${li.dataArrayValues.length};`);
+    } else if (li.dataArrayObjects) {
+      // For object arrays, flatten to per-property arrays
+      const props = li.propertyOrder ?? Object.keys(li.dataArrayObjects[0] ?? {});
+      for (const prop of props) {
+        const vals = li.dataArrayObjects.map(o => `"${(o[prop] ?? '').replace(/"/g, '\\"')}"`);
+        lines.push(`static const char *_data_${prop}[] = {${vals.join(', ')}};`);
+      }
+      lines.push(`static int _data_len = ${li.dataArrayObjects.length};`);
+    }
+  }
+  if (ir.messageInfo) {
+    lines.push('static char _msg_buf[512];');
+    lines.push('static int _data_len = 0;');
+  }
+
+  // Keyframe arrays
+  if (ir.hasAnimatedElements) {
+    for (const ae of ir.animatedElements) {
+      lines.push(`static const int16_t _kf_e${ae.elemIndex}_${ae.prop}[] = {${ae.keyframes.join(',')}};`);
+    }
+  }
+
+  lines.push('');
+
+  // =========================================================================
+  // draw_proc (custom drawing for rects, circles, lines)
+  // =========================================================================
+
+  if (needsDrawLayer) {
+    lines.push('static void draw_proc(Layer *layer, GContext *ctx) {');
+    if (branchClassifieds.length > 0) {
+      // Draw graphics conditionally per branch
+      for (const bc of branchClassifieds) {
+        if (bc.classified.graphicsElements.length === 0) continue;
+        const slotInfo = ir.stateSlots.find(s => s.index === bc.slotIndex);
+        const cond = slotInfo?.type === 'string'
+          ? `strcmp(s${bc.slotIndex}, "${bc.value}") == 0`
+          : `s${bc.slotIndex} == ${JSON.stringify(bc.value)}`;
+        lines.push(`  if (${cond}) {`);
+        for (const ge of bc.classified.graphicsElements) {
+          emitGraphicsDrawCall(ge, lines, '    ', ir);
+        }
+        lines.push('  }');
+      }
+    } else {
+      for (const ge of mainClassified.graphicsElements) {
+        emitGraphicsDrawCall(ge, lines, '  ', ir);
+      }
+    }
+    lines.push('}');
+    lines.push('');
+  }
+
+  // =========================================================================
+  // refresh()
+  // =========================================================================
+
+  if (hasBehavior) {
+    lines.push('static void refresh(void) {');
+
+    // Time-dependent labels
+    if (needsTick) {
+      lines.push('  time_t now = time(NULL);');
+      lines.push('  struct tm *t = localtime(&now);');
+    }
+    for (const [idx, fmt] of ir.timeDeps) {
+      const te = allTextElements.find(t => t.el.labelIndex === idx && t.dynamicVar);
+      if (te?.dynamicVar) {
+        const dv = te.dynamicVar;
+        lines.push(`  strftime(${dv.bufName}, sizeof(${dv.bufName}), "${timeFormatToStrftime(fmt)}", t);`);
+        lines.push(`  text_layer_set_text(${dv.varName}, ${dv.bufName});`);
+      }
+    }
+
+    // State-dependent labels — skip when branches are active, since branch
+    // visibility toggling handles the visual changes. Without branches,
+    // update labels normally.
+    if (branchClassifieds.length === 0) {
+      for (const [idx, dep] of ir.stateDeps) {
+        const te = allTextElements.find(t => t.el.labelIndex === idx && t.dynamicVar);
+        if (te?.dynamicVar) {
+          const dv = te.dynamicVar;
+          const translated = translateFormatExpr(dep.formatExpr, dv.bufName, dv.bufSize, ir.stateSlots);
+          if (translated.kind === 'snprintf') {
+            lines.push(`  ${translated.code};`);
+            if (translated.code.includes('snprintf(')) {
+              lines.push(`  text_layer_set_text(${dv.varName}, ${dv.bufName});`);
+            }
+          } else {
+            lines.push(`  text_layer_set_text(${dv.varName}, ${translated.code});`);
+          }
+        }
+      }
+    }
+
+    // Skin-dependent rects (trigger redraw of custom layer)
+    if (ir.hasSkinDeps && needsDrawLayer) {
+      lines.push('  layer_mark_dirty(s_draw_layer);');
+    }
+
+    // Branch visibility toggling
+    for (const bc of branchClassifieds) {
+      const slotInfo = ir.stateSlots.find(s => s.index === bc.slotIndex);
+      const cond = slotInfo?.type === 'string'
+        ? `strcmp(s${bc.slotIndex}, "${bc.value}") == 0`
+        : slotInfo?.type === 'boolean'
+          ? (bc.value ? `s${bc.slotIndex}` : `!s${bc.slotIndex}`)
+          : `s${bc.slotIndex} == ${JSON.stringify(bc.value)}`;
+      lines.push(`  layer_set_hidden(${bc.layerVar}, !(${cond}));`);
+    }
+
+    // Redraw graphics if branches have graphics
+    if (branchClassifieds.some(bc => bc.classified.graphicsElements.length > 0) && needsDrawLayer) {
+      lines.push('  layer_mark_dirty(s_draw_layer);');
+    }
+
+    // List scroll updates
+    if (ir.hasList && ir.listInfo && ir.listInfo.scrollSlotIndex >= 0) {
+      const li = ir.listInfo;
+      const lpi = li.labelsPerItem;
+      lines.push(`  int _start = s${li.scrollSlotIndex};`);
+      lines.push(`  for (int _i = 0; _i < ${li.visibleCount}; _i++) {`);
+      lines.push(`    int _idx = _start + _i;`);
+      if (lpi > 1 && li.propertyOrder) {
+        for (let j = 0; j < lpi; j++) {
+          const prop = li.propertyOrder[j]!;
+          const lsIdx = `_i * ${lpi} + ${j}`;
+          lines.push(`    if (_idx < _data_len) {`);
+          lines.push(`      snprintf(s_ls_buf[${lsIdx}], sizeof(s_ls_buf[${lsIdx}]), "%s", _data_${prop}[_idx]);`);
+          lines.push(`    } else {`);
+          lines.push(`      s_ls_buf[${lsIdx}][0] = '\\0';`);
+          lines.push(`    }`);
+          lines.push(`    text_layer_set_text(s_ls[${lsIdx}], s_ls_buf[${lsIdx}]);`);
+        }
+      } else {
+        lines.push(`    if (_idx < _data_len) {`);
+        lines.push(`      snprintf(s_ls_buf[_i], sizeof(s_ls_buf[_i]), "%s", _data[_idx]);`);
+        lines.push(`    } else {`);
+        lines.push(`      s_ls_buf[_i][0] = '\\0';`);
+        lines.push(`    }`);
+        lines.push(`    text_layer_set_text(s_ls[_i], s_ls_buf[_i]);`);
+      }
+      lines.push('  }');
+    }
+
+    lines.push('}');
+    lines.push('');
+  }
+
+  // =========================================================================
+  // Button handlers
+  // =========================================================================
+
+  if (ir.hasButtons) {
+    // Group by button name
+    const byButton = new Map<string, typeof ir.buttonActions[0]>();
+    for (const ba of ir.buttonActions) {
+      byButton.set(ba.button, ba);
+    }
+
+    for (const [button, ba] of byButton) {
+      if (button === 'back') continue; // handled separately below
+      const handlerName = `${button}_handler`;
+      lines.push(`static void ${handlerName}(ClickRecognizerRef ref, void *ctx) {`);
+
+      const { action } = ba;
+      const isListScroll = ir.hasList && ir.listInfo && action.slotIndex === ir.listInfo.scrollSlotIndex;
+
+      switch (action.type) {
+        case 'increment':
+          lines.push(`  s${action.slotIndex} += ${action.value};`);
+          if (isListScroll) {
+            lines.push(`  if (s${action.slotIndex} > _data_len - ${ir.listInfo!.visibleCount}) s${action.slotIndex} = _data_len - ${ir.listInfo!.visibleCount};`);
+          }
+          break;
+        case 'decrement':
+          lines.push(`  s${action.slotIndex} -= ${action.value};`);
+          if (isListScroll) {
+            lines.push(`  if (s${action.slotIndex} < 0) s${action.slotIndex} = 0;`);
+          }
+          break;
+        case 'reset':
+          lines.push(`  s${action.slotIndex} = ${action.value};`);
+          break;
+        case 'toggle': {
+          lines.push(`  s${action.slotIndex} = !s${action.slotIndex};`);
+          const needsElapsed = [...ir.stateDeps.values()].some(d => d.slotIndex === action.slotIndex && d.needsTime);
+          if (needsElapsed) {
+            lines.push(`  if (s${action.slotIndex}) _startTime_s${action.slotIndex} = time(NULL);`);
+          }
+          break;
+        }
+        case 'set_string':
+          lines.push(`  strncpy(s${action.slotIndex}, "${action.stringValue}", sizeof(s${action.slotIndex}) - 1);`);
+          break;
+      }
+
+      lines.push('  refresh();');
+      lines.push('}');
+      lines.push('');
+    }
+
+    // Back button handler — if the app binds back, use that action but
+    // fall through to window_stack_pop when already at the default state.
+    // If the app doesn't bind back, just quit.
+    const backBinding = byButton.get('back');
+    lines.push('static void back_handler(ClickRecognizerRef ref, void *ctx) {');
+    if (backBinding) {
+      const { action } = backBinding;
+      // Find the baseline value for this slot
+      const slot = ir.stateSlots.find(s => s.index === action.slotIndex);
+      const baselineValue = slot?.initialValue;
+      const isBaseline = slot?.type === 'string'
+        ? `strcmp(s${action.slotIndex}, "${baselineValue}") == 0`
+        : `s${action.slotIndex} == ${JSON.stringify(baselineValue)}`;
+
+      lines.push(`  if (${isBaseline}) {`);
+      lines.push('    window_stack_pop(true);');
+      lines.push('  } else {');
+      switch (action.type) {
+        case 'set_string':
+          lines.push(`    strncpy(s${action.slotIndex}, "${action.stringValue}", sizeof(s${action.slotIndex}) - 1);`);
+          break;
+        case 'reset':
+          lines.push(`    s${action.slotIndex} = ${action.value};`);
+          break;
+        case 'toggle':
+          lines.push(`    s${action.slotIndex} = !s${action.slotIndex};`);
+          break;
+        default:
+          lines.push(`    s${action.slotIndex} = ${JSON.stringify(baselineValue)};`);
+      }
+      lines.push('    refresh();');
+      lines.push('  }');
+    } else {
+      lines.push('  window_stack_pop(true);');
+    }
+    lines.push('}');
+    lines.push('');
+
+    // click_config_provider
+    lines.push('static void click_config(void *ctx) {');
+    for (const [button] of byButton) {
+      if (button === 'back') continue;
+      const buttonId = BUTTON_MAP[button] ?? 'BUTTON_ID_SELECT';
+      lines.push(`  window_single_click_subscribe(${buttonId}, ${button}_handler);`);
+    }
+    // Always subscribe back button
+    lines.push('  window_single_click_subscribe(BUTTON_ID_BACK, back_handler);');
+    lines.push('}');
+    lines.push('');
+  }
+
+  // =========================================================================
+  // tick_handler
+  // =========================================================================
+
+  if (needsTick) {
+    lines.push('static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {');
+    lines.push('  refresh();');
+    lines.push('}');
+    lines.push('');
+  }
+
+  // =========================================================================
+  // inbox_received (AppMessage)
+  // =========================================================================
+
+  if (ir.messageInfo) {
+    lines.push('static void inbox_received(DictionaryIterator *iter, void *ctx) {');
+    lines.push(`  Tuple *t = dict_find(iter, MESSAGE_KEY_${ir.messageInfo.key});`);
+    lines.push('  if (t && t->value->cstring) {');
+    lines.push('    strncpy(_msg_buf, t->value->cstring, sizeof(_msg_buf) - 1);');
+    lines.push('    // TODO: parse _msg_buf JSON and populate data');
+    lines.push('    refresh();');
+    lines.push('  }');
+    lines.push('}');
+    lines.push('');
+  }
+
+  // =========================================================================
+  // window_load
+  // =========================================================================
+
+  lines.push('static void window_load(Window *window) {');
+  lines.push('  Layer *root = window_get_root_layer(window);');
+  lines.push(`  window_set_background_color(window, ${colorToGColor(classified.bgColor)});`);
+  lines.push('');
+
+  // Custom draw layer
+  if (needsDrawLayer) {
+    lines.push(`  s_draw_layer = layer_create(GRect(0, 0, ${ir.platform.width}, ${ir.platform.height}));`);
+    lines.push('  layer_set_update_proc(s_draw_layer, draw_proc);');
+    lines.push('  layer_add_child(root, s_draw_layer);');
+    lines.push('');
+  }
+
+  // Helper to emit text layer creation
+  function emitTextLayerCreate(te: typeof allTextElements[0], parentVar: string) {
+    const el = te.el;
+    if (el.isListSlot) return;
+
+    // Use absolute position (accounting for parent group offsets)
+    const ax = te.dynamicVar?.absX ?? (el as any)._absX ?? el.x;
+    const ay = te.dynamicVar?.absY ?? (el as any)._absY ?? el.y;
+
+    // Clamp width to screen — components may use emery (200px) dimensions
+    const rawW = el.w > 0 ? el.w : ir.platform.width;
+    const w = Math.min(rawW, ir.platform.width - ax);
+    const h = 50;
+    const font = fontToC(el.font);
+    const color = colorToGColor(el.color ?? '#ffffff');
+    const align = alignToC(el.align);
+    const text = (el.text ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
+    if (te.isDynamic && te.dynamicVar) {
+      const dv = te.dynamicVar;
+      lines.push(`  ${dv.varName} = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
+      lines.push(`  text_layer_set_background_color(${dv.varName}, GColorClear);`);
+      lines.push(`  text_layer_set_text_color(${dv.varName}, ${color});`);
+      lines.push(`  text_layer_set_font(${dv.varName}, fonts_get_system_font(${font}));`);
+      if (align !== 'GTextAlignmentLeft') {
+        lines.push(`  text_layer_set_text_alignment(${dv.varName}, ${align});`);
+      }
+      lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(${dv.varName}));`);
+    } else {
+      const localVar = `tl_${_localTlIdx++}`;
+      lines.push(`  TextLayer *${localVar} = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
+      lines.push(`  text_layer_set_background_color(${localVar}, GColorClear);`);
+      lines.push(`  text_layer_set_text_color(${localVar}, ${color});`);
+      lines.push(`  text_layer_set_font(${localVar}, fonts_get_system_font(${font}));`);
+      if (align !== 'GTextAlignmentLeft') {
+        lines.push(`  text_layer_set_text_alignment(${localVar}, ${align});`);
+      }
+      lines.push(`  text_layer_set_text(${localVar}, "${text}");`);
+      lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(${localVar}));`);
+    }
+    lines.push('');
+  }
+
+  let _localTlIdx = 0;
+
+  if (branchClassifieds.length > 0) {
+    // Create branch parent layers and add elements to them
+    for (const bc of branchClassifieds) {
+      lines.push(`  // Branch: s${bc.slotIndex} == ${JSON.stringify(bc.value)}`);
+      lines.push(`  ${bc.layerVar} = layer_create(GRect(0, 0, ${ir.platform.width}, ${ir.platform.height}));`);
+      if (!bc.isBaseline) {
+        lines.push(`  layer_set_hidden(${bc.layerVar}, true);`);
+      }
+      lines.push(`  layer_add_child(root, ${bc.layerVar});`);
+      lines.push('');
+
+      for (const te of bc.classified.textElements) {
+        emitTextLayerCreate(te, bc.layerVar);
+      }
+    }
+  } else {
+    // No branches — add all text layers to root
+    for (const te of mainClassified.textElements) {
+      emitTextLayerCreate(te, 'root');
+    }
+  }
+
+  // List slot text layers
+  if (ir.hasList && ir.listInfo) {
+    const li = ir.listInfo;
+    const lpi = li.labelsPerItem;
+    const listLabels = classified.textElements.filter(te => te.el.isListSlot);
+
+    lines.push('  // List item layers');
+    for (let i = 0; i < li.visibleCount; i++) {
+      for (let j = 0; j < lpi; j++) {
+        const flatIdx = i * lpi + j;
+        const templateLabel = listLabels[flatIdx]?.el;
+        const x = templateLabel?.x ?? 0;
+        // Calculate Y with item offset
+        const firstY = listLabels[0]?.el?.y ?? 32;
+        const itemHeight = lpi > 1 && listLabels.length >= lpi * 2
+          ? ((listLabels[lpi]?.el?.y ?? firstY + 30) - firstY)
+          : (listLabels.length > 1 ? ((listLabels[1]?.el?.y ?? firstY + 24) - firstY) : 24);
+        const y = firstY + i * itemHeight + (templateLabel ? (templateLabel.y - (listLabels[j]?.el?.y ?? firstY)) : 0);
+        const w = templateLabel?.w ?? ir.platform.width;
+        const font = fontToC(templateLabel?.font);
+        const color = colorToGColor(templateLabel?.color ?? '#ffffff');
+        const align = alignToC(templateLabel?.align);
+
+        lines.push(`  s_ls[${flatIdx}] = text_layer_create(GRect(${x}, ${y}, ${w}, 24));`);
+        lines.push(`  text_layer_set_background_color(s_ls[${flatIdx}], GColorClear);`);
+        lines.push(`  text_layer_set_text_color(s_ls[${flatIdx}], ${color});`);
+        lines.push(`  text_layer_set_font(s_ls[${flatIdx}], fonts_get_system_font(${font}));`);
+        if (align !== 'GTextAlignmentLeft') {
+          lines.push(`  text_layer_set_text_alignment(s_ls[${flatIdx}], ${align});`);
+        }
+        lines.push(`  layer_add_child(root, text_layer_get_layer(s_ls[${flatIdx}]));`);
+      }
+    }
+    lines.push('');
+  }
+
+  // Initial refresh
+  if (hasBehavior) {
+    lines.push('  refresh();');
+  }
+
+  lines.push('}');
+  lines.push('');
+
+  // =========================================================================
+  // window_unload
+  // =========================================================================
+
+  lines.push('static void window_unload(Window *window) {');
+  for (const te of allTextElements) {
+    if (te.isDynamic && te.dynamicVar) {
+      lines.push(`  text_layer_destroy(${te.dynamicVar.varName});`);
+    }
+  }
+  if (ir.hasList && ir.listInfo) {
+    const count = ir.listInfo.visibleCount * ir.listInfo.labelsPerItem;
+    lines.push(`  for (int i = 0; i < ${count}; i++) { text_layer_destroy(s_ls[i]); }`);
+  }
+  for (const bc of branchClassifieds) {
+    lines.push(`  layer_destroy(${bc.layerVar});`);
+  }
+  if (needsDrawLayer) {
+    lines.push('  layer_destroy(s_draw_layer);');
+  }
+  lines.push('}');
+  lines.push('');
+
+  // =========================================================================
+  // init / deinit / main
+  // =========================================================================
+
+  lines.push('static void init(void) {');
+  lines.push('  s_window = window_create();');
+  lines.push('  window_set_window_handlers(s_window, (WindowHandlers) {');
+  lines.push('    .load = window_load,');
+  lines.push('    .unload = window_unload,');
+  lines.push('  });');
+  if (ir.hasButtons) {
+    lines.push('  window_set_click_config_provider(s_window, click_config);');
+  }
+  if (needsTick) {
+    const unit = hasSeconds ? 'SECOND_UNIT' : 'MINUTE_UNIT';
+    lines.push(`  tick_timer_service_subscribe(${unit}, tick_handler);`);
+  }
+  if (ir.messageInfo) {
+    lines.push('  app_message_register_inbox_received(inbox_received);');
+    lines.push('  app_message_open(512, 64);');
+  }
+  lines.push('  window_stack_push(s_window, true);');
+  lines.push('}');
+  lines.push('');
+
+  lines.push('static void deinit(void) {');
+  if (needsTick) {
+    lines.push('  tick_timer_service_unsubscribe();');
+  }
+  lines.push('  window_destroy(s_window);');
+  lines.push('}');
+  lines.push('');
+
+  lines.push('int main(void) {');
+  lines.push('  init();');
+  lines.push('  app_event_loop();');
+  lines.push('  deinit();');
+  lines.push('}');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Graphics draw call emission
+// ---------------------------------------------------------------------------
+
+function clampW(x: number, w: number, screenW: number): number {
+  return Math.min(w, screenW - x);
+}
+
+function clampH(y: number, h: number, screenH: number): number {
+  return Math.min(h, screenH - y);
+}
+
+function emitGraphicsDrawCall(ge: CGraphicsElement, lines: string[], indent: string, ir: CompilerIR): void {
+  const el = ge.el;
+  const ax = ge.absX;
+  const ay = ge.absY;
+  const sw = ir.platform.width;
+  const sh = ir.platform.height;
+
+  switch (el.type) {
+    case 'rect': {
+      const fill = el.fill ?? '#000000';
+      const w = clampW(ax, el.w, sw);
+      const h = clampH(ay, el.h, sh);
+      if (el.isSkinDynamic && el.rectIndex !== undefined) {
+        const dep = ir.skinDeps.get(el.rectIndex);
+        if (dep) {
+          const slot = ir.stateSlots.find(s => s.index === dep.slotIndex);
+          if (slot?.type === 'boolean') {
+            lines.push(`${indent}graphics_context_set_fill_color(ctx, s${dep.slotIndex} ? ${colorToGColor(dep.skins[1])} : ${colorToGColor(dep.skins[0])});`);
+          } else {
+            lines.push(`${indent}graphics_context_set_fill_color(ctx, (s${dep.slotIndex} != ${JSON.stringify(slot?.initialValue)}) ? ${colorToGColor(dep.skins[1])} : ${colorToGColor(dep.skins[0])});`);
+          }
+        }
+      } else {
+        lines.push(`${indent}graphics_context_set_fill_color(ctx, ${colorToGColor(fill)});`);
+      }
+      lines.push(`${indent}graphics_fill_rect(ctx, GRect(${ax}, ${ay}, ${w}, ${h}), 0, GCornerNone);`);
+      break;
+    }
+
+    case 'circle': {
+      const fill = el.fill ?? '#ffffff';
+      const r = el.radius ?? 0;
+      const cx = ax + r;
+      const cy = ay + r;
+      lines.push(`${indent}graphics_context_set_fill_color(ctx, ${colorToGColor(fill)});`);
+      lines.push(`${indent}graphics_fill_circle(ctx, GPoint(${cx}, ${cy}), ${r});`);
+      break;
+    }
+
+    case 'line': {
+      const color = el.color ?? '#ffffff';
+      const strokeW = el.strokeWidth || 1;
+      // Lines: apply offset to both endpoints
+      const lx1 = ax;
+      const ly1 = ay;
+      const lx2 = ax + (el.x2! - el.x);
+      const ly2 = ay + (el.y2! - el.y);
+      if (ly1 === ly2) {
+        const lx = Math.min(lx1, lx2);
+        const lw = clampW(lx, Math.abs(lx2 - lx1) || 1, sw);
+        lines.push(`${indent}graphics_context_set_fill_color(ctx, ${colorToGColor(color)});`);
+        lines.push(`${indent}graphics_fill_rect(ctx, GRect(${lx}, ${ly1}, ${lw}, ${strokeW}), 0, GCornerNone);`);
+      } else if (lx1 === lx2) {
+        const ly = Math.min(ly1, ly2);
+        const lh = clampH(ly, Math.abs(ly2 - ly1) || 1, sh);
+        lines.push(`${indent}graphics_context_set_fill_color(ctx, ${colorToGColor(color)});`);
+        lines.push(`${indent}graphics_fill_rect(ctx, GRect(${lx1}, ${ly}, ${strokeW}, ${lh}), 0, GCornerNone);`);
+      }
+      break;
+    }
+  }
+}

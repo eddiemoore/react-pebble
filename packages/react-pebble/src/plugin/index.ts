@@ -47,6 +47,8 @@ export interface PebblePiuOptions {
    * Overrides the `platform` option.
    */
   targetPlatforms?: string[];
+  /** Compilation target: 'alloy' for piu/Moddable, 'rocky' for classic Pebble (default: 'alloy') */
+  target?: 'alloy' | 'rocky' | 'c';
   /** Directory for the generated Pebble project (default: '.pebble-build') */
   buildDir?: string;
   /** Auto-run pebble build + install after compilation */
@@ -78,23 +80,31 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
 
         // 1. Compile JSX → piu
         log(`Compiling ${options.entry} for ${platform}...`);
+        const target = options.target ?? 'alloy';
         const result = await compileToPiu({
           entry: options.entry,
           settleMs: options.settleMs,
           platform,
+          target,
           logger: log,
         });
 
         // 2. Scaffold pebble project
         log(`Scaffolding pebble project in ${platBuildDir}...`);
         scaffoldPebbleProject(platBuildDir, {
+          target,
           watchface: !result.hasButtons,
           messageKeys: result.messageKeys,
           mockDataSource: result.mockDataSource,
+          platform,
         });
 
         // 3. Write compiled output
-        const outputPath = join(platBuildDir, 'src', 'embeddedjs', 'main.js');
+        const outputPath = target === 'rocky'
+          ? join(platBuildDir, 'src', 'rocky', 'index.js')
+          : target === 'c'
+            ? join(platBuildDir, 'src', 'c', 'main.c')
+            : join(platBuildDir, 'src', 'embeddedjs', 'main.js');
         mkdirSync(dirname(outputPath), { recursive: true });
         writeFileSync(outputPath, result.code);
         log(`Wrote ${result.code.split('\n').length} lines to ${outputPath}`);
@@ -133,15 +143,24 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
 // ---------------------------------------------------------------------------
 
 interface ScaffoldOptions {
+  target: 'alloy' | 'rocky' | 'c';
   watchface: boolean;
   messageKeys: string[];
   /** TypeScript source of mock data (for generating phone-side JS) */
   mockDataSource?: string | null;
+  /** Target platform name for Rocky.js targetPlatforms */
+  platform?: string;
 }
 
 function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
-  mkdirSync(join(dir, 'src', 'embeddedjs'), { recursive: true });
-  mkdirSync(join(dir, 'src', 'c'), { recursive: true });
+  if (options.target === 'rocky') {
+    mkdirSync(join(dir, 'src', 'rocky'), { recursive: true });
+  } else if (options.target === 'c') {
+    mkdirSync(join(dir, 'src', 'c'), { recursive: true });
+  } else {
+    mkdirSync(join(dir, 'src', 'embeddedjs'), { recursive: true });
+    mkdirSync(join(dir, 'src', 'c'), { recursive: true });
+  }
   mkdirSync(join(dir, 'src', 'pkjs'), { recursive: true });
 
   // Preserve UUID across builds (or generate a new one)
@@ -159,6 +178,7 @@ function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
   }
 
   // package.json
+  const isRocky = options.target === 'rocky';
   const pkg = {
     name: 'react-pebble-app',
     author: 'react-pebble',
@@ -169,10 +189,12 @@ function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
     pebble: {
       displayName: 'react-pebble-app',
       uuid,
-      projectType: 'moddable',
+      projectType: isRocky ? 'rocky' : options.target === 'c' ? 'native' : 'moddable',
       sdkVersion: '3',
       enableMultiJS: true,
-      targetPlatforms: ['emery', 'gabbro'],
+      targetPlatforms: (isRocky || options.target === 'c')
+        ? [options.platform ?? 'basalt']
+        : ['emery', 'gabbro'],
       watchapp: { watchface: options.watchface },
       messageKeys: options.messageKeys.length > 0 ? options.messageKeys : ['dummy'],
       resources: { media: [] },
@@ -186,12 +208,13 @@ function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
     writeFileSync(wscriptPath, WSCRIPT_TEMPLATE);
   }
 
-  // C stub (static)
-  const cPath = join(dir, 'src', 'c', 'mdbl.c');
-  if (!existsSync(cPath)) {
-    writeFileSync(
-      cPath,
-      `#include <pebble.h>
+  // Alloy-only: C stub and Moddable manifest
+  if (!isRocky) {
+    const cPath = join(dir, 'src', 'c', 'mdbl.c');
+    if (!existsSync(cPath)) {
+      writeFileSync(
+        cPath,
+        `#include <pebble.h>
 
 int main(void) {
   Window *w = window_create();
@@ -202,23 +225,23 @@ int main(void) {
   window_destroy(w);
 }
 `,
-    );
-  }
+      );
+    }
 
-  // Moddable manifest (static)
-  const manifestPath = join(dir, 'src', 'embeddedjs', 'manifest.json');
-  if (!existsSync(manifestPath)) {
-    writeFileSync(
-      manifestPath,
-      JSON.stringify(
-        {
-          include: ['$(MODDABLE)/examples/manifest_mod.json'],
-          modules: { '*': './main.js' },
-        },
-        null,
-        2,
-      ) + '\n',
-    );
+    const manifestPath = join(dir, 'src', 'embeddedjs', 'manifest.json');
+    if (!existsSync(manifestPath)) {
+      writeFileSync(
+        manifestPath,
+        JSON.stringify(
+          {
+            include: ['$(MODDABLE)/examples/manifest_mod.json'],
+            modules: { '*': './main.js' },
+          },
+          null,
+          2,
+        ) + '\n',
+      );
+    }
   }
 
   // Phone-side JS

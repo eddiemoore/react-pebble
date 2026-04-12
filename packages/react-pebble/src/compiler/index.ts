@@ -25,6 +25,8 @@ export interface CompileOptions {
   settleMs?: number;
   /** Target platform (default: 'emery') */
   platform?: string;
+  /** Compilation target: 'alloy' for piu/Moddable, 'rocky' for classic Pebble */
+  target?: 'alloy' | 'rocky' | 'c';
   /** Logger for diagnostic messages */
   logger?: (msg: string) => void;
   /** Project root directory (default: process.cwd()) */
@@ -75,6 +77,9 @@ export async function compileToPiu(options: CompileOptions): Promise<CompileResu
   }
   if (options.platform) {
     env.PEBBLE_PLATFORM = options.platform;
+  }
+  if (options.target) {
+    env.COMPILE_TARGET = options.target;
   }
 
   // Run the compiler script and capture stdout (code) + stderr (diagnostics)

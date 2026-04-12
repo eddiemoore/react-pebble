@@ -5,26 +5,40 @@
  * saved snapshot file. Fails if any output differs, showing the diff.
  *
  * Usage:
- *   npx tsx test/snapshot-test.ts              # test all examples
+ *   npx tsx test/snapshot-test.ts              # test all examples (piu)
  *   npx tsx test/snapshot-test.ts --update     # regenerate snapshots
  *   npx tsx test/snapshot-test.ts counter      # test one example
+ *   npx tsx test/snapshot-test.ts --target rocky         # test Rocky.js snapshots
+ *   npx tsx test/snapshot-test.ts --target rocky --update # regenerate Rocky.js snapshots
  */
 
 import { execSync } from 'node:child_process';
-import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const snapshotDir = resolve(__dirname, 'snapshots');
-
-const EXAMPLES = readdirSync(snapshotDir)
-  .filter((f) => f.endsWith('.js'))
-  .map((f) => f.replace('.js', ''));
 
 const args = process.argv.slice(2);
 const updateMode = args.includes('--update');
-const filterExample = args.find((a) => !a.startsWith('--'));
+const targetIdx = args.indexOf('--target');
+const target = targetIdx >= 0 ? args[targetIdx + 1] ?? 'alloy' : 'alloy';
+const filterExample = args.find((a) => !a.startsWith('--') && (targetIdx < 0 || args.indexOf(a) !== targetIdx + 1));
+
+const snapshotDir = target === 'c'
+  ? resolve(__dirname, 'snapshots-c')
+  : target === 'rocky'
+    ? resolve(__dirname, 'snapshots-rocky')
+    : resolve(__dirname, 'snapshots');
+
+if (!existsSync(snapshotDir)) {
+  mkdirSync(snapshotDir, { recursive: true });
+}
+
+const snapshotExt = target === 'c' ? '.c' : '.js';
+const EXAMPLES = readdirSync(snapshotDir)
+  .filter((f) => f.endsWith(snapshotExt))
+  .map((f) => f.replace(snapshotExt, ''));
 
 let passed = 0;
 let failed = 0;
@@ -33,11 +47,16 @@ let updated = 0;
 for (const example of EXAMPLES) {
   if (filterExample && example !== filterExample) continue;
 
-  const snapshotPath = resolve(snapshotDir, `${example}.js`);
+  const snapshotPath = resolve(snapshotDir, `${example}${snapshotExt}`);
 
   try {
+    const envVars = target === 'rocky'
+      ? `EXAMPLE=${example} COMPILE_TARGET=rocky PEBBLE_PLATFORM=basalt`
+      : target === 'c'
+        ? `EXAMPLE=${example} COMPILE_TARGET=c PEBBLE_PLATFORM=basalt`
+        : `EXAMPLE=${example}`;
     const actual = execSync(
-      `EXAMPLE=${example} npx tsx scripts/compile-to-piu.ts 2>/dev/null`,
+      `${envVars} npx tsx scripts/compile-to-piu.ts 2>/dev/null`,
       { cwd: resolve(__dirname, '..'), encoding: 'utf-8', timeout: 30000 },
     );
 
