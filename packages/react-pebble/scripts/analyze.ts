@@ -239,6 +239,61 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       };
     }
 
+    case 'pbl-scrollable': {
+      // Treat as a group container — scrolling is handled at runtime via
+      // Scroller/Scroller.content in piu, but compile-time layout uses the
+      // same Container approach as pbl-group.
+      const children: IRElement[] = [];
+      for (const c of el.children) {
+        const collected = collectTree(c, ctx);
+        if (collected) children.push(collected);
+      }
+      return {
+        type: 'group',
+        x: num(p, 'x'), y: num(p, 'y'),
+        w: num(p, 'w') || num(p, 'width') || SCREEN.width,
+        h: num(p, 'h') || num(p, 'height') || SCREEN.height,
+        children,
+      };
+    }
+
+    case 'pbl-path': {
+      // Path/polygon rendering is a runtime-only feature (scanline fill in
+      // pebble-output.ts). At compile time, emit a placeholder rect at the
+      // bounding box so the compiler doesn't drop it silently.
+      const points = p.points as Array<[number, number]> | undefined;
+      if (!points || points.length < 2) return null;
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [px, py] of points) {
+        if (px < minX) minX = px;
+        if (py < minY) minY = py;
+        if (px > maxX) maxX = px;
+        if (py > maxY) maxY = py;
+      }
+      const fill = str(p, 'fill') ?? str(p, 'stroke') ?? 'white';
+      const bx = num(p, 'x') + minX;
+      const by = num(p, 'y') + minY;
+
+      const rectIdx = ctx.rectIdx++;
+      ctx.rectFills.set(rectIdx, fill);
+      const elemIdx = ctx.elemIdx++;
+      ctx.elementPositions.set(elemIdx, { type: 'rect', left: bx, top: by, width: maxX - minX, height: maxY - minY });
+
+      return {
+        type: 'rect',
+        x: bx, y: by, w: maxX - minX, h: maxY - minY,
+        fill: colorToHex(fill),
+        rectIndex: rectIdx,
+        elemIndex: elemIdx,
+      };
+    }
+
+    case 'pbl-statusbar':
+    case 'pbl-actionbar':
+      // Already handled upstream — fall through to null for now
+      return null;
+
     default:
       return null;
   }

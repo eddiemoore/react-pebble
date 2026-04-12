@@ -407,9 +407,113 @@ export class PocoRenderer {
         break;
       }
 
+      case 'pbl-path': {
+        const rawPoints = p.points as Array<[number, number]> | undefined;
+        if (!rawPoints || rawPoints.length < 2) break;
+
+        const fill = str(p, 'fill');
+        const stroke = str(p, 'stroke');
+        const sw = num(p, 'strokeWidth') || 1;
+        const rotation = num(p, 'rotation');  // degrees
+        const offsetArr = p.offset as [number, number] | undefined;
+        const offX = offsetArr?.[0] ?? 0;
+        const offY = offsetArr?.[1] ?? 0;
+
+        // Compute centroid for rotation origin
+        let cx = 0, cy = 0;
+        for (const pt of rawPoints) { cx += pt[0]!; cy += pt[1]!; }
+        cx /= rawPoints.length;
+        cy /= rawPoints.length;
+
+        // Apply rotation and offset, then translate to absolute position
+        const rad = (rotation * Math.PI) / 180;
+        const cosA = Math.cos(rad);
+        const sinA = Math.sin(rad);
+        const pts: Array<[number, number]> = rawPoints.map(([px, py]) => {
+          const dx = px - cx;
+          const dy = py - cy;
+          return [
+            Math.round(x + offX + cx + dx * cosA - dy * sinA),
+            Math.round(y + offY + cy + dx * sinA + dy * cosA),
+          ];
+        });
+
+        if (fill) {
+          this.fillPolygon(this.getColor(fill), pts);
+        }
+        if (stroke) {
+          const c = this.getColor(stroke);
+          for (let i = 0; i < pts.length; i++) {
+            const a = pts[i]!;
+            const b = pts[(i + 1) % pts.length]!;
+            this.drawDiagonalLine(c, a[0], a[1], b[0], b[1], sw);
+          }
+        }
+        break;
+      }
+
+      case 'pbl-scrollable': {
+        const w = num(p, 'w') || num(p, 'width');
+        const h = num(p, 'h') || num(p, 'height');
+        const scrollOffset = num(p, 'scrollOffset');
+
+        // Set clip region to the scrollable viewport
+        this.poco.clip(x, y, w, h);
+        this.renderChildren(node, ox, -scrollOffset);
+        // Restore clip
+        this.poco.clip();
+        break;
+      }
+
       case 'pbl-root': {
         this.renderChildren(node, ox, oy);
         break;
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Polygon fill — scanline algorithm
+  // -------------------------------------------------------------------------
+
+  private fillPolygon(color: PocoColor, pts: Array<[number, number]>): void {
+    const { poco } = this;
+    if (pts.length < 3) return;
+
+    // Find bounding box
+    let minY = pts[0]![1], maxY = pts[0]![1];
+    for (const pt of pts) {
+      if (pt[1] < minY) minY = pt[1];
+      if (pt[1] > maxY) maxY = pt[1];
+    }
+
+    const n = pts.length;
+    // For each scanline row
+    for (let scanY = minY; scanY <= maxY; scanY++) {
+      const intersections: number[] = [];
+
+      for (let i = 0; i < n; i++) {
+        const a = pts[i]!;
+        const b = pts[(i + 1) % n]!;
+        const [ax, ay] = a;
+        const [bx, by] = b;
+
+        // Check if this edge crosses the scanline
+        if ((ay <= scanY && by > scanY) || (by <= scanY && ay > scanY)) {
+          // Compute x intersection
+          const xInt = ax + ((scanY - ay) * (bx - ax)) / (by - ay);
+          intersections.push(Math.round(xInt));
+        }
+      }
+
+      // Sort intersections and fill spans between pairs
+      intersections.sort((a, b) => a - b);
+      for (let i = 0; i < intersections.length - 1; i += 2) {
+        const xStart = intersections[i]!;
+        const xEnd = intersections[i + 1]!;
+        if (xEnd > xStart) {
+          poco.fillRectangle(color, xStart, scanY, xEnd - xStart, 1);
+        }
       }
     }
   }

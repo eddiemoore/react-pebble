@@ -298,6 +298,106 @@ test_async_list() {
   cleanup
 }
 
+test_vibration() {
+  deploy_example vibration
+  # UP = short pulse, DOWN = long pulse, SELECT = double pulse
+  click up
+  screenshot vibration-short
+  click down
+  screenshot vibration-long
+  click select
+  screenshot vibration-double
+  cleanup
+}
+
+test_health() {
+  deploy_example health
+  # Watchface - no buttons, just verify health data renders
+  cleanup
+}
+
+test_path() {
+  deploy_example path
+  # UP rotates +15°, DOWN rotates -15°, SELECT resets
+  click up
+  screenshot path-rotate15
+  click up
+  click up
+  screenshot path-rotate45
+  click down
+  screenshot path-rotate30
+  click select
+  screenshot path-reset
+  cleanup
+}
+
+test_scrollable() {
+  deploy_example scrollable
+  # DOWN scrolls content down, UP scrolls back up
+  click down
+  screenshot scrollable-scroll1
+  click down
+  click down
+  screenshot scrollable-scroll3
+  click up
+  screenshot scrollable-scrollback
+  cleanup
+}
+
+test_menu_layer() {
+  deploy_example menu-layer
+  # DOWN moves selection, SELECT picks item
+  click down
+  screenshot menu-layer-sel1
+  click down
+  screenshot menu-layer-sel2
+  click down
+  screenshot menu-layer-sel3
+  click select
+  screenshot menu-layer-selected
+  cleanup
+}
+
+test_number_window() {
+  deploy_example number-window
+  # UP increases, DOWN decreases, SELECT confirms
+  click up
+  screenshot number-window-up
+  click up
+  screenshot number-window-up2
+  click down
+  screenshot number-window-down
+  click select
+  screenshot number-window-confirm
+  cleanup
+}
+
+test_action_menu() {
+  deploy_example action-menu
+  # DOWN navigates, SELECT picks, BACK goes up
+  click down
+  screenshot action-menu-sel1
+  click down
+  screenshot action-menu-sel2
+  click up
+  click select
+  screenshot action-menu-submenu
+  click select
+  screenshot action-menu-action
+  cleanup
+}
+
+test_multi_click() {
+  deploy_example multi-click
+  # Double-click SELECT, hold UP for repeat
+  click select
+  click select
+  screenshot multi-click-dblclick
+  click up
+  screenshot multi-click-up1
+  cleanup
+}
+
 test_jira_list() {
   SETTLE_MS=200 deploy_example jira-list
   click down
@@ -319,6 +419,8 @@ ALL_EXAMPLES=(
   stopwatch nested-cond circles analog-clock
   dashboard layout-demo settings animation compass
   weather
+  vibration health path scrollable
+  menu-layer number-window action-menu multi-click
 )
 
 # Skip async examples by default (need SETTLE_MS)

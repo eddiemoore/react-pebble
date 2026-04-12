@@ -170,6 +170,118 @@ interface PebbleBattery {
 
 declare const Battery: PebbleBattery | undefined;
 
+// ---------------------------------------------------------------------------
+// Vibration — haptic feedback motor
+// ---------------------------------------------------------------------------
+
+interface PebbleVibration {
+  shortPulse(): void;
+  longPulse(): void;
+  doublePulse(): void;
+  customPattern(durations: number[]): void;
+}
+
+declare const Vibration: PebbleVibration | undefined;
+
+// ---------------------------------------------------------------------------
+// Light — backlight control
+// ---------------------------------------------------------------------------
+
+interface PebbleLight {
+  trigger(): void;
+  enable(on: boolean): void;
+}
+
+declare const Light: PebbleLight | undefined;
+
+// ---------------------------------------------------------------------------
+// Health — fitness/health sensor data
+// ---------------------------------------------------------------------------
+
+interface PebbleHealth {
+  readonly steps: number;
+  readonly distance: number;
+  readonly activeSeconds: number;
+  readonly calories: number;
+  readonly heartRate: number | null;
+  readonly sleepSeconds: number;
+}
+
+declare const Health: PebbleHealth | undefined;
+
+// ---------------------------------------------------------------------------
+// WatchInfo — device hardware information
+// ---------------------------------------------------------------------------
+
+interface PebbleWatchInfo {
+  readonly model: string;
+  readonly platform: string;
+  readonly isRound: boolean;
+  readonly isColor: boolean;
+}
+
+declare const WatchInfo: PebbleWatchInfo | undefined;
+
+// ---------------------------------------------------------------------------
+// Wakeup — scheduled app launches
+// ---------------------------------------------------------------------------
+
+interface PebbleWakeup {
+  schedule(timestamp: number, cookie?: number): number | null;
+  cancel(id: number): void;
+  cancelAll(): void;
+  getLaunchEvent(): { id: number; cookie: number } | null;
+}
+
+declare const Wakeup: PebbleWakeup | undefined;
+
+// ---------------------------------------------------------------------------
+// Dictation — voice-to-text input
+// ---------------------------------------------------------------------------
+
+interface PebbleDictation {
+  start(callback: (text: string | null, status: string) => void): void;
+  stop(): void;
+}
+
+declare const Dictation: PebbleDictation | undefined;
+
+// ---------------------------------------------------------------------------
+// DataLogging — batch data collection to phone
+// ---------------------------------------------------------------------------
+
+interface PebbleDataLoggingSession {
+  log(data: ArrayBuffer | string): boolean;
+  finish(): void;
+}
+
+interface PebbleDataLogging {
+  create(tag: number, itemType: 'byte' | 'uint' | 'int', itemSize: number): PebbleDataLoggingSession | null;
+}
+
+declare const DataLogging: PebbleDataLogging | undefined;
+
+// ---------------------------------------------------------------------------
+// AppGlance — app launcher status display
+// ---------------------------------------------------------------------------
+
+interface PebbleAppGlance {
+  update(slices: Array<{ subtitle: string; icon?: unknown; expirationTime?: number }>): void;
+}
+
+declare const AppGlance: PebbleAppGlance | undefined;
+
+// ---------------------------------------------------------------------------
+// Timeline — push timeline pins
+// ---------------------------------------------------------------------------
+
+interface PebbleTimeline {
+  pushPin(pin: { id: string; time: number; title: string; body?: string; icon?: string }): void;
+  removePin(id: string): void;
+}
+
+declare const Timeline: PebbleTimeline | undefined;
+
 // Outline extension module — adds blendOutline / blendPolygon to Poco.prototype.
 // Importing this module has the side-effect of installing those methods.
 declare module 'commodetto/outline/PocoOutline' {

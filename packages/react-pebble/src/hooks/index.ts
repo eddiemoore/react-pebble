@@ -791,6 +791,754 @@ export function useKVStorage(storeName: string): {
 }
 
 // ---------------------------------------------------------------------------
+// useVibration — haptic feedback
+// ---------------------------------------------------------------------------
+
+export interface UseVibrationResult {
+  shortPulse: () => void;
+  longPulse: () => void;
+  doublePulse: () => void;
+  customPattern: (durations: number[]) => void;
+}
+
+/**
+ * Haptic feedback via the Pebble vibration motor.
+ *
+ * On Alloy: uses the `Vibration` global.
+ * In mock mode: no-op functions.
+ */
+export function useVibration(): UseVibrationResult {
+  const noop = useCallback(() => {}, []);
+  const noopArr = useCallback((_durations: number[]) => {}, []);
+
+  if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Vibration) {
+    const vib = (globalThis as Record<string, unknown>).Vibration as {
+      shortPulse?: () => void;
+      longPulse?: () => void;
+      doublePulse?: () => void;
+      customPattern?: (durations: number[]) => void;
+    };
+    return {
+      shortPulse: vib.shortPulse ?? noop,
+      longPulse: vib.longPulse ?? noop,
+      doublePulse: vib.doublePulse ?? noop,
+      customPattern: vib.customPattern ?? noopArr,
+    };
+  }
+
+  return { shortPulse: noop, longPulse: noop, doublePulse: noop, customPattern: noopArr };
+}
+
+// ---------------------------------------------------------------------------
+// useLight — backlight control
+// ---------------------------------------------------------------------------
+
+export interface UseLightResult {
+  /** Trigger the backlight with normal auto-off timeout. */
+  trigger: () => void;
+  /** Force backlight on or off. */
+  enable: (on: boolean) => void;
+}
+
+/**
+ * Control the watch backlight.
+ *
+ * On Alloy: uses the `Light` global.
+ * In mock mode: no-op functions.
+ */
+export function useLight(): UseLightResult {
+  const noop = useCallback(() => {}, []);
+  const noopBool = useCallback((_on: boolean) => {}, []);
+
+  if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Light) {
+    const light = (globalThis as Record<string, unknown>).Light as {
+      trigger?: () => void;
+      enable?: (on: boolean) => void;
+    };
+    return {
+      trigger: light.trigger ?? noop,
+      enable: light.enable ?? noopBool,
+    };
+  }
+
+  return { trigger: noop, enable: noopBool };
+}
+
+// ---------------------------------------------------------------------------
+// useHealth — step count, distance, heart rate, sleep, calories
+// ---------------------------------------------------------------------------
+
+export interface HealthData {
+  steps: number;
+  distance: number;
+  activeSeconds: number;
+  calories: number;
+  heartRate: number | null;
+  sleepSeconds: number;
+}
+
+const MOCK_HEALTH: HealthData = {
+  steps: 5432,
+  distance: 3800,
+  activeSeconds: 2400,
+  calories: 210,
+  heartRate: 72,
+  sleepSeconds: 25200,
+};
+
+/**
+ * Read health/fitness data from the Pebble Health service.
+ *
+ * On Alloy: reads from the `Health` or `__pbl_health` global.
+ * In mock mode: returns static realistic data.
+ *
+ * @param pollInterval — how often to re-read in ms (default: 60000)
+ */
+export function useHealth(pollInterval = 60000): HealthData {
+  const [data, setData] = useState<HealthData>(MOCK_HEALTH);
+
+  useEffect(() => {
+    const readHealth = () => {
+      const g = globalThis as Record<string, unknown>;
+      const health = (g.Health ?? g.__pbl_health) as {
+        steps?: number;
+        distance?: number;
+        activeSeconds?: number;
+        calories?: number;
+        heartRate?: number | null;
+        sleepSeconds?: number;
+      } | undefined;
+
+      if (health) {
+        setData({
+          steps: health.steps ?? 0,
+          distance: health.distance ?? 0,
+          activeSeconds: health.activeSeconds ?? 0,
+          calories: health.calories ?? 0,
+          heartRate: health.heartRate ?? null,
+          sleepSeconds: health.sleepSeconds ?? 0,
+        });
+      }
+    };
+
+    readHealth();
+    const id = setInterval(readHealth, pollInterval);
+    return () => clearInterval(id);
+  }, [pollInterval]);
+
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// useTimer — one-shot delayed callback
+// ---------------------------------------------------------------------------
+
+export interface UseTimerResult {
+  /** Start a one-shot timer. Replaces any pending timer. */
+  start: (delayMs: number) => void;
+  /** Cancel the pending timer. */
+  cancel: () => void;
+  /** Whether the timer has fired since last start. */
+  fired: boolean;
+}
+
+/**
+ * One-shot timer (complement to `useInterval`).
+ *
+ * The callback ref is kept stable — changing the callback between renders
+ * does not restart the timer.
+ */
+export function useTimer(callback: () => void): UseTimerResult {
+  const cbRef = useRef(callback);
+  cbRef.current = callback;
+
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fired, setFired] = useState(false);
+
+  const cancel = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const start = useCallback((delayMs: number) => {
+    cancel();
+    setFired(false);
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      setFired(true);
+      cbRef.current();
+    }, delayMs);
+  }, [cancel]);
+
+  // Cleanup on unmount
+  useEffect(() => () => cancel(), [cancel]);
+
+  return { start, cancel, fired };
+}
+
+// ---------------------------------------------------------------------------
+// useWatchInfo — device model, platform, display capabilities
+// ---------------------------------------------------------------------------
+
+export interface WatchInfo {
+  model: string;
+  platform: string;
+  isRound: boolean;
+  isColor: boolean;
+}
+
+/**
+ * Returns information about the watch hardware.
+ *
+ * On Alloy: reads from `WatchInfo` global if available.
+ * In mock mode: derives from SCREEN constants.
+ */
+export function useWatchInfo(): WatchInfo {
+  if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).WatchInfo) {
+    const info = (globalThis as Record<string, unknown>).WatchInfo as {
+      model?: string;
+      platform?: string;
+      isRound?: boolean;
+      isColor?: boolean;
+    };
+    return {
+      model: info.model ?? 'unknown',
+      platform: info.platform ?? 'unknown',
+      isRound: info.isRound ?? false,
+      isColor: info.isColor ?? true,
+    };
+  }
+
+  // Mock mode: derive from SCREEN (imported lazily to avoid circular deps)
+  return {
+    model: 'mock',
+    platform: 'emery',
+    isRound: false,
+    isColor: true,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// useLocale — system language/locale detection
+// ---------------------------------------------------------------------------
+
+export interface LocaleInfo {
+  language: string;
+  country: string;
+}
+
+/**
+ * Returns the system locale.
+ *
+ * On Alloy/modern JS: uses `Intl.DateTimeFormat`.
+ * In mock mode: returns `{ language: 'en', country: 'US' }`.
+ */
+export function useLocale(): LocaleInfo {
+  try {
+    if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
+      const opts = new Intl.DateTimeFormat().resolvedOptions();
+      const parts = opts.locale.split('-');
+      return {
+        language: parts[0] ?? 'en',
+        country: parts[1] ?? 'US',
+      };
+    }
+  } catch {
+    // Intl not available
+  }
+  return { language: 'en', country: 'US' };
+}
+
+// ---------------------------------------------------------------------------
+// useUnobstructedArea — adapt to timeline peek obstructions
+// ---------------------------------------------------------------------------
+
+export interface UnobstructedArea {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Returns the unobstructed screen area (excluding timeline peek, etc.).
+ *
+ * On Alloy: reads `screen.unobstructed`.
+ * In mock mode: returns full screen dimensions.
+ */
+export function useUnobstructedArea(): UnobstructedArea {
+  if (typeof screen !== 'undefined' && screen) {
+    const s = screen as unknown as {
+      width: number; height: number;
+      unobstructed?: { x: number; y: number; w: number; h: number };
+    };
+    if (s.unobstructed) return { x: s.unobstructed.x, y: s.unobstructed.y, w: s.unobstructed.w, h: s.unobstructed.h };
+    return { x: 0, y: 0, w: s.width, h: s.height };
+  }
+  // Mock mode
+  return { x: 0, y: 0, w: 200, h: 228 };
+}
+
+// ---------------------------------------------------------------------------
+// useMultiClick — double-click, triple-click detection
+// ---------------------------------------------------------------------------
+
+export interface MultiClickOptions {
+  /** Number of clicks to detect (default: 2 for double-click). */
+  count?: number;
+  /** Maximum interval between clicks in ms (default: 300). */
+  maxInterval?: number;
+}
+
+/**
+ * Detect multi-click patterns (double-click, triple-click, etc.).
+ *
+ * The handler fires only when exactly `count` clicks occur within
+ * `maxInterval` ms of each other.
+ */
+export function useMultiClick(
+  button: PebbleButton,
+  handler: PebbleButtonHandler,
+  options: MultiClickOptions = {},
+): void {
+  const { count = 2, maxInterval = 300 } = options;
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
+
+  const clickTimesRef = useRef<number[]>([]);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useButton(button, () => {
+    const now = Date.now();
+    clickTimesRef.current.push(now);
+
+    // Trim old clicks outside the window
+    clickTimesRef.current = clickTimesRef.current.filter(
+      (t) => now - t <= maxInterval,
+    );
+
+    if (timerRef.current !== null) clearTimeout(timerRef.current);
+
+    if (clickTimesRef.current.length >= count) {
+      clickTimesRef.current = [];
+      handlerRef.current();
+    } else {
+      // Reset after window expires
+      timerRef.current = setTimeout(() => {
+        clickTimesRef.current = [];
+        timerRef.current = null;
+      }, maxInterval);
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useRepeatClick — auto-repeating button press
+// ---------------------------------------------------------------------------
+
+export interface RepeatClickOptions {
+  /** Delay before repeating starts in ms (default: 500). */
+  initialDelay?: number;
+  /** Interval between repeats in ms (default: 100). */
+  repeatInterval?: number;
+}
+
+/**
+ * Fire a handler repeatedly while a button is held down.
+ *
+ * Fires once immediately on press, then starts repeating after
+ * `initialDelay` ms at `repeatInterval` ms intervals. Uses long-press
+ * detection to start the repeat cycle.
+ */
+export function useRepeatClick(
+  button: PebbleButton,
+  handler: PebbleButtonHandler,
+  options: RepeatClickOptions = {},
+): void {
+  const { initialDelay = 500, repeatInterval = 100 } = options;
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
+
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopRepeat = useCallback(() => {
+    if (intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  // Fire once on initial press
+  useButton(button, () => {
+    handlerRef.current();
+  });
+
+  // Start repeating on long press
+  useLongButton(button, () => {
+    stopRepeat();
+    // Wait initial delay, then repeat
+    const startTimer = setTimeout(() => {
+      intervalRef.current = setInterval(() => {
+        handlerRef.current();
+      }, repeatInterval);
+    }, initialDelay);
+    // Store timer ID in interval ref temporarily for cleanup
+    intervalRef.current = startTimer as unknown as ReturnType<typeof setInterval>;
+  });
+
+  // Cleanup on unmount
+  useEffect(() => () => stopRepeat(), [stopRepeat]);
+}
+
+// ---------------------------------------------------------------------------
+// useWakeup — schedule app launches at future times
+// ---------------------------------------------------------------------------
+
+export interface UseWakeupResult {
+  /** Schedule a wakeup. Returns wakeup ID or null on failure. */
+  schedule: (timestamp: number, cookie?: number) => number | null;
+  /** Cancel a scheduled wakeup. */
+  cancel: (id: number) => void;
+  /** Cancel all wakeups for this app. */
+  cancelAll: () => void;
+  /** The wakeup event that launched this app (null if normal launch). */
+  launchEvent: { id: number; cookie: number } | null;
+}
+
+/**
+ * Schedule the app to launch at a future time.
+ *
+ * On Alloy: uses the `Wakeup` global (max 8 per app).
+ * In mock mode: no-op with null returns.
+ */
+export function useWakeup(): UseWakeupResult {
+  const [launchEvent] = useState<{ id: number; cookie: number } | null>(() => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Wakeup) {
+      const wk = (globalThis as Record<string, unknown>).Wakeup as {
+        getLaunchEvent?: () => { id: number; cookie: number } | null;
+      };
+      return wk.getLaunchEvent?.() ?? null;
+    }
+    return null;
+  });
+
+  const schedule = useCallback((timestamp: number, cookie = 0): number | null => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Wakeup) {
+      const wk = (globalThis as Record<string, unknown>).Wakeup as {
+        schedule?: (ts: number, cookie: number) => number | null;
+      };
+      return wk.schedule?.(timestamp, cookie) ?? null;
+    }
+    return null;
+  }, []);
+
+  const cancel = useCallback((id: number) => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Wakeup) {
+      const wk = (globalThis as Record<string, unknown>).Wakeup as {
+        cancel?: (id: number) => void;
+      };
+      wk.cancel?.(id);
+    }
+  }, []);
+
+  const cancelAll = useCallback(() => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Wakeup) {
+      const wk = (globalThis as Record<string, unknown>).Wakeup as {
+        cancelAll?: () => void;
+      };
+      wk.cancelAll?.();
+    }
+  }, []);
+
+  return { schedule, cancel, cancelAll, launchEvent };
+}
+
+// ---------------------------------------------------------------------------
+// useDictation — voice-to-text input
+// ---------------------------------------------------------------------------
+
+export type DictationStatus = 'idle' | 'listening' | 'transcribing' | 'done' | 'error' | 'unsupported';
+
+export interface UseDictationResult {
+  text: string | null;
+  status: DictationStatus;
+  start: () => void;
+  error: string | null;
+}
+
+/**
+ * Voice-to-text dictation.
+ *
+ * On Alloy: uses the `Dictation` global if available.
+ * In mock mode: returns `status: 'unsupported'`.
+ */
+export function useDictation(): UseDictationResult {
+  const [text, setText] = useState<string | null>(null);
+  const [status, setStatus] = useState<DictationStatus>(() => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Dictation) {
+      return 'idle';
+    }
+    return 'unsupported';
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  const start = useCallback(() => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Dictation) {
+      const dict = (globalThis as Record<string, unknown>).Dictation as {
+        start?: (cb: (result: string | null, st: string) => void) => void;
+      };
+      setStatus('listening');
+      setError(null);
+      dict.start?.((result, st) => {
+        if (result) {
+          setText(result);
+          setStatus('done');
+        } else {
+          setError(st || 'Dictation failed');
+          setStatus('error');
+        }
+      });
+    }
+  }, []);
+
+  return { text, status, start, error };
+}
+
+// ---------------------------------------------------------------------------
+// useAnimationSequence — chain multiple animations in sequence
+// ---------------------------------------------------------------------------
+
+export interface AnimationSequenceStep {
+  duration: number;
+  easing?: EasingFn;
+}
+
+export interface UseAnimationSequenceResult {
+  /** Overall progress (0 to 1). */
+  progress: number;
+  /** Index of the currently active step. */
+  stepIndex: number;
+  /** Progress within the current step (0 to 1). */
+  stepProgress: number;
+}
+
+/**
+ * Run multiple animations in sequence. Returns overall progress and
+ * which step is currently active.
+ *
+ * Uses wall-clock time (via `useTime`) for compiler compatibility.
+ */
+export function useAnimationSequence(steps: AnimationSequenceStep[]): UseAnimationSequenceResult {
+  const time = useTime(1000);
+  const totalDuration = steps.reduce((sum, s) => sum + s.duration, 0);
+  const totalSeconds = time.getMinutes() * 60 + time.getSeconds();
+  const totalDurationSec = totalDuration / 1000;
+
+  const elapsed = (totalSeconds % totalDurationSec) * 1000;
+
+  let accumulated = 0;
+  let stepIndex = 0;
+  let stepProgress = 0;
+
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i]!;
+    if (elapsed < accumulated + step.duration) {
+      stepIndex = i;
+      const raw = (elapsed - accumulated) / step.duration;
+      stepProgress = step.easing ? step.easing(raw) : raw;
+      break;
+    }
+    accumulated += step.duration;
+    if (i === steps.length - 1) {
+      stepIndex = i;
+      stepProgress = 1;
+    }
+  }
+
+  const overallRaw = elapsed / totalDuration;
+  const progress = Math.min(overallRaw, 1);
+
+  return { progress, stepIndex, stepProgress };
+}
+
+// ---------------------------------------------------------------------------
+// useAnimationSpawn — run multiple animations in parallel
+// ---------------------------------------------------------------------------
+
+export interface UseAnimationSpawnResult {
+  /** Progress for each animation (0 to 1), eased. */
+  progresses: number[];
+  /** Whether all animations have completed one cycle. */
+  allComplete: boolean;
+}
+
+/**
+ * Run multiple animations simultaneously. Returns an array of progress
+ * values, one per animation.
+ *
+ * Uses wall-clock time (via `useTime`) for compiler compatibility.
+ */
+export function useAnimationSpawn(animations: UseAnimationOptions[]): UseAnimationSpawnResult {
+  const time = useTime(1000);
+  const totalSeconds = time.getMinutes() * 60 + time.getSeconds();
+
+  const progresses = animations.map((anim) => {
+    const durationSec = anim.duration / 1000;
+    const easing = anim.easing ?? Easing.linear;
+    const raw = anim.loop
+      ? (totalSeconds % durationSec) / durationSec
+      : Math.min(totalSeconds / durationSec, 1);
+    return easing(raw);
+  });
+
+  const maxDuration = Math.max(...animations.map((a) => a.duration));
+  const allComplete = !animations.some((a) => a.loop) &&
+    totalSeconds >= maxDuration / 1000;
+
+  return { progresses, allComplete };
+}
+
+// ---------------------------------------------------------------------------
+// useDataLogging — batch data collection to phone
+// ---------------------------------------------------------------------------
+
+export interface UseDataLoggingResult {
+  /** Log a data item. Returns true on success. */
+  log: (data: string) => boolean;
+  /** Close the logging session. */
+  finish: () => void;
+  /** Whether the session is active. */
+  active: boolean;
+}
+
+/**
+ * Batch data collection for transmission to the phone.
+ *
+ * On Alloy: uses the `DataLogging` global.
+ * In mock mode: logs to console.
+ */
+export function useDataLogging(tag: number): UseDataLoggingResult {
+  const sessionRef = useRef<{ log: (d: string) => boolean; finish: () => void } | null>(null);
+  const [active, setActive] = useState(false);
+
+  if (!sessionRef.current) {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).DataLogging) {
+      const dl = (globalThis as Record<string, unknown>).DataLogging as {
+        create?: (tag: number, type: string, size: number) => {
+          log: (d: string) => boolean;
+          finish: () => void;
+        } | null;
+      };
+      const session = dl.create?.(tag, 'byte', 1);
+      if (session) {
+        sessionRef.current = session;
+        setActive(true);
+      }
+    }
+
+    if (!sessionRef.current) {
+      // Mock: log to console
+      sessionRef.current = {
+        log: (d: string) => { /* no-op in mock */ return true; },
+        finish: () => {},
+      };
+    }
+  }
+
+  const log = useCallback((data: string) => {
+    return sessionRef.current?.log(data) ?? false;
+  }, []);
+
+  const finish = useCallback(() => {
+    sessionRef.current?.finish();
+    setActive(false);
+  }, []);
+
+  return { log, finish, active };
+}
+
+// ---------------------------------------------------------------------------
+// useAppGlance — app launcher status display
+// ---------------------------------------------------------------------------
+
+export interface AppGlanceSlice {
+  subtitle: string;
+  icon?: unknown;
+  expirationTime?: number;
+}
+
+export interface UseAppGlanceResult {
+  update: (slices: AppGlanceSlice[]) => void;
+}
+
+/**
+ * Update the app glance (status shown in the app launcher).
+ *
+ * On Alloy: uses the `AppGlance` global.
+ * In mock mode: no-op.
+ */
+export function useAppGlance(): UseAppGlanceResult {
+  const update = useCallback((slices: AppGlanceSlice[]) => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).AppGlance) {
+      const ag = (globalThis as Record<string, unknown>).AppGlance as {
+        update?: (slices: AppGlanceSlice[]) => void;
+      };
+      ag.update?.(slices);
+    }
+  }, []);
+
+  return { update };
+}
+
+// ---------------------------------------------------------------------------
+// useTimeline — push timeline pins
+// ---------------------------------------------------------------------------
+
+export interface TimelinePin {
+  id: string;
+  time: number;
+  title: string;
+  body?: string;
+  icon?: string;
+}
+
+export interface UseTimelineResult {
+  pushPin: (pin: TimelinePin) => void;
+  removePin: (id: string) => void;
+}
+
+/**
+ * Push or remove timeline pins.
+ *
+ * On Alloy: uses the `Timeline` global or sends a message to the
+ * phone-side JS for cloud API interaction.
+ * In mock mode: no-op.
+ */
+export function useTimeline(): UseTimelineResult {
+  const pushPin = useCallback((pin: TimelinePin) => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Timeline) {
+      const tl = (globalThis as Record<string, unknown>).Timeline as {
+        pushPin?: (pin: TimelinePin) => void;
+      };
+      tl.pushPin?.(pin);
+    }
+  }, []);
+
+  const removePin = useCallback((id: string) => {
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Timeline) {
+      const tl = (globalThis as Record<string, unknown>).Timeline as {
+        removePin?: (id: string) => void;
+      };
+      tl.removePin?.(id);
+    }
+  }, []);
+
+  return { pushPin, removePin };
+}
+
+// ---------------------------------------------------------------------------
 // FUTURE HOOKS
 //
 //   - useAppMessage      — phone↔watch messaging goes through PebbleKit JS

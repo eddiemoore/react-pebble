@@ -29,7 +29,9 @@ export type ElementType =
   | 'pbl-image'
   | 'pbl-group'
   | 'pbl-statusbar'
-  | 'pbl-actionbar';
+  | 'pbl-actionbar'
+  | 'pbl-path'
+  | 'pbl-scrollable';
 
 export const ELEMENT_TYPES: ReadonlySet<ElementType> = new Set<ElementType>([
   'pbl-root',
@@ -41,6 +43,8 @@ export const ELEMENT_TYPES: ReadonlySet<ElementType> = new Set<ElementType>([
   'pbl-group',
   'pbl-statusbar',
   'pbl-actionbar',
+  'pbl-path',
+  'pbl-scrollable',
 ]);
 
 // ---------------------------------------------------------------------------
