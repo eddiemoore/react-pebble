@@ -1,6 +1,6 @@
 {
   "name": "react-pebble",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Write Pebble watchfaces and apps in JSX — compiles to piu for Pebble Alloy at build time",
   "type": "module",
   "main": "dist/lib/index.cjs",
