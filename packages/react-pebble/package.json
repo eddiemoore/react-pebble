@@ -1,7 +1,7 @@
 {
   "name": "react-pebble",
-  "version": "0.3.0",
-  "description": "Write Pebble watchfaces and apps in JSX — compiles to piu for Pebble Alloy at build time",
+  "version": "0.4.1",
+  "description": "Write Pebble watchfaces and apps in JSX — compiles to piu, Rocky.js, or native C that runs on the watch.",
   "type": "module",
   "main": "dist/lib/index.cjs",
   "module": "dist/lib/index.js",
@@ -38,7 +38,6 @@
   },
   "files": [
     "dist/lib",
-    "src",
     "scripts"
   ],
   "scripts": {
@@ -48,7 +47,9 @@
     "test:update": "npx tsx test/snapshot-test.ts --update",
     "build": "npm run build:lib",
     "build:lib": "vite build --config vite.config.lib.js",
-    "prepublishOnly": "npm run test && npm run build"
+    "prepublishOnly": "npm run test && npm run build",
+    "prepack": "cp ../../README.md .",
+    "postpack": "rm README.md"
   },
   "keywords": [
     "pebble",
