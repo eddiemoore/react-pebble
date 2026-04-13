@@ -22,6 +22,7 @@
 import type { Plugin } from 'vite';
 import { execSync } from 'node:child_process';
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -96,7 +97,9 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
           watchface: !result.hasButtons,
           messageKeys: result.messageKeys,
           mockDataSource: result.mockDataSource,
+          imageResources: result.imageResources,
           platform,
+          projectRoot: resolve(options.entry, '..'),
         });
 
         // 3. Write compiled output
@@ -148,8 +151,12 @@ interface ScaffoldOptions {
   messageKeys: string[];
   /** TypeScript source of mock data (for generating phone-side JS) */
   mockDataSource?: string | null;
+  /** Image resource paths referenced in the component */
+  imageResources?: string[];
   /** Target platform name for Rocky.js targetPlatforms */
   platform?: string;
+  /** Project root directory (for resolving relative image paths) */
+  projectRoot?: string;
 }
 
 function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
@@ -197,7 +204,13 @@ function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
         : ['emery', 'gabbro'],
       watchapp: { watchface: options.watchface },
       messageKeys: options.messageKeys.length > 0 ? options.messageKeys : ['dummy'],
-      resources: { media: [] },
+      resources: {
+        media: (options.imageResources ?? []).map(src => ({
+          type: 'png',
+          name: src.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toUpperCase(),
+          file: src.replace(/^.*\//, ''),
+        })),
+      },
     },
   };
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
@@ -229,18 +242,33 @@ int main(void) {
     }
 
     const manifestPath = join(dir, 'src', 'embeddedjs', 'manifest.json');
-    if (!existsSync(manifestPath)) {
-      writeFileSync(
-        manifestPath,
-        JSON.stringify(
-          {
-            include: ['$(MODDABLE)/examples/manifest_mod.json'],
-            modules: { '*': './main.js' },
-          },
-          null,
-          2,
-        ) + '\n',
-      );
+    const manifestObj: Record<string, unknown> = {
+      include: ['$(MODDABLE)/examples/manifest_mod.json'],
+      modules: { '*': './main.js' },
+    };
+    if (options.imageResources && options.imageResources.length > 0) {
+      manifestObj.resources = {
+        '*': options.imageResources.map(src =>
+          './resources/' + src.replace(/^.*\//, '').replace(/\.[^.]+$/, ''),
+        ),
+      };
+    }
+    writeFileSync(manifestPath, JSON.stringify(manifestObj, null, 2) + '\n');
+  }
+
+  // Copy image resources to both Moddable and Pebble resource directories
+  if (options.imageResources && options.imageResources.length > 0) {
+    const moddableResDir = join(dir, 'src', 'embeddedjs', 'resources');
+    const pebbleResDir = join(dir, 'resources');
+    mkdirSync(moddableResDir, { recursive: true });
+    mkdirSync(pebbleResDir, { recursive: true });
+    for (const src of options.imageResources) {
+      const fileName = src.replace(/^.*\//, '');
+      const srcPath = options.projectRoot ? resolve(options.projectRoot, src) : resolve(src);
+      if (existsSync(srcPath)) {
+        copyFileSync(srcPath, join(moddableResDir, fileName));
+        copyFileSync(srcPath, join(pebbleResDir, fileName));
+      }
     }
   }
 

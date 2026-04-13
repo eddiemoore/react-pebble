@@ -193,6 +193,7 @@ function classifyElements(
       case 'circle':
       case 'line':
       case 'path':
+      case 'image':
         graphicsElements.push({ el, absX: offX + el.x, absY: offY + el.y });
         break;
     }
@@ -359,6 +360,16 @@ export function emitC(ir: CompilerIR): string {
   // Branch parent layers
   for (const bc of branchClassifieds) {
     lines.push(`static Layer *${bc.layerVar};`);
+  }
+
+  // Image bitmaps
+  const imageResNames: string[] = [];
+  for (const src of ir.imageResources) {
+    const resName = src.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toUpperCase();
+    if (!imageResNames.includes(resName)) {
+      imageResNames.push(resName);
+      lines.push(`static GBitmap *s_img_${resName.toLowerCase()};`);
+    }
   }
   lines.push('');
 
@@ -750,6 +761,13 @@ export function emitC(ir: CompilerIR): string {
   }
   if (pathElements.length > 0) lines.push('');
 
+  // Load image resources
+  for (const resName of imageResNames) {
+    const varName = `s_img_${resName.toLowerCase()}`;
+    lines.push(`  ${varName} = gbitmap_create_with_resource(RESOURCE_ID_${resName});`);
+  }
+  if (imageResNames.length > 0) lines.push('');
+
   // Helper to emit text layer creation
   function emitTextLayerCreate(te: typeof allTextElements[0], parentVar: string) {
     const el = te.el;
@@ -880,6 +898,9 @@ export function emitC(ir: CompilerIR): string {
   }
   for (let i = 0; i < pathElements.length; i++) {
     lines.push(`  gpath_destroy(s_path${i});`);
+  }
+  for (const resName of imageResNames) {
+    lines.push(`  gbitmap_destroy(s_img_${resName.toLowerCase()});`);
   }
   if (needsDrawLayer) {
     lines.push('  layer_destroy(s_draw_layer);');
@@ -1029,6 +1050,16 @@ function emitGraphicsDrawCall(
         }
         lines.push(`${indent}gpath_draw_filled(ctx, s_path${pathIdx});`);
       }
+      break;
+    }
+
+    case 'image': {
+      const src = el.src ?? '';
+      const resName = src.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toUpperCase();
+      const varName = `s_img_${resName.toLowerCase()}`;
+      lines.push(`${indent}if (${varName}) {`);
+      lines.push(`${indent}  graphics_draw_bitmap_in_rect(ctx, ${varName}, GRect(${ax}, ${ay}, ${el.w}, ${el.h}));`);
+      lines.push(`${indent}}`);
       break;
     }
   }

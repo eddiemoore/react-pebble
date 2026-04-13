@@ -42,6 +42,8 @@ export interface CompileResult {
   messageKeys: string[];
   /** Mock data source from useMessage (for generating phone-side JS) */
   mockDataSource: string | null;
+  /** Image resource paths referenced in the component */
+  imageResources: string[];
   /** Diagnostic messages from the compiler */
   diagnostics: string;
 }
@@ -121,7 +123,11 @@ export async function compileToPiu(options: CompileOptions): Promise<CompileResu
   const mockMatch = diagnostics.match(/mockDataValue=([\s\S]*?)(?:\n[A-Z]|\n$)/);
   if (mockMatch?.[1]) mockDataSource = mockMatch[1].trim();
 
+  // Extract image resources
+  const imgMatch = diagnostics.match(/imageResources=(\[.*?\])/);
+  const imageResources: string[] = imgMatch?.[1] ? JSON.parse(imgMatch[1]) : [];
+
   log(`Compiled ${exampleName}: ${code.split('\n').length} lines, buttons=${hasButtons}, messageKeys=[${messageKeys.join(',')}]`);
 
-  return { code, hasButtons, messageKeys, mockDataSource, diagnostics };
+  return { code, hasButtons, messageKeys, mockDataSource, imageResources, diagnostics };
 }

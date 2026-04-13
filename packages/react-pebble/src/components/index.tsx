@@ -159,8 +159,11 @@ export function Line(props: LineProps) {
 
 export type CompositeOp = 'assign' | 'set' | 'and' | 'or' | 'clear';
 
-export interface ImageProps extends PositionProps {
-  bitmap: unknown;
+export interface ImageProps extends PositionProps, SizeProps {
+  /** Image file path (resolved at compile time). */
+  src?: string;
+  /** Raw bitmap object (runtime use only). */
+  bitmap?: unknown;
   /** Rotation in radians. */
   rotation?: number;
   /** Scale factor (1 = original size). */

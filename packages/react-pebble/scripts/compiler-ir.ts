@@ -9,7 +9,7 @@
 // Visual tree
 // ---------------------------------------------------------------------------
 
-export type IRElementType = 'root' | 'group' | 'rect' | 'text' | 'circle' | 'line' | 'path' | 'arc' | 'textflow';
+export type IRElementType = 'root' | 'group' | 'rect' | 'text' | 'circle' | 'line' | 'path' | 'arc' | 'textflow' | 'image';
 
 export interface IRElement {
   type: IRElementType;
@@ -35,6 +35,7 @@ export interface IRElement {
   points?: Array<[number, number]>; // path polygon vertices (relative to x,y origin)
   rotation?: number;    // path rotation in degrees
   isWrapping?: boolean; // textflow: multi-line wrapping text
+  src?: string;         // image source file path
   /** Children (for root, group, rect with children) */
   children?: IRElement[];
   /** Sequential indices assigned during tree collection */
@@ -231,6 +232,10 @@ export interface CompilerIR {
   hasSkinDeps: boolean;
   hasList: boolean;
   hasAnimatedElements: boolean;
+  hasImages: boolean;
+
+  /** Image resource paths found in the tree */
+  imageResources: string[];
 }
 
 // ---------------------------------------------------------------------------

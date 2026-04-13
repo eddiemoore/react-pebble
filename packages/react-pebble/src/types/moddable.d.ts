@@ -282,6 +282,16 @@ interface PebbleTimeline {
 
 declare const Timeline: PebbleTimeline | undefined;
 
+// ---------------------------------------------------------------------------
+// Texture — piu image resource wrapper
+// ---------------------------------------------------------------------------
+
+declare class Texture {
+  constructor(path: string);
+  readonly width: number;
+  readonly height: number;
+}
+
 // Outline extension module — adds blendOutline / blendPolygon to Poco.prototype.
 // Importing this module has the side-effect of installing those methods.
 declare module 'commodetto/outline/PocoOutline' {

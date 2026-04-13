@@ -110,6 +110,7 @@ interface CollectContext {
   rectFills: Map<number, string>;
   elemIdx: number;
   elementPositions: Map<number, { type: string; left: number; top: number; width: number; height: number; radius?: number; x2?: number; y2?: number; rotation?: number }>;
+  imageResources: string[];
 }
 
 function newCollectContext(): CollectContext {
@@ -120,6 +121,7 @@ function newCollectContext(): CollectContext {
     rectFills: new Map(),
     elemIdx: 0,
     elementPositions: new Map(),
+    imageResources: [],
   };
 }
 
@@ -336,6 +338,26 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
         align,
         labelIndex: labelIdx,
         isWrapping: true,
+      };
+    }
+
+    case 'pbl-image': {
+      const src = str(p, 'src');
+      if (!src) return null;
+      const x = num(p, 'x');
+      const y = num(p, 'y');
+      const w = num(p, 'w') || num(p, 'width');
+      const h = num(p, 'h') || num(p, 'height');
+      const elemIdx = ctx.elemIdx++;
+      ctx.elementPositions.set(elemIdx, { type: 'image', left: x, top: y, width: w, height: h });
+      if (!ctx.imageResources.includes(src)) {
+        ctx.imageResources.push(src);
+      }
+      return {
+        type: 'image' as const,
+        x, y, w, h,
+        src,
+        elemIndex: elemIdx,
       };
     }
 
@@ -1590,5 +1612,7 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
     hasSkinDeps,
     hasList,
     hasAnimatedElements,
+    hasImages: ctxFinal.imageResources.length > 0,
+    imageResources: ctxFinal.imageResources,
   };
 }

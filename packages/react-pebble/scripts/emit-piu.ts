@@ -50,9 +50,11 @@ function fontToPiu(name: string | undefined): string {
 interface EmitContext {
   skins: Map<string, string>;
   styles: Map<string, string>;
+  textures: Map<string, { texVar: string; skinVar: string }>;
   declarations: string[];
   skinIdx: number;
   styleIdx: number;
+  textureIdx: number;
 }
 
 function ensureSkin(ctx: EmitContext, fill: string): string {
@@ -75,6 +77,19 @@ function ensureStyle(ctx: EmitContext, font: string, color: string): string {
     `const ${name} = new Style({ font: "${fontToPiu(font)}", color: "${color}" });`,
   );
   return name;
+}
+
+function ensureTexture(ctx: EmitContext, src: string, w: number, h: number): { texVar: string; skinVar: string } {
+  const existing = ctx.textures.get(src);
+  if (existing) return existing;
+  const texVar = `tex${ctx.textureIdx}`;
+  const skinVar = `tsk${ctx.textureIdx}`;
+  ctx.textureIdx++;
+  const resourceName = src.replace(/^.*\//, '');
+  ctx.declarations.push(`const ${texVar} = new Texture("${resourceName}");`);
+  ctx.declarations.push(`const ${skinVar} = new Skin({ texture: ${texVar}, x: 0, y: 0, width: ${w}, height: ${h} });`);
+  ctx.textures.set(src, { texVar, skinVar });
+  return { texVar, skinVar };
 }
 
 function buildSizeProps(x: number, y: number, w: number, h: number, screenW: number, screenH: number): string {
@@ -289,6 +304,13 @@ function emitIRNode(
       return `${indent}new Port(null, { left: ${el.x}, top: ${el.y}, width: ${size}, height: ${size}, Behavior: ${behaviorName} })`;
     }
 
+    case 'image': {
+      const { skinVar } = ensureTexture(ctx, el.src!, el.w, el.h);
+      const sizeProps = buildSizeProps(el.x, el.y, el.w, el.h, ir.platform.width, ir.platform.height);
+      const nameProp = el.name ? `, name: "${el.name}"` : '';
+      return `${indent}new Content(null, { ${sizeProps}, skin: ${skinVar}${nameProp} })`;
+    }
+
     default:
       return null;
   }
@@ -319,9 +341,11 @@ export function emitPiu(ir: CompilerIR, exampleName?: string): string {
   const ctx: EmitContext = {
     skins: new Map(),
     styles: new Map(),
+    textures: new Map(),
     declarations: [],
     skinIdx: 0,
     styleIdx: 0,
+    textureIdx: 0,
   };
 
   const hasBehavior = ir.hasTimeDeps || ir.hasStateDeps || ir.hasButtons ||

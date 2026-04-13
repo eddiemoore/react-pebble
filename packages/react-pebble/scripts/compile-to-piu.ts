@@ -43,6 +43,10 @@ if (exampleInput.includes('/') || exampleInput.includes('\\')) {
 
 const ir = await analyze({ entryPath, platform, settleMs });
 
+if (ir.imageResources.length > 0) {
+  process.stderr.write('imageResources=' + JSON.stringify(ir.imageResources) + '\n');
+}
+
 let code: string;
 if (target === 'rocky') {
   const { emitRocky } = await import('./emit-rocky.js');
