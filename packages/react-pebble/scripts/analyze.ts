@@ -626,6 +626,69 @@ function detectListPatterns(exName: string): ListInfoRaw | null {
     }
   });
 
+  // Collect numeric constants (const FOO = 3, const BAR = Math.floor(...), etc.)
+  const numericConsts = new Map<string, number>();
+  function tryEvalNumeric(expr: any): number | undefined {
+    if (ts.isNumericLiteral(expr)) return Number(expr.text);
+    if (ts.isIdentifier(expr)) return numericConsts.get(expr.text);
+    if (ts.isParenthesizedExpression(expr)) return tryEvalNumeric(expr.expression);
+    if (ts.isBinaryExpression(expr)) {
+      const l = tryEvalNumeric(expr.left);
+      const r = tryEvalNumeric(expr.right);
+      if (l !== undefined && r !== undefined) {
+        switch (expr.operatorToken.kind) {
+          case ts.SyntaxKind.PlusToken: return l + r;
+          case ts.SyntaxKind.MinusToken: return l - r;
+          case ts.SyntaxKind.AsteriskToken: return l * r;
+          case ts.SyntaxKind.SlashToken: return r !== 0 ? l / r : undefined;
+          case ts.SyntaxKind.PercentToken: return r !== 0 ? l % r : undefined;
+        }
+      }
+    }
+    if (ts.isCallExpression(expr) && ts.isPropertyAccessExpression(expr.expression)) {
+      const obj = expr.expression.expression;
+      const method = expr.expression.name.text;
+      if (ts.isIdentifier(obj) && obj.text === 'Math' && expr.arguments.length >= 1) {
+        const args = expr.arguments.map(a => tryEvalNumeric(a));
+        if (args.every(a => a !== undefined)) {
+          const nums = args as number[];
+          switch (method) {
+            case 'floor': return Math.floor(nums[0]!);
+            case 'ceil': return Math.ceil(nums[0]!);
+            case 'round': return Math.round(nums[0]!);
+            case 'min': return Math.min(...nums);
+            case 'max': return Math.max(...nums);
+            case 'abs': return Math.abs(nums[0]!);
+          }
+        }
+      }
+    }
+    // Property access on arrays: ITEMS.length
+    if (ts.isPropertyAccessExpression(expr) && expr.name.text === 'length' && ts.isIdentifier(expr.expression)) {
+      const arr = arrayLiterals.get(expr.expression.text);
+      if (arr) return arr.length;
+      const objArr = objectArrayLiterals.get(expr.expression.text);
+      if (objArr) return objArr.length;
+    }
+    return undefined;
+  }
+  // Two-pass: first collect simple literals, then resolve computed expressions
+  walkAST(sf, (node) => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      const val = tryEvalNumeric(node.initializer);
+      if (val !== undefined) numericConsts.set(node.name.text, val);
+    }
+  });
+  // Second pass to resolve forward references
+  walkAST(sf, (node) => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      if (!numericConsts.has(node.name.text)) {
+        const val = tryEvalNumeric(node.initializer);
+        if (val !== undefined) numericConsts.set(node.name.text, val);
+      }
+    }
+  });
+
   walkAST(sf, (node) => {
     if (
       ts.isCallExpression(node) &&
@@ -661,10 +724,14 @@ function detectListPatterns(exName: string): ListInfoRaw | null {
         const secondArg = sliceArgs[1]!;
         if (
           ts.isBinaryExpression(secondArg) &&
-          secondArg.operatorToken.kind === ts.SyntaxKind.PlusToken &&
-          ts.isNumericLiteral(secondArg.right)
+          secondArg.operatorToken.kind === ts.SyntaxKind.PlusToken
         ) {
-          visibleCount = Number(secondArg.right.text);
+          if (ts.isNumericLiteral(secondArg.right)) {
+            visibleCount = Number(secondArg.right.text);
+          } else if (ts.isIdentifier(secondArg.right)) {
+            const resolved = numericConsts.get(secondArg.right.text);
+            if (resolved !== undefined) visibleCount = resolved;
+          }
         }
         const firstArg = sliceArgs[0]!;
         if (ts.isIdentifier(firstArg)) {
@@ -1083,6 +1150,34 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
                 if (pertText.includes(pv)) {
                   const before = pertText.substring(0, pertText.indexOf(pv));
                   const after = pertText.substring(pertText.indexOf(pv) + pv.length);
+                  // Check if the suffix also has a dynamic number (e.g. min(s0+VISIBLE, dataLen))
+                  // Compare the base suffix with the perturbed suffix
+                  const _searchStr = String(Number(slot.initialValue) + 1);
+                  const _searchIdx = baseText.indexOf(_searchStr);
+                  const baseAfterFirstNum = baseText.substring(_searchIdx + _searchStr.length);
+                  if (after !== baseAfterFirstNum && listInfoRaw) {
+                    // Find differing numbers in base vs perturbed suffix
+                    const baseNums = baseAfterFirstNum.match(/\d+/g) ?? [];
+                    const pertNums = after.match(/\d+/g) ?? [];
+                    if (baseNums.length > 0 && pertNums.length > 0 && baseNums[0] !== pertNums[0]) {
+                      // Likely min(s0 + visibleCount, dataLen) pattern
+                      // Derive visibleCount from the base number: baseNum = min(initVal + vis, dataLen) → vis = baseNum - initVal
+                      const baseNum = Number(baseNums[0]);
+                      const dataLen = listInfoRaw.dataArrayValues?.length ?? listInfoRaw.dataArrayObjects?.length ?? 0;
+                      const initVal = Number(slot.initialValue);
+                      const derivedVis = baseNum - initVal;
+                      if (derivedVis > 0 && dataLen > 0 && baseNum === Math.min(initVal + derivedVis, dataLen)) {
+                        // Extract the static parts around the dynamic number in the suffix
+                        const numIdx = after.indexOf(pertNums[0]!);
+                        const midBefore = after.substring(0, numIdx);
+                        const midAfter = after.substring(numIdx + pertNums[0]!.length);
+                        formatExpr = `${before ? `"${before}" + ` : ''}(this.s${slot.index} + 1)${midBefore ? ` + "${midBefore}" + ` : ' + '}MIN(this.s${slot.index} + ${derivedVis}, ${dataLen})${midAfter ? ` + "${midAfter}"` : ''}`;
+                        stateDeps.set(idx, { slotIndex: slot.index, formatExpr });
+                        process.stderr.write(`  Label ${idx} depends on state slot ${slot.index} (base="${baseText}", perturbed="${pertText}") [with min expr]\n`);
+                        continue;
+                      }
+                    }
+                  }
                   formatExpr = `${before ? `"${before}" + ` : ''}(this.s${slot.index} + 1)${after ? ` + "${after}"` : ''}`;
                 } else if (pertText.includes(String(perturbedValue))) {
                   const pStr = String(perturbedValue);
@@ -1147,6 +1242,8 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
         collectTree(appScroll._root, ctxScroll);
 
         for (const [idx, baseText] of t1Texts) {
+          // Skip labels already identified as state-dependent (e.g. header showing scroll range)
+          if (stateDeps.has(idx)) continue;
           const scrollText = ctxScroll.labelTexts.get(idx);
           if (scrollText !== undefined && scrollText !== baseText) {
             listSlotLabels.add(idx);
@@ -1158,11 +1255,11 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
     }
 
     const expectedSlots = listInfoRaw.visibleCount * listInfoRaw.labelsPerItem;
-    if (listSlotLabels.size > expectedSlots) {
-      const all = [...listSlotLabels];
-      const keep = new Set(all.slice(all.length - expectedSlots));
-      listSlotLabels.clear();
-      for (const idx of keep) listSlotLabels.add(idx);
+    if (listSlotLabels.size > expectedSlots && listInfoRaw.labelsPerItem > 0) {
+      // Runtime detected more list slots than AST analysis predicted — trust
+      // the runtime count and update visibleCount accordingly.
+      listInfoRaw.visibleCount = Math.floor(listSlotLabels.size / listInfoRaw.labelsPerItem);
+      process.stderr.write(`  visibleCount updated to ${listInfoRaw.visibleCount} from runtime detection\n`);
     }
 
     if (listSlotLabels.size === 0 && messageInfoRaw && listInfoRaw) {
@@ -1175,6 +1272,7 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
     if (listSlotLabels.size > 0) {
       process.stderr.write(`List slot labels: [${[...listSlotLabels].join(', ')}]\n`);
     }
+
   }
 
   // =========================================================================

@@ -170,7 +170,9 @@ function classifyElements(
       case 'text': {
         const ax = offX + el.x;
         const ay = offY + el.y;
-        const isDynamic = !!(el.isTimeDynamic || el.isStateDynamic || el.isListSlot);
+        // List slot elements are handled separately by the s_ls[] array —
+        // don't allocate dynamic TextLayer vars for them.
+        const isDynamic = !!(el.isTimeDynamic || el.isStateDynamic) && !el.isListSlot;
         let dynamicVar: CTextElement | undefined;
         if (isDynamic) {
           const varName = `s_tl${_dynamicIdx}`;
@@ -276,6 +278,40 @@ function translateFormatExpr(
     args.push(hasOffset ? `s${slot} + ${offset}` : `s${slot}`);
     if (suffix) fmtParts.push(suffix);
     return { kind: 'snprintf', code: `snprintf(${bufVar}, sizeof(${bufVar}), "${fmtParts.join('')}", ${args.join(', ')})` };
+  }
+
+  // General concatenation: split on " + " and handle each segment
+  // Handles patterns like: "prefix" + (s0 + 1) + "-" + MIN(s0 + 6, 12) + "/suffix"
+  const segments = e.split(/\s*\+\s*(?=["(sMm])/);
+  if (segments.length > 1) {
+    const fmtParts: string[] = [];
+    const args: string[] = [];
+    let valid = true;
+    for (const seg of segments) {
+      const trimmed = seg.trim();
+      // String literal: "..."
+      const strMatch = trimmed.match(/^"([^"]*)"$/);
+      if (strMatch) { fmtParts.push(strMatch[1]!.replace(/%/g, '%%')); continue; }
+      // (sN + offset)
+      const slotOffMatch = trimmed.match(/^\(s(\d+)\s*\+\s*(\d+)\)$/);
+      if (slotOffMatch) { fmtParts.push('%d'); args.push(`s${slotOffMatch[1]} + ${slotOffMatch[2]}`); continue; }
+      // sN
+      const slotMatch = trimmed.match(/^s(\d+)$/);
+      if (slotMatch) { fmtParts.push('%d'); args.push(`s${slotMatch[1]}`); continue; }
+      // MIN(sN + offset, max) or MIN(sN, max)
+      const minMatch = trimmed.match(/^MIN\(s(\d+)(?:\s*\+\s*(\d+))?,\s*(\d+)\)$/);
+      if (minMatch) {
+        const sExpr = minMatch[2] ? `s${minMatch[1]} + ${minMatch[2]}` : `s${minMatch[1]}`;
+        fmtParts.push('%d');
+        args.push(`(${sExpr}) < ${minMatch[3]} ? (${sExpr}) : ${minMatch[3]}`);
+        continue;
+      }
+      valid = false;
+      break;
+    }
+    if (valid && args.length > 0) {
+      return { kind: 'snprintf', code: `snprintf(${bufVar}, sizeof(${bufVar}), "${fmtParts.join('')}", ${args.join(', ')})` };
+    }
   }
 
   // Fallback: emit as snprintf with %d
@@ -842,17 +878,22 @@ export function emitC(ir: CompilerIR): string {
     const listLabels = classified.textElements.filter(te => te.el.isListSlot);
 
     lines.push('  // List item layers');
+    // Calculate item height from the first two template labels
+    const firstY = listLabels[0]?.el?.y ?? 32;
+    const itemHeight = lpi > 1 && listLabels.length >= lpi * 2
+      ? ((listLabels[lpi]?.el?.y ?? firstY + 30) - firstY)
+      : (listLabels.length > 1 ? ((listLabels[1]?.el?.y ?? firstY + 24) - firstY) : 24);
     for (let i = 0; i < li.visibleCount; i++) {
       for (let j = 0; j < lpi; j++) {
         const flatIdx = i * lpi + j;
         const templateLabel = listLabels[flatIdx]?.el;
-        const x = templateLabel?.x ?? 0;
-        // Calculate Y with item offset
-        const firstY = listLabels[0]?.el?.y ?? 32;
-        const itemHeight = lpi > 1 && listLabels.length >= lpi * 2
-          ? ((listLabels[lpi]?.el?.y ?? firstY + 30) - firstY)
-          : (listLabels.length > 1 ? ((listLabels[1]?.el?.y ?? firstY + 24) - firstY) : 24);
-        const y = firstY + i * itemHeight + (templateLabel ? (templateLabel.y - (listLabels[j]?.el?.y ?? firstY)) : 0);
+        const x = templateLabel?.x ?? (listLabels[j]?.el?.x ?? 0);
+        // Use the template label's actual position if available, otherwise
+        // compute from firstY + item offset + sub-label offset within item
+        const subLabelOffset = lpi > 1 && templateLabel && listLabels[j]?.el
+          ? (templateLabel.y - (listLabels[j]!.el.y + Math.floor(flatIdx / lpi) * itemHeight))
+          : 0;
+        const y = templateLabel?.y ?? (firstY + i * itemHeight + subLabelOffset);
         const w = templateLabel?.w ?? ir.platform.width;
         const font = fontToC(templateLabel?.font);
         const color = colorToGColor(templateLabel?.color ?? '#ffffff');
@@ -956,11 +997,11 @@ export function emitC(ir: CompilerIR): string {
 // ---------------------------------------------------------------------------
 
 function clampW(x: number, w: number, screenW: number): number {
-  return Math.min(w, screenW - x);
+  return Math.max(0, Math.min(w, screenW - x));
 }
 
 function clampH(y: number, h: number, screenH: number): number {
-  return Math.min(h, screenH - y);
+  return Math.max(0, Math.min(h, screenH - y));
 }
 
 function emitGraphicsDrawCall(

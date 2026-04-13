@@ -27,6 +27,9 @@ class AppBehavior extends Behavior {
     this._ls.push(c.content("ls0"));
     this._ls.push(c.content("ls1"));
     this._ls.push(c.content("ls2"));
+    this._ls.push(c.content("ls3"));
+    this._ls.push(c.content("ls4"));
+    this._ls.push(c.content("ls5"));
   }
   onDisplaying(app) {
     this.refresh();
@@ -35,13 +38,13 @@ class AppBehavior extends Behavior {
   }
   onButton(e) {
     const name = e && e.button;
-    if (name === "down") { this.s0 = Math.min(_data.length - 3, this.s0 + 1); this.refresh(); }
+    if (name === "down") { this.s0 = Math.min(_data.length - 6, this.s0 + 1); this.refresh(); }
     if (name === "up") { this.s0 = Math.max(0, this.s0 - 1); this.refresh(); }
   }
   refresh() {
-    if (this.sl0) this.sl0.string = "Docs (" + (this.s0 + 1) + "-12/12)";
+    if (this.sl0) this.sl0.string = "Docs (" + (this.s0 + 1) + "-" + MIN(this.s0 + 6, 12) + "/12)";
     const _start = this.s0;
-    for (let _i = 0; _i < 3; _i++) {
+    for (let _i = 0; _i < 6; _i++) {
       const _item = _data[_start + _i];
       if (this._ls[_i]) {
         this._ls[_i].string = _item !== undefined ? "" + _item : "";
@@ -61,27 +64,27 @@ const WatchApp = Application.template(() => ({
         new Label(null, { top: 4, left: 4, width: 192, style: st0, name: "sl0", string: "Docs (1-6/12)" }),
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
           new Content(null, { left: 0, right: 0, top: 28, height: 30, skin: sk2 }),
-          new Label(null, { top: 34, left: 10, width: 180, style: st1, string: "1. Introduction" })
+          new Label(null, { top: 34, left: 10, width: 180, style: st1, name: "ls0", string: "1. Introduction" })
         ] }),
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
           new Content(null, { left: 0, right: 0, top: 60, height: 30, skin: sk0 }),
-          new Label(null, { top: 66, left: 10, width: 180, style: st1, string: "2. Getting Started" })
+          new Label(null, { top: 66, left: 10, width: 180, style: st1, name: "ls1", string: "2. Getting Started" })
         ] }),
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
           new Content(null, { left: 0, right: 0, top: 92, height: 30, skin: sk2 }),
-          new Label(null, { top: 98, left: 10, width: 180, style: st1, string: "3. Installation" })
+          new Label(null, { top: 98, left: 10, width: 180, style: st1, name: "ls2", string: "3. Installation" })
         ] }),
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
           new Content(null, { left: 0, right: 0, top: 124, height: 30, skin: sk0 }),
-          new Label(null, { top: 130, left: 10, width: 180, style: st1, name: "ls0", string: "4. Configuration" })
+          new Label(null, { top: 130, left: 10, width: 180, style: st1, name: "ls3", string: "4. Configuration" })
         ] }),
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
           new Content(null, { left: 0, right: 0, top: 156, height: 30, skin: sk2 }),
-          new Label(null, { top: 162, left: 10, width: 180, style: st1, name: "ls1", string: "5. Components" })
+          new Label(null, { top: 162, left: 10, width: 180, style: st1, name: "ls4", string: "5. Components" })
         ] }),
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
           new Content(null, { left: 0, right: 0, top: 188, height: 30, skin: sk0 }),
-          new Label(null, { top: 194, left: 10, width: 180, style: st1, name: "ls2", string: "6. Hooks" })
+          new Label(null, { top: 194, left: 10, width: 180, style: st1, name: "ls5", string: "6. Hooks" })
         ] }),
         new Content(null, { left: 90, width: 20, top: 225, height: 3, skin: sk3 })
       ] })
