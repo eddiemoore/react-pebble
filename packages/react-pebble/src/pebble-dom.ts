@@ -33,7 +33,9 @@ export type ElementType =
   | 'pbl-path'
   | 'pbl-scrollable'
   | 'pbl-arc'
-  | 'pbl-textflow';
+  | 'pbl-textflow'
+  | 'pbl-svg'
+  | 'pbl-canvas';
 
 export const ELEMENT_TYPES: ReadonlySet<ElementType> = new Set<ElementType>([
   'pbl-root',
@@ -49,6 +51,8 @@ export const ELEMENT_TYPES: ReadonlySet<ElementType> = new Set<ElementType>([
   'pbl-scrollable',
   'pbl-arc',
   'pbl-textflow',
+  'pbl-svg',
+  'pbl-canvas',
 ]);
 
 // ---------------------------------------------------------------------------

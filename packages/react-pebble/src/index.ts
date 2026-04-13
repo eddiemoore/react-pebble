@@ -64,6 +64,8 @@ export {
   WindowStack,
   useNavigation,
   AnimatedImage,
+  SVGImage,
+  Canvas,
 } from './components/index.js';
 export type {
   WindowProps,
@@ -102,6 +104,10 @@ export type {
   NavigationResult,
   AnimatedImageProps,
   CompositeOp,
+  SVGImageProps,
+  CanvasProps,
+  CanvasDrawContext,
+  BorderInsets,
 } from './components/index.js';
 
 // Hooks
@@ -145,6 +151,11 @@ export {
   useConfiguration,
   useAppSync,
   pebbleLog,
+  useLocation,
+  useLaunchReason,
+  useFileStorage,
+  useHTTPClient,
+  usePreferredResultDuration,
   Easing,
   lerp,
   polarPoint,
@@ -203,6 +214,13 @@ export type {
   UseAppSyncOptions,
   UseAppSyncResult,
   LogLevel,
+  LocationData,
+  UseLocationOptions,
+  UseLocationResult,
+  LaunchReason,
+  UseFileStorageResult,
+  HTTPClientRequestOptions,
+  UseHTTPClientResult,
 } from './hooks/index.js';
 
 // Low-level access (for advanced usage / custom renderers / tests)
@@ -239,9 +257,31 @@ export {
   nearestColorName,
   registerFont,
   lookupFontSpec,
+  getTextWidth,
 } from './pebble-output.js';
 export type {
   RGB,
   FontSpec,
   RenderOptions as PocoRenderOptions,
 } from './pebble-output.js';
+
+// Configuration page builder
+export {
+  ConfigColor,
+  ConfigToggle,
+  ConfigText,
+  ConfigSelect,
+  ConfigSection,
+  ConfigPage,
+  renderConfigPage,
+  configPageToDataUri,
+} from './config/index.js';
+export type {
+  ConfigColorItem,
+  ConfigToggleItem,
+  ConfigTextItem,
+  ConfigSelectItem,
+  ConfigItem,
+  ConfigSectionSpec,
+  ConfigPageSpec,
+} from './config/index.js';

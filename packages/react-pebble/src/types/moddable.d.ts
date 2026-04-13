@@ -292,6 +292,122 @@ declare class Texture {
   readonly height: number;
 }
 
+// ---------------------------------------------------------------------------
+// Location — GPS via phone proxy (ECMA-419 sensor)
+// ---------------------------------------------------------------------------
+
+interface PebbleLocationSample {
+  latitude: number;
+  longitude: number;
+}
+
+interface PebbleLocationSensor {
+  sample(): PebbleLocationSample;
+  configure?(opts: { enableHighAccuracy?: boolean; timeout?: number; maximumAge?: number }): void;
+  close?(): void;
+}
+
+declare const Location: (new (opts: {
+  onSample: () => void;
+}) => PebbleLocationSensor) | undefined;
+
+// ---------------------------------------------------------------------------
+// LaunchReason — why the app was started
+// ---------------------------------------------------------------------------
+
+interface PebbleLaunchReason {
+  readonly reason?: string;
+}
+
+declare const LaunchReason: PebbleLaunchReason | undefined;
+declare function launch_reason(): number;
+
+// ---------------------------------------------------------------------------
+// Device — ECMA-419 file system and hardware access
+// ---------------------------------------------------------------------------
+
+interface ECMA419File {
+  read(count: number, offset?: number): ArrayBuffer;
+  write(data: ArrayBuffer, offset?: number): void;
+  status(): { size: number };
+  close(): void;
+}
+
+interface ECMA419Files {
+  openFile(opts: { path: string; mode?: string }): ECMA419File | null;
+  delete(path: string): void;
+}
+
+interface ECMA419KeyValue {
+  open(): {
+    read(key: string): ArrayBuffer | undefined;
+    write(key: string, value: ArrayBuffer): void;
+    delete(key: string): void;
+    close(): void;
+  };
+}
+
+interface ECMA419Device {
+  files?: ECMA419Files;
+  keyValue?: ECMA419KeyValue;
+}
+
+declare const device: ECMA419Device | undefined;
+
+// ---------------------------------------------------------------------------
+// HTTPClient — ECMA-419 streaming HTTP client
+// ---------------------------------------------------------------------------
+
+interface PebbleHTTPClient {
+  close?(): void;
+  abort?(): void;
+}
+
+declare const HTTPClient: (new (opts: {
+  host: string;
+  path: string;
+  method?: string;
+  headers?: [string, string][];
+  body?: string | ArrayBuffer;
+  onHeaders?(status: number, headers: Record<string, string>): void;
+  onReadable?(count: number): void;
+  onDone?(): void;
+  onError?(error: string): void;
+}) => PebbleHTTPClient) | undefined;
+
+// ---------------------------------------------------------------------------
+// Preferences — user display preferences
+// ---------------------------------------------------------------------------
+
+interface PebblePreferences {
+  readonly resultDisplayDuration?: number;
+  readonly contentSize?: 'small' | 'medium' | 'large' | 'extraLarge';
+}
+
+declare const Preferences: PebblePreferences | undefined;
+declare function preferred_result_display_duration(): number;
+
+// ---------------------------------------------------------------------------
+// SVGImage — Piu vector graphics (PDC format)
+// ---------------------------------------------------------------------------
+
+declare class SVGImage {
+  constructor(data: unknown, opts?: {
+    path?: string;
+    r?: number;
+    s?: number;
+    sx?: number;
+    sy?: number;
+    tx?: number;
+    ty?: number;
+    cx?: number;
+    cy?: number;
+    width?: number;
+    height?: number;
+  });
+  start?(): void;
+}
+
 // Outline extension module — adds blendOutline / blendPolygon to Poco.prototype.
 // Importing this module has the side-effect of installing those methods.
 declare module 'commodetto/outline/PocoOutline' {

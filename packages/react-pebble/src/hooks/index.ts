@@ -1957,9 +1957,382 @@ export function pebbleLog(level: LogLevel, ...args: unknown[]): void {
 }
 
 // ---------------------------------------------------------------------------
+// useLocation — GPS via phone proxy (one-shot)
+// ---------------------------------------------------------------------------
+
+export interface LocationData {
+  latitude: number;
+  longitude: number;
+}
+
+export interface UseLocationOptions {
+  /** Request high-accuracy GPS (slower, more battery). */
+  enableHighAccuracy?: boolean;
+  /** Timeout in ms for the location request. */
+  timeout?: number;
+  /** Maximum age in ms of a cached location to accept. */
+  maximumAge?: number;
+}
+
+export interface UseLocationResult {
+  location: LocationData | null;
+  loading: boolean;
+  error: string | null;
+  /** Request a fresh location sample. */
+  refresh: () => void;
+}
+
+/**
+ * GPS location via the phone proxy.
+ *
+ * On Alloy: uses `embedded:sensor/Location` with `onSample()` / `sample()`.
+ * In mock mode: returns a static San Francisco coordinate after a short delay.
+ */
+export function useLocation(options?: UseLocationOptions): UseLocationResult {
+  const [location, setLocation] = useState<LocationData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const sensorRef = useRef<{ sample: () => LocationData; close?: () => void } | null>(null);
+
+  const refresh = useCallback(() => {
+    // Alloy runtime: embedded:sensor/Location
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Location) {
+      try {
+        const LocationClass = (globalThis as Record<string, unknown>).Location as new (opts: Record<string, unknown>) => {
+          sample(): LocationData;
+          configure?(opts: Record<string, unknown>): void;
+          close?(): void;
+        };
+        setLoading(true);
+        setError(null);
+        const sensor = new LocationClass({
+          onSample() {
+            try {
+              const data = sensor.sample();
+              setLocation({ latitude: data.latitude, longitude: data.longitude });
+              setLoading(false);
+            } catch (e) {
+              setError(String(e));
+              setLoading(false);
+            }
+          },
+        });
+        if (sensor.configure) {
+          sensor.configure({
+            enableHighAccuracy: options?.enableHighAccuracy ?? false,
+            timeout: options?.timeout ?? 30000,
+            maximumAge: options?.maximumAge ?? 0,
+          });
+        }
+        sensorRef.current = sensor;
+      } catch (e) {
+        setError(String(e));
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Mock mode: simulate a GPS fix
+    setLoading(true);
+    setError(null);
+    setTimeout(() => {
+      setLocation({ latitude: 37.7749, longitude: -122.4194 });
+      setLoading(false);
+    }, 500);
+  }, [options?.enableHighAccuracy, options?.timeout, options?.maximumAge]);
+
+  // Clean up sensor on unmount
+  useEffect(() => {
+    return () => {
+      sensorRef.current?.close?.();
+    };
+  }, []);
+
+  return { location, loading, error, refresh };
+}
+
+// ---------------------------------------------------------------------------
+// useLaunchReason — why the app was launched
+// ---------------------------------------------------------------------------
+
+export type LaunchReason =
+  | 'user'
+  | 'wakeup'
+  | 'timeline'
+  | 'phone'
+  | 'worker'
+  | 'quickLaunch'
+  | 'smartstrap'
+  | 'unknown';
+
+/**
+ * Returns the reason the app was launched.
+ *
+ * On Alloy: reads from LaunchReason global or application.launchReason.
+ * In mock mode: returns 'user'.
+ */
+export function useLaunchReason(): LaunchReason {
+  if (typeof globalThis !== 'undefined') {
+    const g = globalThis as Record<string, unknown>;
+    // Try LaunchReason global
+    if (g.LaunchReason && typeof g.LaunchReason === 'object') {
+      const lr = g.LaunchReason as { reason?: string };
+      if (lr.reason) return lr.reason as LaunchReason;
+    }
+    // Try launch_reason() C-style binding
+    if (typeof g.launch_reason === 'function') {
+      const code = (g.launch_reason as () => number)();
+      const map: Record<number, LaunchReason> = {
+        0: 'user', 1: 'phone', 2: 'wakeup', 3: 'worker',
+        4: 'quickLaunch', 5: 'timeline', 6: 'smartstrap',
+      };
+      return map[code] ?? 'unknown';
+    }
+  }
+  return 'user';
+}
+
+// ---------------------------------------------------------------------------
+// useFileStorage — ECMA-419 file system API
+// ---------------------------------------------------------------------------
+
+export interface UseFileStorageResult {
+  /** Read a file. Returns null if file doesn't exist. */
+  readFile: (path: string) => ArrayBuffer | null;
+  /** Write data to a file. Returns true on success. */
+  writeFile: (path: string, data: ArrayBuffer | string) => boolean;
+  /** Delete a file. Returns true on success. */
+  deleteFile: (path: string) => boolean;
+  /** Check if a file exists. */
+  exists: (path: string) => boolean;
+}
+
+/**
+ * File system storage for binary or large data.
+ *
+ * On Alloy: uses the ECMA-419 `device.files` API.
+ * In mock mode: uses an in-memory Map.
+ */
+export function useFileStorage(): UseFileStorageResult {
+  const mockStore = useRef(new Map<string, ArrayBuffer>());
+
+  // Check for ECMA-419 device.files
+  const hasDevice = typeof globalThis !== 'undefined'
+    && (globalThis as Record<string, unknown>).device
+    && typeof ((globalThis as Record<string, unknown>).device as Record<string, unknown>)?.files === 'object';
+
+  const readFile = useCallback((path: string): ArrayBuffer | null => {
+    if (hasDevice) {
+      const files = ((globalThis as Record<string, unknown>).device as { files: {
+        openFile: (opts: { path: string }) => { read: (count: number, offset?: number) => ArrayBuffer; status: () => { size: number }; close: () => void } | null;
+      } }).files;
+      try {
+        const f = files.openFile({ path });
+        if (!f) return null;
+        const stat = f.status();
+        const data = f.read(stat.size, 0);
+        f.close();
+        return data;
+      } catch {
+        return null;
+      }
+    }
+    return mockStore.current.get(path) ?? null;
+  }, [hasDevice]);
+
+  const writeFile = useCallback((path: string, data: ArrayBuffer | string): boolean => {
+    if (hasDevice) {
+      const files = ((globalThis as Record<string, unknown>).device as { files: {
+        openFile: (opts: { path: string; mode?: string }) => { write: (data: ArrayBuffer, offset?: number) => void; close: () => void } | null;
+      } }).files;
+      try {
+        const f = files.openFile({ path, mode: 'w' });
+        if (!f) return false;
+        const buf = typeof data === 'string' ? new TextEncoder().encode(data).buffer : data;
+        f.write(buf as ArrayBuffer, 0);
+        f.close();
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    const buf = typeof data === 'string' ? new TextEncoder().encode(data).buffer : data;
+    mockStore.current.set(path, buf as ArrayBuffer);
+    return true;
+  }, [hasDevice]);
+
+  const deleteFile = useCallback((path: string): boolean => {
+    if (hasDevice) {
+      const files = ((globalThis as Record<string, unknown>).device as { files: {
+        delete: (path: string) => void;
+      } }).files;
+      try {
+        files.delete(path);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return mockStore.current.delete(path);
+  }, [hasDevice]);
+
+  const exists = useCallback((path: string): boolean => {
+    if (hasDevice) {
+      const files = ((globalThis as Record<string, unknown>).device as { files: {
+        openFile: (opts: { path: string }) => { close: () => void } | null;
+      } }).files;
+      try {
+        const f = files.openFile({ path });
+        if (!f) return false;
+        f.close();
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return mockStore.current.has(path);
+  }, [hasDevice]);
+
+  return { readFile, writeFile, deleteFile, exists };
+}
+
+// ---------------------------------------------------------------------------
+// useHTTPClient — streaming/chunked HTTP (ECMA-419 HTTPClient)
+// ---------------------------------------------------------------------------
+
+export interface HTTPClientRequestOptions {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string | ArrayBuffer;
+  onData?: (chunk: ArrayBuffer) => void;
+  onHeaders?: (status: number, headers: Record<string, string>) => void;
+  onComplete?: () => void;
+  onError?: (error: string) => void;
+}
+
+export interface UseHTTPClientResult {
+  /** Send an HTTP request with streaming callbacks. */
+  request: (url: string, options?: HTTPClientRequestOptions) => void;
+  /** Abort the current request. */
+  abort: () => void;
+  loading: boolean;
+}
+
+/**
+ * Streaming HTTP client for chunked/large responses.
+ *
+ * On Alloy: uses the ECMA-419 HTTPClient for streaming.
+ * In mock mode: falls back to fetch() with simulated chunking.
+ */
+export function useHTTPClient(): UseHTTPClientResult {
+  const [loading, setLoading] = useState(false);
+  const abortRef = useRef<{ abort?: () => void; close?: () => void } | null>(null);
+
+  const request = useCallback((url: string, options?: HTTPClientRequestOptions) => {
+    setLoading(true);
+
+    // Alloy runtime: ECMA-419 HTTPClient
+    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).HTTPClient) {
+      try {
+        const HTTPClient = (globalThis as Record<string, unknown>).HTTPClient as new (opts: Record<string, unknown>) => {
+          close?: () => void;
+        };
+        const client = new HTTPClient({
+          host: new URL(url).hostname,
+          path: new URL(url).pathname + new URL(url).search,
+          method: options?.method ?? 'GET',
+          headers: options?.headers ? Object.entries(options.headers) : [],
+          body: options?.body,
+          onHeaders(status: number, headers: Record<string, string>) {
+            options?.onHeaders?.(status, headers);
+          },
+          onReadable(count: number) {
+            // Read available data
+            if (count > 0 && (this as unknown as { read: (count: number) => ArrayBuffer }).read) {
+              const chunk = (this as unknown as { read: (count: number) => ArrayBuffer }).read(count);
+              options?.onData?.(chunk);
+            }
+          },
+          onDone() {
+            setLoading(false);
+            options?.onComplete?.();
+          },
+          onError(err: string) {
+            setLoading(false);
+            options?.onError?.(err ?? 'Request failed');
+          },
+        });
+        abortRef.current = client;
+      } catch (e) {
+        setLoading(false);
+        options?.onError?.(String(e));
+      }
+      return;
+    }
+
+    // Mock mode: use fetch
+    const controller = new AbortController();
+    abortRef.current = { abort: () => controller.abort() };
+
+    fetch(url, {
+      method: options?.method ?? 'GET',
+      headers: options?.headers,
+      body: options?.body as string | undefined,
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        options?.onHeaders?.(response.status, Object.fromEntries(response.headers.entries()));
+        const buffer = await response.arrayBuffer();
+        options?.onData?.(buffer);
+        setLoading(false);
+        options?.onComplete?.();
+      })
+      .catch((e) => {
+        if ((e as Error).name !== 'AbortError') {
+          setLoading(false);
+          options?.onError?.(String(e));
+        }
+      });
+  }, []);
+
+  const abort = useCallback(() => {
+    abortRef.current?.abort?.();
+    abortRef.current?.close?.();
+    abortRef.current = null;
+    setLoading(false);
+  }, []);
+
+  return { request, abort, loading };
+}
+
+// ---------------------------------------------------------------------------
+// usePreferredResultDuration — how long to show result/notification windows
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the user-preferred duration (in ms) for showing result windows.
+ *
+ * On Alloy: reads from the Preferences API.
+ * In mock mode: returns 3000ms.
+ */
+export function usePreferredResultDuration(): number {
+  if (typeof globalThis !== 'undefined') {
+    const g = globalThis as Record<string, unknown>;
+    // Pebble Preferences API
+    if (typeof g.preferred_result_display_duration === 'function') {
+      return (g.preferred_result_display_duration as () => number)();
+    }
+    // Alloy-style Preferences object
+    if (g.Preferences && typeof (g.Preferences as Record<string, unknown>).resultDisplayDuration === 'number') {
+      return (g.Preferences as { resultDisplayDuration: number }).resultDisplayDuration;
+    }
+  }
+  return 3000;
+}
+
+// ---------------------------------------------------------------------------
 // FUTURE HOOKS
 //
 //   - useAppMessage      — phone↔watch messaging goes through PebbleKit JS
 //                          on the phone side (`src/pkjs/index.js`).
-//   - useLocation        — GPS via phone proxy (one-shot).
 // ---------------------------------------------------------------------------

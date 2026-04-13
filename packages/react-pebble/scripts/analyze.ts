@@ -18,7 +18,7 @@ import { _setPlatform, SCREEN } from '../src/platform.js';
 import type {
   CompilerIR, IRElement, IRStateSlot, IRButtonAction,
   IRStateDep, IRSkinDep, IRBranch, IRConditionalChild,
-  IRListInfo, IRAnimatedElement, IRTimeReactiveGraphic, IRMessageInfo, TimeFormat,
+  IRListInfo, IRAnimatedElement, IRTimeReactiveGraphic, IRMessageInfo, IRConfigInfo, TimeFormat,
 } from './compiler-ir.js';
 
 // ---------------------------------------------------------------------------
@@ -154,16 +154,22 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
 
     case 'pbl-rect': {
       const fill = str(p, 'fill');
-      if (!fill) return null;
+      const textureSrc = str(p, 'texture');
+      if (!fill && !textureSrc) return null;
       const w = num(p, 'w') || num(p, 'width');
       const h = num(p, 'h') || num(p, 'height');
       const x = num(p, 'x');
       const y = num(p, 'y');
 
       const rectIdx = ctx.rectIdx++;
-      ctx.rectFills.set(rectIdx, fill);
+      if (fill) ctx.rectFills.set(rectIdx, fill);
       const elemIdx = ctx.elemIdx++;
       ctx.elementPositions.set(elemIdx, { type: 'rect', left: x, top: y, width: w, height: h });
+
+      // Track texture as an image resource
+      if (textureSrc && !ctx.imageResources.includes(textureSrc)) {
+        ctx.imageResources.push(textureSrc);
+      }
 
       const children: IRElement[] = [];
       for (const c of el.children) {
@@ -171,10 +177,18 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
         if (collected) children.push(collected);
       }
 
+      // Parse border/tile insets if present
+      const borders = p.borders as { left: number; right: number; top: number; bottom: number } | undefined;
+      const tiles = p.tiles as { left: number; right: number; top: number; bottom: number } | undefined;
+
       return {
         type: 'rect',
         x, y, w, h,
-        fill: colorToHex(fill),
+        fill: fill ? colorToHex(fill) : undefined,
+        texture: textureSrc,
+        variant: num(p, 'variant'),
+        borders,
+        tiles,
         rectIndex: rectIdx,
         elemIndex: elemIdx,
         children: children.length > 0 ? children : undefined,
@@ -357,6 +371,49 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
         type: 'image' as const,
         x, y, w, h,
         src,
+        elemIndex: elemIdx,
+      };
+    }
+
+    case 'pbl-svg': {
+      const src = str(p, 'src');
+      if (!src) return null;
+      const x = num(p, 'x');
+      const y = num(p, 'y');
+      const w = num(p, 'w') || num(p, 'width');
+      const h = num(p, 'h') || num(p, 'height');
+      const elemIdx = ctx.elemIdx++;
+      ctx.elementPositions.set(elemIdx, { type: 'svg', left: x, top: y, width: w, height: h });
+      if (!ctx.imageResources.includes(src)) {
+        ctx.imageResources.push(src);
+      }
+      return {
+        type: 'svg' as const,
+        x, y, w, h,
+        src,
+        rotation: num(p, 'rotation'),
+        svgScale: num(p, 'scale'),
+        svgScaleX: num(p, 'scaleX'),
+        svgScaleY: num(p, 'scaleY'),
+        svgTranslateX: num(p, 'translateX'),
+        svgTranslateY: num(p, 'translateY'),
+        svgColor: str(p, 'color'),
+        elemIndex: elemIdx,
+      };
+    }
+
+    case 'pbl-canvas': {
+      // Canvas/Port is a custom drawing surface — we capture its position/size
+      // but the drawing callback is emitted as a Piu Port Behavior.
+      const x = num(p, 'x');
+      const y = num(p, 'y');
+      const w = num(p, 'w') || num(p, 'width') || 100;
+      const h = num(p, 'h') || num(p, 'height') || 100;
+      const elemIdx = ctx.elemIdx++;
+      ctx.elementPositions.set(elemIdx, { type: 'canvas', left: x, top: y, width: w, height: h });
+      return {
+        type: 'canvas' as const,
+        x, y, w, h,
         elemIndex: elemIdx,
       };
     }
@@ -837,6 +894,127 @@ function extractMockDataSource(exName: string, mockDataArrayName: string): strin
 }
 
 // ---------------------------------------------------------------------------
+// useConfiguration detection
+// ---------------------------------------------------------------------------
+
+interface ConfigInfoRaw {
+  keys: Array<{ key: string; label: string; type: 'color' | 'boolean' | 'string'; default: string | boolean }>;
+  url: string | null;
+}
+
+function detectUseConfiguration(exName: string): ConfigInfoRaw | null {
+  const sf = parseExampleSource(exName);
+  if (!sf) return null;
+
+  const keys: ConfigInfoRaw['keys'] = [];
+  let urlValue: string | null = null;
+
+  walkAST(sf, (node) => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'useConfiguration' &&
+      node.arguments.length > 0 &&
+      ts.isObjectLiteralExpression(node.arguments[0]!)
+    ) {
+      const objLit = node.arguments[0] as ts.ObjectLiteralExpression;
+      for (const prop of objLit.properties) {
+        if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) continue;
+
+        // Extract url
+        if (prop.name.text === 'url') {
+          if (ts.isStringLiteral(prop.initializer)) {
+            urlValue = prop.initializer.text;
+          } else {
+            // Could be a variable reference — capture the text
+            urlValue = prop.initializer.getText(sf);
+          }
+        }
+
+        // Extract defaults object
+        if (prop.name.text === 'defaults' && ts.isObjectLiteralExpression(prop.initializer)) {
+          const defaults = prop.initializer as ts.ObjectLiteralExpression;
+          for (const dp of defaults.properties) {
+            if (!ts.isPropertyAssignment(dp) || !ts.isIdentifier(dp.name)) continue;
+            const key = dp.name.text;
+            const init = dp.initializer;
+
+            // Default label from camelCase key name
+            const defaultLabel = key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+
+            if (init.kind === ts.SyntaxKind.TrueKeyword || init.kind === ts.SyntaxKind.FalseKeyword) {
+              keys.push({ key, label: defaultLabel, type: 'boolean', default: init.kind === ts.SyntaxKind.TrueKeyword });
+            } else if (ts.isStringLiteral(init)) {
+              // Heuristic: 6-char hex strings are colors
+              const val = init.text;
+              const isColor = /^[0-9a-fA-F]{6}$/.test(val);
+              keys.push({ key, label: defaultLabel, type: isColor ? 'color' : 'string', default: val });
+            } else if (ts.isNumericLiteral(init)) {
+              keys.push({ key, label: defaultLabel, type: 'string', default: init.text });
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (keys.length === 0) return null;
+
+  // Second pass: scan for ConfigColor/ConfigToggle/ConfigText/ConfigSelect calls
+  // to extract human-readable labels, and ConfigPage/ConfigSection for titles
+  const labelMap = new Map<string, string>();
+  let appName: string | null = null;
+  const sectionTitles: string[] = [];
+
+  walkAST(sf, (node) => {
+    if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)) return;
+
+    const fnName = node.expression.text;
+
+    // Config item labels
+    if (['ConfigColor', 'ConfigToggle', 'ConfigText', 'ConfigSelect'].includes(fnName) &&
+        node.arguments.length >= 2) {
+      const keyArg = node.arguments[0];
+      const labelArg = node.arguments[1];
+      if (keyArg && ts.isStringLiteral(keyArg) && labelArg && ts.isStringLiteral(labelArg)) {
+        labelMap.set(keyArg.text, labelArg.text);
+      }
+    }
+
+    // ConfigSection title
+    if (fnName === 'ConfigSection' && node.arguments.length >= 1) {
+      const titleArg = node.arguments[0];
+      if (titleArg && ts.isStringLiteral(titleArg)) {
+        sectionTitles.push(titleArg.text);
+      }
+    }
+
+    // ConfigPage appName from options object
+    if (fnName === 'ConfigPage' && node.arguments.length >= 2) {
+      const optsArg = node.arguments[1];
+      if (optsArg && ts.isObjectLiteralExpression(optsArg)) {
+        for (const prop of optsArg.properties) {
+          if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name) &&
+              prop.name.text === 'appName' && ts.isStringLiteral(prop.initializer)) {
+            appName = prop.initializer.text;
+          }
+        }
+      }
+    }
+  });
+
+  // Apply labels to keys
+  for (const k of keys) {
+    const label = labelMap.get(k.key);
+    if (label) {
+      k.label = label;
+    }
+  }
+
+  return { keys, url: urlValue, appName, sectionTitles };
+}
+
+// ---------------------------------------------------------------------------
 // Tree diff for per-subtree conditionals
 // ---------------------------------------------------------------------------
 
@@ -985,6 +1163,12 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
       mockDataSource = extractMockDataSource(entryPath, messageInfoRaw.mockDataArrayName);
       if (mockDataSource) process.stderr.write(`mockDataValue=${mockDataSource}\n`);
     }
+  }
+
+  // --- Configuration detection ---
+  const configInfoRaw = detectUseConfiguration(entryPath);
+  if (configInfoRaw) {
+    process.stderr.write(`useConfiguration detected: ${configInfoRaw.keys.length} keys [${configInfoRaw.keys.map(k => k.key).join(', ')}]\n`);
   }
 
   // --- String enum collection ---
@@ -1630,6 +1814,13 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
     mockDataSource,
   } : null;
 
+  const irConfigInfo: IRConfigInfo | null = configInfoRaw ? {
+    keys: configInfoRaw.keys,
+    url: configInfoRaw.url,
+    appName: configInfoRaw.appName,
+    sectionTitles: configInfoRaw.sectionTitles,
+  } : null;
+
   // Assign names and reactivity flags to the final tree elements
   function assignNames(elements: IRElement[]): void {
     for (const el of elements) {
@@ -1702,6 +1893,7 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
     timeReactiveGraphics,
     animatedElements,
     messageInfo: irMessageInfo,
+    configInfo: irConfigInfo,
     hasButtons,
     hasTimeDeps,
     hasStateDeps,

@@ -29,6 +29,11 @@
     "./compiler": {
       "types": "./dist/lib/src/compiler/index.d.ts",
       "import": "./dist/lib/compiler.js"
+    },
+    "./config": {
+      "types": "./dist/lib/src/config/index.d.ts",
+      "import": "./dist/lib/config.js",
+      "require": "./dist/lib/config.cjs"
     }
   },
   "files": [

@@ -9,7 +9,7 @@
 // Visual tree
 // ---------------------------------------------------------------------------
 
-export type IRElementType = 'root' | 'group' | 'rect' | 'text' | 'circle' | 'line' | 'path' | 'arc' | 'textflow' | 'image';
+export type IRElementType = 'root' | 'group' | 'rect' | 'text' | 'circle' | 'line' | 'path' | 'arc' | 'textflow' | 'image' | 'svg' | 'canvas';
 
 export interface IRElement {
   type: IRElementType;
@@ -35,7 +35,17 @@ export interface IRElement {
   points?: Array<[number, number]>; // path polygon vertices (relative to x,y origin)
   rotation?: number;    // path rotation in degrees
   isWrapping?: boolean; // textflow: multi-line wrapping text
-  src?: string;         // image source file path
+  src?: string;         // image/svg source file path
+  svgScale?: number;    // svg uniform scale
+  svgScaleX?: number;   // svg horizontal scale
+  svgScaleY?: number;   // svg vertical scale
+  svgTranslateX?: number; // svg horizontal translation
+  svgTranslateY?: number; // svg vertical translation
+  svgColor?: string;    // svg tint color
+  texture?: string;     // rect texture resource path
+  variant?: number;     // rect texture variant index
+  borders?: { left: number; right: number; top: number; bottom: number }; // nine-patch borders
+  tiles?: { left: number; right: number; top: number; bottom: number };   // repeating tile insets
   /** Children (for root, group, rect with children) */
   children?: IRElement[];
   /** Sequential indices assigned during tree collection */
@@ -172,6 +182,28 @@ export interface IRMessageInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+
+export interface IRConfigKey {
+  key: string;
+  label: string;
+  type: 'color' | 'boolean' | 'string';
+  default: string | boolean;
+}
+
+export interface IRConfigInfo {
+  /** All configuration keys with their types and defaults */
+  keys: IRConfigKey[];
+  /** The configuration page URL (may be a data URI) */
+  url: string | null;
+  /** App name for the config page title */
+  appName: string | null;
+  /** Section titles from ConfigSection calls */
+  sectionTitles: string[];
+}
+
+// ---------------------------------------------------------------------------
 // Top-level IR
 // ---------------------------------------------------------------------------
 
@@ -222,6 +254,9 @@ export interface CompilerIR {
 
   /** useMessage info (null if no message hook) */
   messageInfo: IRMessageInfo | null;
+
+  /** useConfiguration info (null if no config hook) */
+  configInfo: IRConfigInfo | null;
 
   /** Convenience flags */
   hasButtons: boolean;

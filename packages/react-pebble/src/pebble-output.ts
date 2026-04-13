@@ -358,8 +358,12 @@ export class PocoRenderer {
         const fill = str(p, 'fill');
         const stroke = str(p, 'stroke');
         const br = num(p, 'borderRadius');
+        const textureSrc = str(p, 'texture');
 
-        if (br > 0) {
+        // Texture-based rect: draw the bitmap if available, otherwise fall back to fill
+        if (textureSrc && p._textureData) {
+          this.poco.drawBitmap(p._textureData as never, x, y);
+        } else if (br > 0) {
           // Rounded rectangle
           if (fill) {
             this.fillRoundRect(this.getColor(fill), x, y, w, h, br);
@@ -646,6 +650,93 @@ export class PocoRenderer {
 
         if (text) {
           this.renderFlowText(text, x, y, w, h, font, color, align, flowAround);
+        }
+        break;
+      }
+
+      case 'pbl-svg': {
+        // SVG / PDC vector image. On real Poco, uses drawDCI with transforms.
+        // In mock mode, render a placeholder rectangle with the resource name.
+        const src = str(p, 'src') ?? '';
+        const w = num(p, 'w') || num(p, 'width') || 40;
+        const h = num(p, 'h') || num(p, 'height') || 40;
+        const rotation = num(p, 'rotation');
+        const scale = num(p, 'scale') || 1;
+
+        const poco = this.poco as Poco & {
+          drawDCI?: (pdc: unknown, x: number, y: number) => void;
+        };
+
+        if (poco.drawDCI && p._pdcData) {
+          // Clone and transform the PDC data before drawing
+          let pdc = p._pdcData as { clone?: () => unknown; rotate?: (a: number, px: number, py: number) => void; scale?: (f: number) => void };
+          if ((rotation || scale !== 1) && pdc.clone) {
+            pdc = pdc.clone() as typeof pdc;
+            if (scale !== 1 && pdc.scale) pdc.scale(scale);
+            if (rotation && pdc.rotate) pdc.rotate(rotation, w / 2, h / 2);
+          }
+          poco.drawDCI(pdc, x, y);
+        } else {
+          // Mock mode: draw a placeholder
+          const placeholderColor = this.getColor(str(p, 'color') ?? 'lightGray');
+          this.poco.fillRectangle(placeholderColor, x, y, w, h);
+          if (src) {
+            const label = src.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
+            const font = this.getFont('gothic14');
+            const textColor = this.getColor('black');
+            this.poco.drawText(label, font, textColor, x + 2, y + 2);
+          }
+        }
+        break;
+      }
+
+      case 'pbl-canvas': {
+        // Custom drawing canvas (Piu Port). Calls the onDraw callback
+        // with a simplified drawing context wrapping Poco methods.
+        const canvasW = num(p, 'w') || num(p, 'width') || 100;
+        const canvasH = num(p, 'h') || num(p, 'height') || 100;
+        const onDraw = p.onDraw as ((ctx: Record<string, unknown>) => void) | undefined;
+
+        if (onDraw) {
+          // Save clip region
+          this.poco.clip(x, y, canvasW, canvasH);
+
+          const renderer = this;
+          const ctx = {
+            fillRect: (color: string, rx: number, ry: number, rw: number, rh: number) => {
+              renderer.poco.fillRectangle(renderer.getColor(color), x + rx, y + ry, rw, rh);
+            },
+            drawText: (text: string, font: string, color: string, tx: number, ty: number) => {
+              renderer.poco.drawText(text, renderer.getFont(font), renderer.getColor(color), x + tx, y + ty);
+            },
+            drawLine: (color: string, x1: number, y1: number, x2: number, y2: number, thickness?: number) => {
+              const sw = thickness ?? 1;
+              const c = renderer.getColor(color);
+              if (y1 === y2) {
+                renderer.poco.fillRectangle(c, x + Math.min(x1, x2), y + y1, Math.abs(x2 - x1) || 1, sw);
+              } else if (x1 === x2) {
+                renderer.poco.fillRectangle(c, x + x1, y + Math.min(y1, y2), sw, Math.abs(y2 - y1) || 1);
+              } else {
+                renderer.drawDiagonalLine(c, x + x1, y + y1, x + x2, y + y2, sw);
+              }
+            },
+            drawCircle: (color: string, cx: number, cy: number, radius: number) => {
+              renderer.fillCircle(renderer.getColor(color), x + cx, y + cy, radius);
+            },
+            drawRoundRect: (rx: number, ry: number, rw: number, rh: number, color: string, radius: number) => {
+              renderer.fillRoundRect(renderer.getColor(color), x + rx, y + ry, rw, rh, radius);
+            },
+            getTextWidth: (text: string, font: string) => {
+              return renderer.poco.getTextWidth(text, renderer.getFont(font));
+            },
+            width: canvasW,
+            height: canvasH,
+          };
+
+          onDraw(ctx);
+
+          // Restore clip region
+          this.poco.clip();
         }
         break;
       }
@@ -1123,4 +1214,22 @@ export function resolveFontName(font: string | undefined): string {
   if (!font) return DEFAULT_FONT_KEY;
   if (font in FONT_PALETTE || font in customFonts) return font;
   return DEFAULT_FONT_KEY;
+}
+
+/**
+ * Measure the rendered width of a text string in a given font.
+ *
+ * Requires an active PocoRenderer instance. This is a convenience wrapper
+ * around `Poco.prototype.getTextWidth` — the same measurement used internally
+ * for text alignment and word wrapping.
+ *
+ * @param renderer - A PocoRenderer instance (from `render()` or created manually).
+ * @param text     - The string to measure.
+ * @param font     - A font name from the font palette (e.g. 'gothic18', 'bitham42Bold').
+ * @returns The width in pixels, or 0 if the font cannot be resolved.
+ */
+export function getTextWidth(renderer: PocoRenderer, text: string, font: string): number {
+  const resolved = renderer.getFont(resolveFontName(font));
+  if (!resolved) return 0;
+  return renderer.poco.getTextWidth(text, resolved);
 }

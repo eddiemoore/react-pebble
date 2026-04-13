@@ -28,6 +28,7 @@ export default defineConfig({
         components: resolve(__dirname, 'src/components/index.tsx'),
         compiler: resolve(__dirname, 'src/compiler/index.ts'),
         plugin: resolve(__dirname, 'src/plugin/index.ts'),
+        config: resolve(__dirname, 'src/config/index.ts'),
         platform: resolve(__dirname, 'src/platform.ts'),
       },
       formats: ['es', 'cjs'],

@@ -44,6 +44,8 @@ export interface CompileResult {
   mockDataSource: string | null;
   /** Image resource paths referenced in the component */
   imageResources: string[];
+  /** Generated PebbleKit JS companion code (null if no phone communication needed) */
+  pebbleKitJS: string | null;
   /** Diagnostic messages from the compiler */
   diagnostics: string;
 }
@@ -127,7 +129,12 @@ export async function compileToPiu(options: CompileOptions): Promise<CompileResu
   const imgMatch = diagnostics.match(/imageResources=(\[.*?\])/);
   const imageResources: string[] = imgMatch?.[1] ? JSON.parse(imgMatch[1]) : [];
 
+  // Extract PebbleKit JS companion code if generated
+  let pebbleKitJS: string | null = null;
+  const pkjsMatch = diagnostics.match(/--- PebbleKit JS \(src\/pkjs\/index\.js\) ---\n([\s\S]*?)--- End PebbleKit JS ---/);
+  if (pkjsMatch?.[1]) pebbleKitJS = pkjsMatch[1];
+
   log(`Compiled ${exampleName}: ${code.split('\n').length} lines, buttons=${hasButtons}, messageKeys=[${messageKeys.join(',')}]`);
 
-  return { code, hasButtons, messageKeys, mockDataSource, imageResources, diagnostics };
+  return { code, hasButtons, messageKeys, mockDataSource, imageResources, pebbleKitJS, diagnostics };
 }

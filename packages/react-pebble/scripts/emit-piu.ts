@@ -169,12 +169,34 @@ function emitIRNode(
     }
 
     case 'rect': {
-      const fill = el.fill!;
-      const skinVar = ensureSkin(ctx, fill);
-      const isSkinDynamic = el.isSkinDynamic;
-      const isAnimated = el.isAnimated;
       const nameProp = el.name ? `, name: "${el.name}"` : '';
       const sizeProps = buildSizeProps(el.x, el.y, el.w, el.h, ir.platform.width, ir.platform.height);
+
+      // Determine skin: texture-based or color-based
+      let skinVar: string;
+      if (el.texture) {
+        // Texture-based skin with optional borders/tiles/variant
+        const tex = ensureTexture(ctx, el.texture, el.w, el.h);
+        // If borders or tiles are specified, create an extended texture skin
+        if (el.borders || el.tiles) {
+          const extSkinVar = `tsk_ext${ctx.textureIdx++}`;
+          const bordersStr = el.borders
+            ? `, borders: { left: ${el.borders.left}, right: ${el.borders.right}, top: ${el.borders.top}, bottom: ${el.borders.bottom} }`
+            : '';
+          const tilesStr = el.tiles
+            ? `, tiles: { left: ${el.tiles.left}, right: ${el.tiles.right}, top: ${el.tiles.top}, bottom: ${el.tiles.bottom} }`
+            : '';
+          const variantStr = el.variant ? `, variants: ${el.variant}` : '';
+          ctx.declarations.push(
+            `const ${extSkinVar} = new Skin({ texture: ${tex.texVar}, x: 0, y: 0, width: ${el.w}, height: ${el.h}${bordersStr}${tilesStr}${variantStr} });`
+          );
+          skinVar = extSkinVar;
+        } else {
+          skinVar = tex.skinVar;
+        }
+      } else {
+        skinVar = ensureSkin(ctx, el.fill ?? '#000000');
+      }
 
       const kids = (el.children ?? [])
         .map(c => emitIRNode(c, ctx, indent + '  ', ir, conditionalDepth))
@@ -309,6 +331,40 @@ function emitIRNode(
       const sizeProps = buildSizeProps(el.x, el.y, el.w, el.h, ir.platform.width, ir.platform.height);
       const nameProp = el.name ? `, name: "${el.name}"` : '';
       return `${indent}new Content(null, { ${sizeProps}, skin: ${skinVar}${nameProp} })`;
+    }
+
+    case 'svg': {
+      // SVGImage — Piu vector graphics with transforms
+      const src = el.src ?? '';
+      const resourceName = src.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
+      const sizeProps = buildSizeProps(el.x, el.y, el.w, el.h, ir.platform.width, ir.platform.height);
+      const nameProp = el.name ? `, name: "${el.name}"` : '';
+
+      // Build SVGImage options
+      const svgOpts: string[] = [];
+      if (el.rotation) svgOpts.push(`r: ${el.rotation}`);
+      if (el.svgScale && el.svgScale !== 1) svgOpts.push(`s: ${el.svgScale}`);
+      if (el.svgScaleX && el.svgScaleX !== 1) svgOpts.push(`sx: ${el.svgScaleX}`);
+      if (el.svgScaleY && el.svgScaleY !== 1) svgOpts.push(`sy: ${el.svgScaleY}`);
+      if (el.svgTranslateX) svgOpts.push(`tx: ${el.svgTranslateX}`);
+      if (el.svgTranslateY) svgOpts.push(`ty: ${el.svgTranslateY}`);
+      if (el.w) svgOpts.push(`width: ${el.w}`);
+      if (el.h) svgOpts.push(`height: ${el.h}`);
+
+      const optsStr = svgOpts.length > 0 ? `, { ${svgOpts.join(', ')} }` : '';
+      ctx.declarations.push(`import ${resourceName}_pdc from "./${resourceName}-image";`);
+
+      return `${indent}new SVGImage(${resourceName}_pdc${optsStr}, { ${sizeProps}${nameProp} })`;
+    }
+
+    case 'canvas': {
+      // Canvas → Piu Port with empty Behavior (the onDraw callback is runtime-only
+      // and cannot be compiled ahead-of-time since it contains arbitrary JS).
+      // In compiled mode, Canvas emits a Port placeholder that users can populate
+      // with a Behavior at runtime.
+      const sizeProps = buildSizeProps(el.x, el.y, el.w, el.h, ir.platform.width, ir.platform.height);
+      const nameProp = el.name ? `, name: "${el.name}"` : '';
+      return `${indent}new Port(null, { ${sizeProps}${nameProp} })`;
     }
 
     default:
