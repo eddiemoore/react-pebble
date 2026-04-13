@@ -215,6 +215,27 @@ function emitIRNode(
       return `${indent}new RoundRect(null, { left: ${el.x}, top: ${el.y}, width: ${size}, height: ${size}, radius: ${r}, skin: ${skinVar}${animName} })`;
     }
 
+    case 'path': {
+      // Path/polygon: emit as bounding-box Content (piu doesn't support native paths)
+      const pts = el.points ?? [];
+      if (pts.length < 2) return null;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [px, py] of pts) {
+        if (px < minX) minX = px;
+        if (py < minY) minY = py;
+        if (px > maxX) maxX = px;
+        if (py > maxY) maxY = py;
+      }
+      const fill = el.fill ?? '#ffffff';
+      const skinVar = ensureSkin(ctx, fill);
+      const bx = el.x + minX;
+      const by = el.y + minY;
+      const bw = maxX - minX;
+      const bh = maxY - minY;
+      const sizeProps = buildSizeProps(bx, by, bw, bh, ir.platform.width, ir.platform.height);
+      return `${indent}new Content(null, { ${sizeProps}, skin: ${skinVar} })`;
+    }
+
     case 'arc': {
       // Arc rendering via piu Port with drawSkin scanline fill.
       const r = el.radius ?? 40;

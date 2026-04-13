@@ -9,7 +9,7 @@
 // Visual tree
 // ---------------------------------------------------------------------------
 
-export type IRElementType = 'root' | 'group' | 'rect' | 'text' | 'circle' | 'line' | 'arc' | 'textflow';
+export type IRElementType = 'root' | 'group' | 'rect' | 'text' | 'circle' | 'line' | 'path' | 'arc' | 'textflow';
 
 export interface IRElement {
   type: IRElementType;
@@ -32,6 +32,8 @@ export interface IRElement {
   startAngle?: number;  // arc start angle in degrees
   endAngle?: number;    // arc end angle in degrees
   stroke?: string;      // arc stroke color
+  points?: Array<[number, number]>; // path polygon vertices (relative to x,y origin)
+  rotation?: number;    // path rotation in degrees
   isWrapping?: boolean; // textflow: multi-line wrapping text
   /** Children (for root, group, rect with children) */
   children?: IRElement[];
@@ -133,6 +135,22 @@ export interface IRListInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Time-reactive graphics
+// ---------------------------------------------------------------------------
+
+export interface IRTimeReactiveGraphic {
+  elemIndex: number;
+  type: 'path_rotation' | 'line_endpoint';
+  /** Center point for polar computation (path origin or line fixed end) */
+  centerX: number;
+  centerY: number;
+  /** Distance from center to the moving point (line) or ignored for path */
+  radius: number;
+  /** Which time component drives this element */
+  timeComponent: 'second' | 'minute' | 'hour';
+}
+
+// ---------------------------------------------------------------------------
 // Animation
 // ---------------------------------------------------------------------------
 
@@ -194,6 +212,9 @@ export interface CompilerIR {
 
   /** Labels identified as list slots */
   listSlotLabels: Set<number>;
+
+  /** Time-reactive graphics (paths with rotation, lines with moving endpoints) */
+  timeReactiveGraphics: IRTimeReactiveGraphic[];
 
   /** Animation keyframes */
   animatedElements: IRAnimatedElement[];

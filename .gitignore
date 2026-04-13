@@ -5,6 +5,7 @@ node_modules/
 
 # Vite plugin generated pebble project
 .pebble-build/
+.pebble-build-c/
 .pebble-build-vite-tmp/
 
 # pnpm store (lockfile should be committed)

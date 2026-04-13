@@ -7,7 +7,7 @@
  * for buttons, timers, and AppMessage.
  */
 
-import type { CompilerIR, IRElement, IRStateSlot, TimeFormat } from './compiler-ir.js';
+import type { CompilerIR, IRElement, IRStateSlot, IRTimeReactiveGraphic, TimeFormat } from './compiler-ir.js';
 import { stripThisPrefix } from './compiler-ir.js';
 
 // ---------------------------------------------------------------------------
@@ -192,6 +192,7 @@ function classifyElements(
 
       case 'circle':
       case 'line':
+      case 'path':
         graphicsElements.push({ el, absX: offX + el.x, absY: offY + el.y });
         break;
     }
@@ -335,7 +336,7 @@ export function emitC(ir: CompilerIR): string {
   const hasBehavior = ir.hasTimeDeps || ir.hasStateDeps || ir.hasButtons ||
     ir.hasBranches || ir.hasSkinDeps || ir.hasList || ir.hasConditionals;
   const needsTick = ir.hasTimeDeps;
-  const hasSeconds = [...ir.timeDeps.values()].some(fmt => fmt === 'SS' || fmt === 'MMSS') || ir.hasAnimatedElements;
+  const hasSeconds = [...ir.timeDeps.values()].some(fmt => fmt === 'SS' || fmt === 'MMSS') || ir.hasAnimatedElements || ir.timeReactiveGraphics.length > 0;
 
   // =========================================================================
   // Header
@@ -433,6 +434,21 @@ export function emitC(ir: CompilerIR): string {
     }
   }
 
+  // GPath declarations for path elements
+  const pathElements = allGraphicsElements.filter(ge => ge.el.type === 'path' && ge.el.points);
+  for (let i = 0; i < pathElements.length; i++) {
+    const pe = pathElements[i]!;
+    const pts = pe.el.points!;
+    const pointsStr = pts.map(([px, py]) => `{${px}, ${py}}`).join(', ');
+    lines.push(`static const GPathInfo s_path${i}_info = {`);
+    lines.push(`  .num_points = ${pts.length},`);
+    lines.push(`  .points = (GPoint[]) { ${pointsStr} }`);
+    lines.push(`};`);
+    lines.push(`static GPath *s_path${i};`);
+  }
+
+  const hasTimeReactiveGraphics = ir.timeReactiveGraphics.length > 0;
+
   lines.push('');
 
   // =========================================================================
@@ -441,6 +457,14 @@ export function emitC(ir: CompilerIR): string {
 
   if (needsDrawLayer) {
     lines.push('static void draw_proc(Layer *layer, GContext *ctx) {');
+
+    // If we have time-reactive graphics, get current time at the top
+    if (hasTimeReactiveGraphics) {
+      lines.push('  time_t now = time(NULL);');
+      lines.push('  struct tm *t = localtime(&now);');
+      lines.push('');
+    }
+
     if (branchClassifieds.length > 0) {
       // Draw graphics conditionally per branch
       for (const bc of branchClassifieds) {
@@ -451,15 +475,25 @@ export function emitC(ir: CompilerIR): string {
           : `s${bc.slotIndex} == ${JSON.stringify(bc.value)}`;
         lines.push(`  if (${cond}) {`);
         for (const ge of bc.classified.graphicsElements) {
-          emitGraphicsDrawCall(ge, lines, '    ', ir);
+          emitGraphicsDrawCall(ge, lines, '    ', ir, pathElements);
         }
         lines.push('  }');
       }
     } else {
       for (const ge of mainClassified.graphicsElements) {
-        emitGraphicsDrawCall(ge, lines, '  ', ir);
+        emitGraphicsDrawCall(ge, lines, '  ', ir, pathElements);
       }
     }
+
+    // Emit time-reactive graphics after static elements
+    if (hasTimeReactiveGraphics) {
+      lines.push('');
+      lines.push('  // Time-reactive graphics');
+      for (const trg of ir.timeReactiveGraphics) {
+        emitTimeReactiveGraphic(trg, lines, '  ', ir, pathElements, allGraphicsElements);
+      }
+    }
+
     lines.push('}');
     lines.push('');
   }
@@ -506,8 +540,8 @@ export function emitC(ir: CompilerIR): string {
       }
     }
 
-    // Skin-dependent rects (trigger redraw of custom layer)
-    if (ir.hasSkinDeps && needsDrawLayer) {
+    // Skin-dependent rects or time-reactive graphics (trigger redraw of custom layer)
+    if ((ir.hasSkinDeps || hasTimeReactiveGraphics) && needsDrawLayer) {
       lines.push('  layer_mark_dirty(s_draw_layer);');
     }
 
@@ -708,6 +742,14 @@ export function emitC(ir: CompilerIR): string {
     lines.push('');
   }
 
+  // Create GPath objects
+  for (let i = 0; i < pathElements.length; i++) {
+    const pe = pathElements[i]!;
+    lines.push(`  s_path${i} = gpath_create(&s_path${i}_info);`);
+    lines.push(`  gpath_move_to(s_path${i}, GPoint(${pe.absX}, ${pe.absY}));`);
+  }
+  if (pathElements.length > 0) lines.push('');
+
   // Helper to emit text layer creation
   function emitTextLayerCreate(te: typeof allTextElements[0], parentVar: string) {
     const el = te.el;
@@ -836,6 +878,9 @@ export function emitC(ir: CompilerIR): string {
   for (const bc of branchClassifieds) {
     lines.push(`  layer_destroy(${bc.layerVar});`);
   }
+  for (let i = 0; i < pathElements.length; i++) {
+    lines.push(`  gpath_destroy(s_path${i});`);
+  }
   if (needsDrawLayer) {
     lines.push('  layer_destroy(s_draw_layer);');
   }
@@ -897,12 +942,21 @@ function clampH(y: number, h: number, screenH: number): number {
   return Math.min(h, screenH - y);
 }
 
-function emitGraphicsDrawCall(ge: CGraphicsElement, lines: string[], indent: string, ir: CompilerIR): void {
+function emitGraphicsDrawCall(
+  ge: CGraphicsElement, lines: string[], indent: string, ir: CompilerIR,
+  pathElements: CGraphicsElement[],
+): void {
   const el = ge.el;
   const ax = ge.absX;
   const ay = ge.absY;
   const sw = ir.platform.width;
   const sh = ir.platform.height;
+
+  // Skip time-reactive elements here — they're handled separately in draw_proc
+  if (el.elemIndex !== undefined) {
+    const isTimeReactive = ir.timeReactiveGraphics.some(trg => trg.elemIndex === el.elemIndex);
+    if (isTimeReactive) return;
+  }
 
   switch (el.type) {
     case 'rect': {
@@ -939,23 +993,99 @@ function emitGraphicsDrawCall(ge: CGraphicsElement, lines: string[], indent: str
     case 'line': {
       const color = el.color ?? '#ffffff';
       const strokeW = el.strokeWidth || 1;
-      // Lines: apply offset to both endpoints
       const lx1 = ax;
       const ly1 = ay;
       const lx2 = ax + (el.x2! - el.x);
       const ly2 = ay + (el.y2! - el.y);
       if (ly1 === ly2) {
+        // Horizontal line
         const lx = Math.min(lx1, lx2);
         const lw = clampW(lx, Math.abs(lx2 - lx1) || 1, sw);
         lines.push(`${indent}graphics_context_set_fill_color(ctx, ${colorToGColor(color)});`);
         lines.push(`${indent}graphics_fill_rect(ctx, GRect(${lx}, ${ly1}, ${lw}, ${strokeW}), 0, GCornerNone);`);
       } else if (lx1 === lx2) {
+        // Vertical line
         const ly = Math.min(ly1, ly2);
         const lh = clampH(ly, Math.abs(ly2 - ly1) || 1, sh);
         lines.push(`${indent}graphics_context_set_fill_color(ctx, ${colorToGColor(color)});`);
         lines.push(`${indent}graphics_fill_rect(ctx, GRect(${lx1}, ${ly}, ${strokeW}, ${lh}), 0, GCornerNone);`);
+      } else {
+        // Diagonal line — use graphics_draw_line
+        lines.push(`${indent}graphics_context_set_stroke_color(ctx, ${colorToGColor(color)});`);
+        lines.push(`${indent}graphics_context_set_stroke_width(ctx, ${strokeW});`);
+        lines.push(`${indent}graphics_draw_line(ctx, GPoint(${lx1}, ${ly1}), GPoint(${lx2}, ${ly2}));`);
       }
       break;
     }
+
+    case 'path': {
+      // Static path — draw at its fixed position
+      const pathIdx = pathElements.indexOf(ge);
+      if (pathIdx >= 0) {
+        const fill = el.fill ?? '#ffffff';
+        lines.push(`${indent}graphics_context_set_fill_color(ctx, ${colorToGColor(fill)});`);
+        if (el.rotation) {
+          lines.push(`${indent}gpath_rotate_to(s_path${pathIdx}, DEG_TO_TRIGANGLE(${el.rotation}));`);
+        }
+        lines.push(`${indent}gpath_draw_filled(ctx, s_path${pathIdx});`);
+      }
+      break;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Time-reactive graphic emission
+// ---------------------------------------------------------------------------
+
+function angleExprForTimeComponent(component: 'second' | 'minute' | 'hour'): string {
+  switch (component) {
+    case 'second':
+      return 'TRIG_MAX_ANGLE * t->tm_sec / 60';
+    case 'minute':
+      return 'TRIG_MAX_ANGLE * (t->tm_min * 60 + t->tm_sec) / 3600';
+    case 'hour':
+      // Use int64_t to avoid overflow: 65536 * 43199 > INT32_MAX
+      return '(int32_t)((int64_t)TRIG_MAX_ANGLE * ((t->tm_hour % 12) * 3600 + t->tm_min * 60 + t->tm_sec) / 43200)';
+  }
+}
+
+function emitTimeReactiveGraphic(
+  trg: IRTimeReactiveGraphic,
+  lines: string[],
+  indent: string,
+  ir: CompilerIR,
+  pathElements: CGraphicsElement[],
+  allGraphicsElements: CGraphicsElement[],
+): void {
+  const angleExpr = angleExprForTimeComponent(trg.timeComponent);
+
+  if (trg.type === 'path_rotation') {
+    // Find the matching path element
+    const pathIdx = pathElements.findIndex(pe => pe.el.elemIndex === trg.elemIndex);
+    if (pathIdx < 0) return;
+    const fill = pathElements[pathIdx]!.el.fill ?? '#ffffff';
+    lines.push(`${indent}{`);
+    lines.push(`${indent}  int32_t angle = ${angleExpr};`);
+    lines.push(`${indent}  graphics_context_set_fill_color(ctx, ${colorToGColor(fill)});`);
+    lines.push(`${indent}  gpath_rotate_to(s_path${pathIdx}, angle);`);
+    lines.push(`${indent}  gpath_draw_filled(ctx, s_path${pathIdx});`);
+    lines.push(`${indent}}`);
+  } else if (trg.type === 'line_endpoint') {
+    // Find the matching line element for its color/strokeWidth
+    const ge = allGraphicsElements.find(g => g.el.elemIndex === trg.elemIndex);
+    if (!ge) return;
+    const color = ge.el.color ?? '#ffffff';
+    const strokeW = ge.el.strokeWidth || 1;
+    lines.push(`${indent}{`);
+    lines.push(`${indent}  int32_t angle = ${angleExpr};`);
+    lines.push(`${indent}  GPoint end = {`);
+    lines.push(`${indent}    .x = ${trg.centerX} + (int16_t)(sin_lookup(angle) * (int32_t)${trg.radius} / TRIG_MAX_RATIO),`);
+    lines.push(`${indent}    .y = ${trg.centerY} - (int16_t)(cos_lookup(angle) * (int32_t)${trg.radius} / TRIG_MAX_RATIO)`);
+    lines.push(`${indent}  };`);
+    lines.push(`${indent}  graphics_context_set_stroke_color(ctx, ${colorToGColor(color)});`);
+    lines.push(`${indent}  graphics_context_set_stroke_width(ctx, ${strokeW});`);
+    lines.push(`${indent}  graphics_draw_line(ctx, GPoint(${trg.centerX}, ${trg.centerY}), end);`);
+    lines.push(`${indent}}`);
   }
 }

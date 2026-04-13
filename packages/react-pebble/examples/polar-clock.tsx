@@ -9,7 +9,7 @@
  */
 
 import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
+import { render, SCREEN } from '../src/index.js';
 import { Text, Rect, Group, Circle, Line, Path } from '../src/components/index.js';
 import { useTime, polarPoint } from '../src/hooks/index.js';
 
@@ -19,13 +19,21 @@ function PolarClock() {
   const minutes = time.getMinutes();
   const seconds = time.getSeconds();
 
-  const cx = 100;
-  const cy = 100;
+  const sw = SCREEN.width;
+  const sh = SCREEN.height;
+  const cx = Math.floor(sw / 2);
+  const cy = Math.floor(Math.min(sw, sh) / 2);
+  const faceR = Math.floor(Math.min(sw, sh) / 2 - 4);
+  const markerOuter = faceR - 5;
+  const markerInner = markerOuter - 10;
+  const hourLen = Math.floor(faceR * 0.5);
+  const minLen = Math.floor(faceR * 0.72);
+  const secLen = Math.floor(faceR * 0.83);
 
   // Hour markers at 30-degree intervals
   const markers = Array.from({ length: 12 }, (_, i) => {
-    const outer = polarPoint(cx, cy, 85, i * 30);
-    const inner = polarPoint(cx, cy, 75, i * 30);
+    const outer = polarPoint(cx, cy, markerOuter, i * 30);
+    const inner = polarPoint(cx, cy, markerInner, i * 30);
     return { outer, inner, idx: i };
   });
 
@@ -35,30 +43,28 @@ function PolarClock() {
   const secondAngle = seconds * 6;
 
   // Hand endpoints
-  const hourEnd = polarPoint(cx, cy, 45, hourAngle);
-  const minuteEnd = polarPoint(cx, cy, 65, minuteAngle);
-  const secondEnd = polarPoint(cx, cy, 75, secondAngle);
+  const secondEnd = polarPoint(cx, cy, secLen, secondAngle);
 
   // Hour hand as a path (triangular)
   const hourHand: Array<[number, number]> = [
-    [0, -45],
+    [0, -hourLen],
     [-4, 0],
     [4, 0],
   ];
 
   // Minute hand as a path
   const minuteHand: Array<[number, number]> = [
-    [0, -65],
+    [0, -minLen],
     [-3, 0],
     [3, 0],
   ];
 
   return (
     <Group>
-      <Rect x={0} y={0} w={200} h={228} fill="black" />
+      <Rect x={0} y={0} w={sw} h={sh} fill="black" />
 
       {/* Clock face circle */}
-      <Circle x={cx - 90} y={cy - 90} r={90} fill="darkGray" />
+      <Circle x={cx - faceR} y={cy - faceR} r={faceR} fill="darkGray" />
 
       {/* Hour markers */}
       {markers.map((m) => (
@@ -87,8 +93,8 @@ function PolarClock() {
       <Circle x={cx - 4} y={cy - 4} r={4} fill="white" />
 
       {/* Digital time at bottom */}
-      <Text x={0} y={200} w={200} font="gothic18" color="lightGray" align="center">
-        {hours === 0 ? 12 : hours}:{minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
+      <Text x={0} y={sh - 28} w={sw} font="gothic18" color="lightGray" align="center">
+        {time.getHours().toString().padStart(2, '0')}:{minutes.toString().padStart(2, '0')}
       </Text>
     </Group>
   );

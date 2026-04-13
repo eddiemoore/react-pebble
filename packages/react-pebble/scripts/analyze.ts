@@ -18,7 +18,7 @@ import { _setPlatform, SCREEN } from '../src/platform.js';
 import type {
   CompilerIR, IRElement, IRStateSlot, IRButtonAction,
   IRStateDep, IRSkinDep, IRBranch, IRConditionalChild,
-  IRListInfo, IRAnimatedElement, IRMessageInfo, TimeFormat,
+  IRListInfo, IRAnimatedElement, IRTimeReactiveGraphic, IRMessageInfo, TimeFormat,
 } from './compiler-ir.js';
 
 // ---------------------------------------------------------------------------
@@ -109,7 +109,7 @@ interface CollectContext {
   rectIdx: number;
   rectFills: Map<number, string>;
   elemIdx: number;
-  elementPositions: Map<number, { type: string; left: number; top: number; width: number; height: number; radius?: number }>;
+  elementPositions: Map<number, { type: string; left: number; top: number; width: number; height: number; radius?: number; x2?: number; y2?: number; rotation?: number }>;
 }
 
 function newCollectContext(): CollectContext {
@@ -211,12 +211,16 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       const color = str(p, 'color') ?? str(p, 'stroke') ?? 'white';
       const sw = num(p, 'strokeWidth') || 1;
 
+      const elemIdx = ctx.elemIdx++;
+      ctx.elementPositions.set(elemIdx, { type: 'line', left: x1, top: y1, width: 0, height: 0, x2, y2 });
+
       return {
         type: 'line',
         x: x1, y: y1, w: 0, h: 0,
         x2, y2,
         color: colorToHex(color),
         strokeWidth: sw,
+        elemIndex: elemIdx,
       };
     }
 
@@ -258,33 +262,24 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
     }
 
     case 'pbl-path': {
-      // Path/polygon rendering is a runtime-only feature (scanline fill in
-      // pebble-output.ts). At compile time, emit a placeholder rect at the
-      // bounding box so the compiler doesn't drop it silently.
       const points = p.points as Array<[number, number]> | undefined;
       if (!points || points.length < 2) return null;
 
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const [px, py] of points) {
-        if (px < minX) minX = px;
-        if (py < minY) minY = py;
-        if (px > maxX) maxX = px;
-        if (py > maxY) maxY = py;
-      }
       const fill = str(p, 'fill') ?? str(p, 'stroke') ?? 'white';
-      const bx = num(p, 'x') + minX;
-      const by = num(p, 'y') + minY;
+      const rotation = num(p, 'rotation') || 0;
 
-      const rectIdx = ctx.rectIdx++;
-      ctx.rectFills.set(rectIdx, fill);
       const elemIdx = ctx.elemIdx++;
-      ctx.elementPositions.set(elemIdx, { type: 'rect', left: bx, top: by, width: maxX - minX, height: maxY - minY });
+      ctx.elementPositions.set(elemIdx, {
+        type: 'path', left: num(p, 'x'), top: num(p, 'y'),
+        width: 0, height: 0, rotation,
+      });
 
       return {
-        type: 'rect',
-        x: bx, y: by, w: maxX - minX, h: maxY - minY,
+        type: 'path',
+        x: num(p, 'x'), y: num(p, 'y'), w: 0, h: 0,
+        points: points.map(([px, py]) => [px, py] as [number, number]),
+        rotation,
         fill: colorToHex(fill),
-        rectIndex: rectIdx,
         elemIndex: elemIdx,
       };
     }
@@ -1280,6 +1275,111 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
   }
 
   // =========================================================================
+  // Pass 5b: Time-reactive graphics (paths with rotation, lines with endpoints)
+  // =========================================================================
+
+  const timeReactiveGraphics: IRTimeReactiveGraphic[] = [];
+
+  // Helper: classify time component by measuring angular velocity.
+  // Renders at T_sec (27 seconds later than T1) and computes the rotation
+  // change rate. Second hands move ~6°/sec, minute ~0.1°/sec, hour ~0.008°/sec.
+  function classifyTimeComponent(
+    idx: number,
+    getRotation: (positions: typeof t1Positions) => number | undefined,
+    baseRotation: number,
+  ): 'second' | 'minute' | 'hour' {
+    const T_sec = new OrigDate(T1.getFullYear(), T1.getMonth(), T1.getDate(),
+      T1.getHours(), T1.getMinutes(), 30, 0);
+    const deltaSec = 30 - T1.getSeconds(); // seconds difference
+    mockDate(T_sec);
+    forcedStateValues.clear();
+    resetStateTracking();
+    silence();
+    const appProbe = exampleMain();
+    restore();
+    restoreDate();
+
+    if (appProbe) {
+      const ctxProbe = newCollectContext();
+      collectTree(appProbe._root, ctxProbe);
+      const probeRotation = getRotation(ctxProbe.elementPositions);
+      appProbe.unmount();
+
+      if (probeRotation !== undefined) {
+        const deltaAngle = Math.abs(probeRotation - baseRotation);
+        const rate = deltaAngle / deltaSec; // degrees per second
+        // Second hand: ~6°/sec, Minute hand: ~0.1°/sec, Hour hand: ~0.008°/sec
+        if (rate > 1) return 'second';
+        if (rate > 0.02) return 'minute';
+      }
+    }
+    return 'hour';
+  }
+
+  // Detect graphics elements whose position/rotation changed between T1 and T2
+  for (const [idx, pos1] of t1Positions) {
+    const pos2 = t2Positions.get(idx);
+    if (!pos2) continue;
+
+    if (pos1.type === 'path' && pos2.type === 'path' &&
+        pos1.rotation !== undefined && pos2.rotation !== undefined &&
+        pos1.rotation !== pos2.rotation) {
+      const timeComponent = classifyTimeComponent(
+        idx,
+        (positions) => positions.get(idx)?.rotation,
+        pos1.rotation,
+      );
+
+      timeReactiveGraphics.push({
+        elemIndex: idx,
+        type: 'path_rotation',
+        centerX: pos1.left,
+        centerY: pos1.top,
+        radius: 0,
+        timeComponent,
+      });
+      process.stderr.write(`  Time-reactive path e${idx}: rotation driven by ${timeComponent}\n`);
+    }
+
+    if (pos1.type === 'line' && pos2.type === 'line' &&
+        pos1.x2 !== undefined && pos2.x2 !== undefined &&
+        pos1.y2 !== undefined && pos2.y2 !== undefined &&
+        (pos1.x2 !== pos2.x2 || pos1.y2 !== pos2.y2)) {
+      const cx = pos1.left;
+      const cy = pos1.top;
+      const dx = pos1.x2 - cx;
+      const dy = pos1.y2 - cy;
+      const radius = Math.round(Math.sqrt(dx * dx + dy * dy));
+
+      // For lines, compute the angle from the endpoint to classify
+      const baseAngle = Math.atan2(dx, -dy) * 180 / Math.PI; // 0=north, clockwise
+      const timeComponent = classifyTimeComponent(
+        idx,
+        (positions) => {
+          const p = positions.get(idx);
+          if (p?.x2 === undefined || p?.y2 === undefined) return undefined;
+          return Math.atan2(p.x2 - p.left, -(p.y2 - p.top)) * 180 / Math.PI;
+        },
+        baseAngle,
+      );
+
+      timeReactiveGraphics.push({
+        elemIndex: idx,
+        type: 'line_endpoint',
+        centerX: cx,
+        centerY: cy,
+        radius,
+        timeComponent,
+      });
+      process.stderr.write(`  Time-reactive line e${idx}: endpoint driven by ${timeComponent} (radius=${radius})\n`);
+    }
+  }
+
+  if (timeReactiveGraphics.length > 0) {
+    process.stderr.write(`Found ${timeReactiveGraphics.length} time-reactive graphic(s)\n`);
+  }
+
+  // =========================================================================
   // Pass 6: Final render for the visual tree
   // =========================================================================
 
@@ -1377,7 +1477,8 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
 
   const stateNeedsTime = [...stateDeps.values()].some(d => d.needsTime);
   const hasAnimatedElements = animatedElements.length > 0;
-  const hasTimeDeps = dynamicLabels.size > 0 || stateNeedsTime || hasAnimatedElements;
+  const hasTimeReactiveGraphics = timeReactiveGraphics.length > 0;
+  const hasTimeDeps = dynamicLabels.size > 0 || stateNeedsTime || hasAnimatedElements || hasTimeReactiveGraphics;
   const hasStateDeps = stateDeps.size > 0;
   const hasButtons = buttonActions.length > 0;
   const hasBranches = branchInfos.length > 0;
@@ -1478,6 +1579,7 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
     conditionalChildren,
     listInfo: irListInfo,
     listSlotLabels,
+    timeReactiveGraphics,
     animatedElements,
     messageInfo: irMessageInfo,
     hasButtons,

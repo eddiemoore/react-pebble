@@ -202,6 +202,23 @@ function emitDrawCalls(
       lines.push(`${indent}ctx.fill();`);
       break;
     }
+
+    case 'path': {
+      // Path/polygon: emit as bounding-box rect (Rocky.js canvas fallback)
+      const pts = el.points ?? [];
+      if (pts.length < 2) break;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [px, py] of pts) {
+        if (px < minX) minX = px;
+        if (py < minY) minY = py;
+        if (px > maxX) maxX = px;
+        if (py > maxY) maxY = py;
+      }
+      const fill = el.fill ?? '#ffffff';
+      lines.push(`${indent}ctx.fillStyle = '${fill}';`);
+      lines.push(`${indent}ctx.fillRect(${el.x + minX}, ${el.y + minY}, ${maxX - minX}, ${maxY - minY});`);
+      break;
+    }
   }
 }
 
