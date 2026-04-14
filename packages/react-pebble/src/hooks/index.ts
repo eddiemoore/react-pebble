@@ -1458,15 +1458,15 @@ export function useMeasurementSystem(): MeasurementSystem {
       return health.measurementSystem;
     }
   }
-  try {
-    if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
-      const locale = new Intl.DateTimeFormat().resolvedOptions().locale;
-      return locale.endsWith('-US') ? 'imperial' : 'metric';
-    }
-  } catch {
-    // ignore
+  // Mock mode (Node compile): default to 'metric' so snapshots are stable
+  // regardless of host OS locale. On-device the actual health global above
+  // always wins. Users whose app needs a specific system at compile time
+  // can set `process.env.PEBBLE_MEASUREMENT_SYSTEM` to 'imperial'.
+  const envPref = typeof process !== 'undefined' ? process.env?.PEBBLE_MEASUREMENT_SYSTEM : undefined;
+  if (envPref === 'imperial' || envPref === 'metric' || envPref === 'unknown') {
+    return envPref;
   }
-  return 'unknown';
+  return 'metric';
 }
 
 // ---------------------------------------------------------------------------
