@@ -166,10 +166,11 @@ export function main() {
 | `<ActionMenu>` | Hierarchical menu overlay with back button navigation |
 | `<NumberWindow>` | Numeric input picker with min/max/step via up/down/select |
 | `<WindowStack>` | Multi-window navigation with push/pop/replace and back button |
+| `useNavigation()` | Hook for accessing the surrounding `WindowStack` (push/pop/replace) from descendants |
 
 ### Hooks
 
-50+ hooks covering time, input, sensors, storage, networking, animation, and system APIs:
+65+ hooks covering time, input, sensors, storage, networking, animation, workers, lifecycle, i18n, and system APIs:
 
 #### Time & Animation
 
@@ -193,6 +194,7 @@ export function main() {
 | `useLongButton(button, handler)` | Long-press button handler. |
 | `useMultiClick(button, handlers)` | Single/double/triple click detection with configurable timeout. |
 | `useRepeatClick(button, options)` | Auto-repeating button press on hold. |
+| `useRawClick(button, options)` | Raw button down/up events for low-level input handling. |
 | `useListNavigation(items, opts)` | Up/down button navigation through a list with optional wrapping. |
 | `useDictation()` | Voice dictation input: start/stop, transcript result. |
 
@@ -203,8 +205,14 @@ export function main() {
 | `useBattery()` | Returns `{ percent, charging, plugged }` from the Battery sensor. |
 | `useConnection()` | Returns `{ app, pebblekit }` connection status. |
 | `useAccelerometer(options?)` | Returns `{ x, y, z }` motion data with optional `onTap`/`onDoubleTap` callbacks. |
+| `useAccelerometerRaw(options?)` | Batched raw accelerometer samples at a chosen rate (10/25/50/100 Hz). |
+| `useAccelerometerTap(handler)` | Direct tap-event subscription with `{ axis, direction }` payload. |
 | `useCompass()` | Returns `{ heading }` in degrees (0-360). |
 | `useHealth(pollInterval?)` | Health API: steps, sleep, heart rate, distance. |
+| `useHealthAlert(options)` | Fires a callback when a health metric crosses a threshold. |
+| `useHeartRateMonitor(options)` | High-sample-rate heart-rate monitoring session control. |
+| `useHealthHistory(options)` | Time-series history of a health metric across N days. |
+| `useMeasurementSystem()` | Reads the user's preferred measurement system (`metric`/`imperial`). |
 | `useVibration()` | Haptic vibration patterns: short, long, double, custom sequences. |
 | `useLight()` | Backlight control: on, off, auto. |
 | `useLocation(options?)` | GPS location via phone: lat, lng, accuracy, altitude. |
@@ -247,12 +255,50 @@ export function main() {
 | `useApp()` | Access PebbleApp instance from nested components. |
 | `useAppFocus(options?)` | App focus/blur event callbacks. |
 | `useAppGlance()` | App glance (launcher shortcut) management. |
+| `appGlanceTimeUntil(ts, fmt)` | Template builder for countdown subtitles in glance slices. |
+| `appGlanceTimeSince(ts, fmt)` | Template builder for "time-since" subtitles in glance slices. |
 | `useTimeline()` | Timeline pin creation and management. |
 | `useQuietTime()` | Whether quiet time / DND is active. |
 | `useLaunchReason()` | Why the app was launched (user, timeline, wakeup). |
+| `useLaunchInfo()` | Full launch context: reason, args, deep-link payload. |
+| `useExitReason()` | Reads + writes the persisted app exit reason for next launch. |
+| `useNotification()` | Display simple system notifications and alerts. |
 | `useWakeup()` | Schedule future app wakeup events. |
 | `usePreferredResultDuration()` | System preferred result display duration. |
+| `useMemoryStats(pollInterval?)` | Live heap usage stats: used, free, largest free block. |
+| `useMemoryPressure(handler)` | Subscribe to low-memory pressure callbacks (normal/high/critical). |
 | `pebbleLog(level, ...args)` | Structured logging to watch console. |
+
+#### Background Workers
+
+| Hook | Description |
+|------|------------|
+| `useWorkerLaunch()` | Launch / kill the background worker process from the foreground app. |
+| `useWorkerMessage(handler)` | Receive messages sent from the background worker. |
+| `useWorkerSender()` | Send messages to the background worker. |
+
+#### Companion & Sports
+
+| Hook | Description |
+|------|------------|
+| `useSports(options)` | PebbleKit Sports protocol: time, distance, pace, heart-rate updates. |
+
+#### Internationalization
+
+| Hook | Description |
+|------|------------|
+| `defineTranslations(dict)` | Register translation strings per language/locale at module scope. |
+| `useTranslation()` | Returns a `t(key, params?)` function that resolves to the active locale. |
+
+#### Trig & Geometry Helpers
+
+Pure helpers that work both in the compiler and on-device — no allocation, fixed-point trig where possible:
+
+- `polarPoint(centerX, centerY, radius, angle)` — convert polar to cartesian
+- `degreesToRadians(deg)`, `radiansToDegrees(rad)`
+- `angleBetweenPoints(x1, y1, x2, y2)`
+- `sinLookup(angle)`, `cosLookup(angle)`, `atan2Lookup(y, x)` — fixed-point trig matching the C SDK (`TRIG_MAX_ANGLE = 0x10000`)
+- `clockIs24HourStyle()`, `clockToTimestamp(...)`, `startOfToday()`
 
 ### Configuration Pages
 
@@ -271,7 +317,24 @@ const page = ConfigPage([
 const html = renderConfigPage(page);
 ```
 
-Available builders: `ConfigColor`, `ConfigToggle`, `ConfigText`, `ConfigSelect`, `ConfigSection`, `ConfigPage`, `renderConfigPage`, `configPageToDataUri`.
+Available builders (full Clay parity):
+
+| Builder | Renders |
+|---------|---------|
+| `ConfigHeading(label, level?)` | Section/heading text (h1/h2/h3) |
+| `ConfigText(key, label, default?)` | Free-text input |
+| `ConfigInput(key, label, opts)` | Generic input with `type` (`text`, `email`, `tel`, `number`, `password`, `url`) |
+| `ConfigColor(key, label, default?)` | Color picker |
+| `ConfigToggle(key, label, default?)` | On/off switch |
+| `ConfigSelect(key, label, options, default?)` | Dropdown select |
+| `ConfigRadioGroup(key, label, options, default?)` | Radio button group |
+| `ConfigCheckboxGroup(key, label, options, defaults?)` | Multi-select checkbox group |
+| `ConfigRange(key, label, opts)` | Range slider with min/max/step |
+| `ConfigSubmit(label?, color?)` | Custom submit button |
+| `ConfigSection(title, items)` | Group of items under a heading |
+| `ConfigPage(sections, opts?)` | Top-level page wrapper |
+| `renderConfigPage(spec)` | Returns the full HTML string |
+| `configPageToDataUri(spec)` | Returns a `data:` URI for `Pebble.openURL()` |
 
 ### Fonts
 
@@ -315,7 +378,7 @@ The compiler renders your component multiple times with different state values a
 
 ## Examples
 
-43 working examples covering all features:
+53 working examples covering all features:
 
 ### Watchfaces
 | Example | Features |
@@ -377,8 +440,22 @@ The compiler renders your component multiple times with different state values a
 |---------|----------|
 | `compass` | useCompass, useAccelerometer, diagonal lines |
 | `health` | Health API: steps, sleep, heart rate |
+| `health-advanced` | useHealthAlert, useHeartRateMonitor, useHealthHistory |
+| `accel-advanced` | useAccelerometerRaw batched samples + useRawClick |
 | `gps` | GPS location via phone |
 | `transit-tracker` | Transit data with networking and useMessage |
+| `sports` | useSports — PebbleKit Sports protocol companion |
+
+### Lifecycle, Workers & System
+| Example | Features |
+|---------|----------|
+| `worker-demo` | Background worker: useWorkerLaunch + useWorkerMessage + useWorkerSender |
+| `launch-lifecycle` | useLaunchInfo, useExitReason, deep-link args |
+| `app-glance-countdown` | Dynamic AppGlance subtitles with appGlanceTimeUntil/Since |
+| `memory-monitor` | useMemoryStats + useMemoryPressure runtime introspection |
+| `time-utils` | Wall-time helpers: useFormattedTime('auto'), clockToTimestamp |
+| `i18n` | defineTranslations + useTranslation across locales |
+| `config-rich` | All Clay config element types: heading, range, radio, checkbox group, etc. |
 
 ### Deploy any example
 
@@ -417,8 +494,8 @@ packages/
       compiler/index.ts      — Programmatic compiler API
       plugin/index.ts        — Vite plugin (pebblePiu) with multi-platform + phone JS generation
       components/index.tsx   — 26 JSX component wrappers (primitives, layout, composites, navigation)
-      hooks/index.ts         — 50+ hooks (time, input, sensors, storage, networking, animation, system)
-      config/index.ts        — Declarative config page builder (ConfigColor, ConfigToggle, etc.)
+      hooks/index.ts         — 65+ hooks (time, input, sensors, storage, networking, animation, workers, lifecycle, i18n, system)
+      config/index.ts        — Declarative config page builder with full Clay element parity
       pebble-dom.ts          — Virtual DOM
       pebble-dom-shim.ts     — DOM adapter for Preact
       pebble-output.ts       — Poco renderer (circles, lines, rounded rects, text wrapping)
@@ -435,12 +512,12 @@ packages/
       emit-pkjs.ts           — PebbleKit companion JS generation
       deploy.sh              — One-command deploy to emulator
       test-emulator.sh       — Full emulator test suite with button verification
-    examples/                — 43 working examples
+    examples/                — 53 working examples
     test/
       snapshot-test.ts       — Snapshot test runner
-      snapshots/             — 30 piu snapshot tests
-      snapshots-rocky/       — 4 Rocky.js snapshot tests
-      snapshots-c/           — 5 C code generation snapshot tests
+      snapshots/             — 52 piu snapshot tests
+      snapshots-rocky/       — 42 Rocky.js snapshot tests
+      snapshots-c/           — 42 C code generation snapshot tests
   create-pebble-app/         — npm: create-pebble-app
     index.js                 — Project scaffolder CLI
 ```
