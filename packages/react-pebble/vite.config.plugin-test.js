@@ -11,6 +11,8 @@ export default defineConfig({
   plugins: [
     pebblePiu({
       entry: process.env.ENTRY ?? 'examples/watchface.tsx',
+      target: process.env.COMPILE_TARGET ?? 'alloy',
+      platform: process.env.PEBBLE_PLATFORM ?? 'emery',
       settleMs: Number(process.env.SETTLE_MS ?? '0') || undefined,
       deploy: process.env.DEPLOY === 'true',
     }),

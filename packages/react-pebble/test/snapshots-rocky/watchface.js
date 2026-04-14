@@ -2,6 +2,8 @@
 //
 // Target: basalt (144x168)
 
+var rocky = require('rocky');
+
 function pad(n) { return n < 10 ? "0" + n : "" + n; }
 var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];

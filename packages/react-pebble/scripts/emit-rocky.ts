@@ -233,6 +233,8 @@ export function emitRocky(ir: CompilerIR): string {
   lines.push('//');
   lines.push('// Target: ' + ir.platform.name + ' (' + ir.platform.width + 'x' + ir.platform.height + ')');
   lines.push('');
+  lines.push("var rocky = require('rocky');");
+  lines.push('');
 
   // Warnings
   if (ir.hasButtons && (ir.platform.name === 'basalt' || ir.platform.name === 'chalk')) {

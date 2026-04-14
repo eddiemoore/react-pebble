@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test all examples on the Pebble Alloy emulator with button press verification.
+# Test all examples on the Pebble emulator with button press verification.
 #
 # For each example:
 #   1. Compile + build + install to emulator
@@ -8,15 +8,24 @@
 #   4. Screenshot after each button interaction
 #
 # Usage:
-#   ./scripts/test-emulator.sh                # test all examples
-#   ./scripts/test-emulator.sh counter        # test one example
+#   ./scripts/test-emulator.sh                           # test all (alloy/emery)
+#   ./scripts/test-emulator.sh counter                   # test one example
+#   COMPILE_TARGET=c PEBBLE_PLATFORM=basalt ./scripts/test-emulator.sh  # C on basalt
+#   COMPILE_TARGET=c ./scripts/test-emulator.sh counter  # C target on emery
 #   SETTLE_MS=200 ./scripts/test-emulator.sh async-list  # with settle delay
+#
+# Environment variables:
+#   COMPILE_TARGET   — alloy (default), rocky, or c
+#   PEBBLE_PLATFORM  — emery (default) or basalt
+#   SETTLE_MS        — milliseconds to wait for async effects
 #
 # Screenshots saved to /tmp/react-pebble-emu-test/
 
 set -e
 
 FILTER="${1:-}"
+COMPILE_TARGET="${COMPILE_TARGET:-alloy}"
+PEBBLE_PLATFORM="${PEBBLE_PLATFORM:-emery}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_DIR/.pebble-build"
@@ -33,13 +42,14 @@ deploy_example() {
   local name="$1"
   echo ""
   echo "========================================"
-  echo "  Testing: $name"
+  echo "  Testing: $name ($COMPILE_TARGET → $PEBBLE_PLATFORM)"
   echo "========================================"
 
   cd "$PROJECT_DIR"
 
   # Compile
-  ENTRY="examples/${name}.tsx" npx vite build --config vite.config.plugin-test.js 2>&1 | grep "\[react-pebble\]" || true
+  ENTRY="examples/${name}.tsx" COMPILE_TARGET="$COMPILE_TARGET" PEBBLE_PLATFORM="$PEBBLE_PLATFORM" \
+    npx vite build --config vite.config.plugin-test.js 2>&1 | grep "\[react-pebble\]" || true
 
   # Build
   cd "$BUILD_DIR"
@@ -50,7 +60,7 @@ deploy_example() {
   sleep 1
 
   # Install and wait for app to start
-  pebble install --emulator emery --logs > /tmp/react-pebble-emu.log 2>&1 &
+  pebble install --emulator "$PEBBLE_PLATFORM" --logs > /tmp/react-pebble-emu.log 2>&1 &
   EMU_PID=$!
   sleep 8
 
@@ -409,6 +419,137 @@ test_jira_list() {
   cleanup
 }
 
+test_arc() {
+  deploy_example arc
+  # UP +10%, DOWN -10%, SELECT reset
+  click up
+  screenshot arc-after-up
+  click up
+  click up
+  screenshot arc-30pct
+  click down
+  screenshot arc-20pct
+  click select
+  screenshot arc-reset
+  cleanup
+}
+
+test_canvas_demo() {
+  deploy_example canvas-demo
+  # UP +5 km/h, DOWN -5 km/h
+  click up
+  screenshot canvas-demo-speed-up
+  click up
+  click up
+  screenshot canvas-demo-speed15
+  click down
+  screenshot canvas-demo-speed10
+  cleanup
+}
+
+test_color_palette() {
+  deploy_example color-palette
+  # UP prev page, DOWN next page
+  click down
+  screenshot color-palette-page2
+  click down
+  screenshot color-palette-page3
+  click up
+  screenshot color-palette-back
+  cleanup
+}
+
+test_config_watchface() {
+  deploy_example config-watchface
+  # Watchface with config - no buttons, just verify render
+  cleanup
+}
+
+test_file_notes() {
+  deploy_example file-notes
+  # UP prev, DOWN next, SELECT toggle done
+  click down
+  screenshot file-notes-next
+  click select
+  screenshot file-notes-toggle
+  click up
+  screenshot file-notes-prev
+  cleanup
+}
+
+test_gps() {
+  deploy_example gps
+  # SELECT refreshes GPS (will show loading/error on emulator)
+  click select
+  sleep 2
+  screenshot gps-after-refresh
+  cleanup
+}
+
+test_image() {
+  deploy_example image
+  # Static image display - no buttons
+  cleanup
+}
+
+test_polar_clock() {
+  deploy_example polar-clock
+  # Watchface - no buttons
+  cleanup
+}
+
+test_round_safe() {
+  deploy_example round-safe
+  # Display bounds demo - no buttons
+  cleanup
+}
+
+test_simple_menu() {
+  deploy_example simple-menu
+  # SimpleMenu handles UP/DOWN internally
+  click down
+  screenshot simple-menu-sel1
+  click down
+  screenshot simple-menu-sel2
+  click select
+  screenshot simple-menu-selected
+  cleanup
+}
+
+test_text_flow() {
+  deploy_example text-flow
+  # Static text layout - no buttons
+  cleanup
+}
+
+test_transit_tracker() {
+  deploy_example transit-tracker
+  # UP prev, DOWN next, SELECT detail, BACK return
+  click down
+  screenshot transit-tracker-sel1
+  click down
+  screenshot transit-tracker-sel2
+  click select
+  screenshot transit-tracker-detail
+  click back
+  screenshot transit-tracker-back
+  cleanup
+}
+
+test_window_stack() {
+  deploy_example window-stack
+  # SELECT push detail, UP blue screen, DOWN red screen, BACK pop
+  click select
+  screenshot window-stack-detail
+  click back
+  screenshot window-stack-popped
+  click up
+  screenshot window-stack-blue
+  click back
+  screenshot window-stack-back-from-blue
+  cleanup
+}
+
 # ---------------------------------------------------------------------------
 # Run tests
 # ---------------------------------------------------------------------------
@@ -421,6 +562,9 @@ ALL_EXAMPLES=(
   weather
   vibration health path scrollable
   menu-layer number-window action-menu multi-click
+  arc color-palette config-watchface file-notes
+  gps image polar-clock round-safe simple-menu
+  text-flow transit-tracker window-stack
 )
 
 # Skip async examples by default (need SETTLE_MS)
@@ -447,6 +591,7 @@ run_test() {
 }
 
 echo "=== react-pebble emulator test suite ==="
+echo "Target: $COMPILE_TARGET | Platform: $PEBBLE_PLATFORM"
 echo "Screenshots: $SCREENSHOT_DIR"
 echo ""
 
@@ -464,6 +609,7 @@ fi
 
 echo ""
 echo "========================================"
+echo "  Target: $COMPILE_TARGET | Platform: $PEBBLE_PLATFORM"
 echo "  Results: $PASSED passed, $FAILED failed out of $TOTAL"
 echo "  Screenshots: $SCREENSHOT_DIR"
 echo "========================================"

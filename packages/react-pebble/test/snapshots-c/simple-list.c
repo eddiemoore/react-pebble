@@ -7,12 +7,6 @@ static Window *s_window;
 
 static int s0 = 0;
 
-static TextLayer *s_tl0;
-static char s_tl0_buf[32];
-static TextLayer *s_tl1;
-static char s_tl1_buf[32];
-static TextLayer *s_tl2;
-static char s_tl2_buf[32];
 static TextLayer *s_ls[3];
 static char s_ls_buf[3][32];
 static const char *_data[] = {"Alpha", "Beta", "Gamma", "Delta", "Epsilon"};
@@ -71,12 +65,12 @@ static void window_load(Window *window) {
   text_layer_set_text_color(s_ls[0], GColorWhite);
   text_layer_set_font(s_ls[0], fonts_get_system_font(FONT_KEY_GOTHIC_24));
   layer_add_child(root, text_layer_get_layer(s_ls[0]));
-  s_ls[1] = text_layer_create(GRect(10, 140, 180, 24));
+  s_ls[1] = text_layer_create(GRect(10, 90, 180, 24));
   text_layer_set_background_color(s_ls[1], GColorClear);
   text_layer_set_text_color(s_ls[1], GColorWhite);
   text_layer_set_font(s_ls[1], fonts_get_system_font(FONT_KEY_GOTHIC_24));
   layer_add_child(root, text_layer_get_layer(s_ls[1]));
-  s_ls[2] = text_layer_create(GRect(10, 240, 180, 24));
+  s_ls[2] = text_layer_create(GRect(10, 140, 180, 24));
   text_layer_set_background_color(s_ls[2], GColorClear);
   text_layer_set_text_color(s_ls[2], GColorWhite);
   text_layer_set_font(s_ls[2], fonts_get_system_font(FONT_KEY_GOTHIC_24));
@@ -86,9 +80,6 @@ static void window_load(Window *window) {
 }
 
 static void window_unload(Window *window) {
-  text_layer_destroy(s_tl0);
-  text_layer_destroy(s_tl1);
-  text_layer_destroy(s_tl2);
   for (int i = 0; i < 3; i++) { text_layer_destroy(s_ls[i]); }
 }
 

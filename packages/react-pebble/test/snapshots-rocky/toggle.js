@@ -2,6 +2,8 @@
 //
 // Target: basalt (144x168)
 
+var rocky = require('rocky');
+
 // WARNING: Rocky.js on basalt does not support button events.
 // Interactive features (buttons, scrolling) will not work.
 

@@ -8,7 +8,7 @@ static Layer *s_draw_layer;
 
 
 static TextLayer *s_tl0;
-static char s_tl0_buf[8];
+static char s_tl0_buf[12];
 static TextLayer *s_tl1;
 static char s_tl1_buf[4];
 static TextLayer *s_tl2;

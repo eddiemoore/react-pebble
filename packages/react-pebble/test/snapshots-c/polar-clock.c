@@ -8,7 +8,7 @@ static Layer *s_draw_layer;
 
 
 static TextLayer *s_tl0;
-static char s_tl0_buf[8];
+static char s_tl0_buf[12];
 static const GPathInfo s_path0_info = {
   .num_points = 3,
   .points = (GPoint[]) { {0, -34}, {-4, 0}, {4, 0} }

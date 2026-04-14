@@ -1047,7 +1047,7 @@ export function emitC(ir: CompilerIR): string {
 
     // Clamp width to screen — components may use emery (200px) dimensions
     const rawW = el.w > 0 ? el.w : ir.platform.width;
-    const w = Math.min(rawW, ir.platform.width - ax);
+    const w = clampW(ax, rawW, ir.platform.width);
     const h = 50;
     const font = fontToC(el.font);
     const color = colorToGColor(el.color ?? '#ffffff');
