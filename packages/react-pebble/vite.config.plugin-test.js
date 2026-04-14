@@ -7,14 +7,31 @@ import { pebblePiu } from './src/plugin/index.js';
 //   examples/jira-lite.tsx    (buttons + list + branches)
 //   examples/async-list.tsx   (useMessage, needs settleMs)
 
+const entry = process.env.ENTRY ?? 'examples/watchface.tsx';
+
+// Per-example resource bundles — tests that need fonts / APNG resources
+// plug into this map so `test-emulator.sh` can build them without changing
+// the generic config for every example.
+const resourcesByEntry = {
+  'examples/custom-font.tsx': [
+    {
+      type: 'font',
+      name: 'ROBOTO_24',
+      file: 'assets/fonts/roboto-regular.ttf',
+      characterRegex: '[A-Za-z0-9 :_]',
+    },
+  ],
+};
+
 export default defineConfig({
   plugins: [
     pebblePiu({
-      entry: process.env.ENTRY ?? 'examples/watchface.tsx',
+      entry,
       target: process.env.COMPILE_TARGET ?? 'alloy',
       platform: process.env.PEBBLE_PLATFORM ?? 'emery',
       settleMs: Number(process.env.SETTLE_MS ?? '0') || undefined,
       deploy: process.env.DEPLOY === 'true',
+      resources: resourcesByEntry[entry],
     }),
   ],
   build: {

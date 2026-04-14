@@ -2260,16 +2260,130 @@ export function useAppGlance(): UseAppGlanceResult {
 }
 
 // ---------------------------------------------------------------------------
-// useTimeline — push timeline pins
+// useTimeline — push timeline pins (full Pebble pin spec)
+//
+// The pushPin payload follows the Pebble timeline public API exactly:
+//   https://developer.repebble.com/guides/pebble-timeline/pin-structure/
+//
+// When the Moddable `Timeline` global is available it's called directly.
+// Otherwise, the pin is stringified and sent to the phone side via
+// AppMessage using the reserved key `_rpTLPush`; the compiler-emitted PKJS
+// HTTP-PUTs to the public web API using the user's timeline token.
 // ---------------------------------------------------------------------------
 
-export interface TimelinePin {
-  id: string;
-  time: number;
+/** Values for `layout.type` — one per Pebble pin layout. */
+export type TimelinePinLayoutType =
+  | 'genericPin'
+  | 'calendarPin'
+  | 'sportsPin'
+  | 'weatherPin'
+  | 'genericReminder'
+  | 'genericNotification'
+  | 'commNotification';
+
+/** Any valid Pebble color hex code (`#RRGGBB`) or named palette key. */
+export type TimelineColor = string;
+
+export interface TimelinePinLayout {
+  type: TimelinePinLayoutType;
   title: string;
+  subtitle?: string;
   body?: string;
-  icon?: string;
+  shortTitle?: string;
+  shortSubtitle?: string;
+  tinyIcon?: string;
+  smallIcon?: string;
+  largeIcon?: string;
+  locationName?: string;
+  primaryColor?: TimelineColor;
+  secondaryColor?: TimelineColor;
+  backgroundColor?: TimelineColor;
+  headings?: string[];
+  paragraphs?: string[];
+  lastUpdated?: number;
+  /** Sports-layout fields — score/ranks etc. */
+  rankAway?: string;
+  rankHome?: string;
+  nameAway?: string;
+  nameHome?: string;
+  recordAway?: string;
+  recordHome?: string;
+  scoreAway?: string;
+  scoreHome?: string;
+  sportsGameState?: 'pre-game' | 'in-game';
+  broadcaster?: string;
+  /** Allow extra layout fields documented by specific layout types. */
+  [key: string]: unknown;
 }
+
+export interface TimelinePinActionHttp {
+  type: 'http';
+  title: string;
+  url: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  headers?: Record<string, string>;
+  bodyText?: string;
+  bodyJSON?: unknown;
+  successText?: string;
+  successIcon?: string;
+  failureText?: string;
+  failureIcon?: string;
+}
+
+export interface TimelinePinActionOpenWatchApp {
+  type: 'openWatchApp';
+  title: string;
+  /** 32-bit integer forwarded to the watchapp on launch. */
+  launchCode: number;
+}
+
+export interface TimelinePinActionRemove {
+  type: 'remove';
+  title: string;
+}
+
+export type TimelinePinAction =
+  | TimelinePinActionHttp
+  | TimelinePinActionOpenWatchApp
+  | TimelinePinActionRemove;
+
+export interface TimelinePinReminder {
+  time: number;
+  layout: TimelinePinLayout;
+}
+
+export interface TimelinePinNotification {
+  time?: number;
+  layout: TimelinePinLayout;
+}
+
+export interface TimelinePin {
+  /** Unique identifier for this pin (used for updates and removal). */
+  id: string;
+  /** Unix milliseconds — when the pin should appear on the timeline. */
+  time: number;
+  /** Display duration in minutes (default 60). */
+  duration?: number;
+  /** Layout payload — at minimum a title. */
+  layout: TimelinePinLayout;
+  reminders?: TimelinePinReminder[];
+  actions?: TimelinePinAction[];
+  createNotification?: TimelinePinNotification;
+  updateNotification?: TimelinePinNotification;
+}
+
+/** Shorthand builder for an `openWatchApp` pin action. */
+export const TimelineAction = {
+  openWatchApp(title: string, launchCode: number): TimelinePinActionOpenWatchApp {
+    return { type: 'openWatchApp', title, launchCode };
+  },
+  http(action: Omit<TimelinePinActionHttp, 'type'>): TimelinePinActionHttp {
+    return { type: 'http', ...action };
+  },
+  remove(title = 'Remove'): TimelinePinActionRemove {
+    return { type: 'remove', title };
+  },
+};
 
 export interface UseTimelineResult {
   pushPin: (pin: TimelinePin) => void;
@@ -2279,27 +2393,34 @@ export interface UseTimelineResult {
 /**
  * Push or remove timeline pins.
  *
- * On Alloy: uses the `Timeline` global or sends a message to the
- * phone-side JS for cloud API interaction.
+ * On Alloy: uses the `Timeline` global if present, otherwise forwards
+ * the pin to the phone via AppMessage (`_rpTLPush` / `_rpTLRemove`).
  * In mock mode: no-op.
  */
 export function useTimeline(): UseTimelineResult {
   const pushPin = useCallback((pin: TimelinePin) => {
-    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Timeline) {
-      const tl = (globalThis as Record<string, unknown>).Timeline as {
-        pushPin?: (pin: TimelinePin) => void;
-      };
-      tl.pushPin?.(pin);
+    if (typeof globalThis === 'undefined') return;
+    const tl = (globalThis as Record<string, unknown>).Timeline as
+      | { pushPin?: (pin: TimelinePin) => void }
+      | undefined;
+    if (tl?.pushPin) {
+      tl.pushPin(pin);
+      return;
     }
+    // Fallback: forward to PKJS over AppMessage.
+    getPebbleGlobal()?.sendAppMessage?.({ _rpTLPush: JSON.stringify(pin) });
   }, []);
 
   const removePin = useCallback((id: string) => {
-    if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Timeline) {
-      const tl = (globalThis as Record<string, unknown>).Timeline as {
-        removePin?: (id: string) => void;
-      };
-      tl.removePin?.(id);
+    if (typeof globalThis === 'undefined') return;
+    const tl = (globalThis as Record<string, unknown>).Timeline as
+      | { removePin?: (id: string) => void }
+      | undefined;
+    if (tl?.removePin) {
+      tl.removePin(id);
+      return;
     }
+    getPebbleGlobal()?.sendAppMessage?.({ _rpTLRemove: id });
   }, []);
 
   return { pushPin, removePin };
@@ -3379,6 +3500,356 @@ export function useMemoryPressure(handler: (level: MemoryPressureLevel) => void)
     rocky.on('memorypressure', listener);
     return () => rocky.off?.('memorypressure', listener);
   }, []);
+}
+
+// ---------------------------------------------------------------------------
+// PebbleKit JS identity tokens — surfaced to the watch via AppMessage.
+//
+// Pebble.getAccountToken / getWatchToken / getTimelineToken are phone-only
+// APIs. The compiler emits PKJS that reads each token at app ready and
+// forwards it via AppMessage using these reserved keys:
+//
+//   _rpTokAcct   — developer-scoped stable user id (getAccountToken)
+//   _rpTokWatch  — stable per (app, watch) pair        (getWatchToken)
+//   _rpTokTL     — timeline token                      (getTimelineToken)
+//
+// At runtime, inbox/message dispatch populates `globalThis.__rpTokens`.
+// Hooks read from that bag (and a Moddable `Pebble` global fallback).
+// In mock mode (Node compile), the hooks return `null` so snapshots stay
+// deterministic regardless of host environment.
+// ---------------------------------------------------------------------------
+
+interface RPTokenBag {
+  _rpTokAcct?: string;
+  _rpTokWatch?: string;
+  _rpTokTL?: string;
+  _rpTokTLErr?: string;
+}
+
+interface ModdablePebbleGlobal {
+  getAccountToken?: () => string | undefined;
+  getWatchToken?: () => string | undefined;
+  getTimelineToken?: (
+    onSuccess: (token: string) => void,
+    onError: (err: string) => void,
+  ) => void;
+  sendAppMessage?: (msg: Record<string, unknown>) => void;
+}
+
+function getRPTokenBag(): RPTokenBag | undefined {
+  if (typeof globalThis === 'undefined') return undefined;
+  return (globalThis as Record<string, unknown>).__rpTokens as RPTokenBag | undefined;
+}
+
+function getPebbleGlobal(): ModdablePebbleGlobal | undefined {
+  if (typeof globalThis === 'undefined') return undefined;
+  return (globalThis as Record<string, unknown>).Pebble as ModdablePebbleGlobal | undefined;
+}
+
+/**
+ * Stable, developer-scoped user identifier (phone's `Pebble.getAccountToken()`).
+ * Returns `null` until the phone-side JS has forwarded the token.
+ */
+export function useAccountToken(): string | null {
+  const [token, setToken] = useState<string | null>(() => {
+    const bag = getRPTokenBag();
+    if (bag?._rpTokAcct) return bag._rpTokAcct;
+    const p = getPebbleGlobal();
+    const v = p?.getAccountToken?.();
+    return typeof v === 'string' && v.length > 0 ? v : null;
+  });
+
+  useEffect(() => {
+    if (typeof globalThis === 'undefined') return undefined;
+    const check = () => {
+      const bag = getRPTokenBag();
+      if (bag?._rpTokAcct) setToken(bag._rpTokAcct);
+    };
+    const w = (globalThis as Record<string, unknown>).watch as
+      | { addEventListener?: (e: string, fn: () => void) => void; removeEventListener?: (e: string, fn: () => void) => void }
+      | undefined;
+    w?.addEventListener?.('message', check);
+    return () => w?.removeEventListener?.('message', check);
+  }, []);
+
+  return token;
+}
+
+/**
+ * Stable per-(app, watch) identifier (phone's `Pebble.getWatchToken()`).
+ * Returns `null` until the phone-side JS has forwarded the token.
+ */
+export function useWatchToken(): string | null {
+  const [token, setToken] = useState<string | null>(() => {
+    const bag = getRPTokenBag();
+    if (bag?._rpTokWatch) return bag._rpTokWatch;
+    const p = getPebbleGlobal();
+    const v = p?.getWatchToken?.();
+    return typeof v === 'string' && v.length > 0 ? v : null;
+  });
+
+  useEffect(() => {
+    if (typeof globalThis === 'undefined') return undefined;
+    const check = () => {
+      const bag = getRPTokenBag();
+      if (bag?._rpTokWatch) setToken(bag._rpTokWatch);
+    };
+    const w = (globalThis as Record<string, unknown>).watch as
+      | { addEventListener?: (e: string, fn: () => void) => void; removeEventListener?: (e: string, fn: () => void) => void }
+      | undefined;
+    w?.addEventListener?.('message', check);
+    return () => w?.removeEventListener?.('message', check);
+  }, []);
+
+  return token;
+}
+
+export interface UseTimelineTokenResult {
+  /** The JWT-style token, or `null` while fetching. */
+  token: string | null;
+  /** Last error message from the phone side (`null` when healthy). */
+  error: string | null;
+  /** Ask the phone to re-fetch the token. */
+  refresh(): void;
+}
+
+/**
+ * Fetch the user's Pebble timeline token (phone's async `Pebble.getTimelineToken`).
+ * The compiler emits PKJS code that fetches and forwards the token at ready
+ * and on explicit refresh requests. Requires the `timeline` capability.
+ */
+export function useTimelineToken(): UseTimelineTokenResult {
+  const [token, setToken] = useState<string | null>(() => {
+    const bag = getRPTokenBag();
+    return bag?._rpTokTL ?? null;
+  });
+  const [error, setError] = useState<string | null>(() => {
+    const bag = getRPTokenBag();
+    return bag?._rpTokTLErr ?? null;
+  });
+
+  useEffect(() => {
+    if (typeof globalThis === 'undefined') return undefined;
+    const check = () => {
+      const bag = getRPTokenBag();
+      if (bag?._rpTokTL) setToken(bag._rpTokTL);
+      if (bag?._rpTokTLErr) setError(bag._rpTokTLErr);
+    };
+    const w = (globalThis as Record<string, unknown>).watch as
+      | { addEventListener?: (e: string, fn: () => void) => void; removeEventListener?: (e: string, fn: () => void) => void }
+      | undefined;
+    w?.addEventListener?.('message', check);
+    return () => w?.removeEventListener?.('message', check);
+  }, []);
+
+  const refresh = useCallback(() => {
+    const p = getPebbleGlobal();
+    // Ask PKJS to re-fetch by sending a refresh ping. The PKJS handler
+    // registers for `_rpTokTLRefresh` and calls `Pebble.getTimelineToken`.
+    p?.sendAppMessage?.({ _rpTokTLRefresh: 1 });
+  }, []);
+
+  return { token, error, refresh };
+}
+
+// ---------------------------------------------------------------------------
+// useTimelineSubscriptions — manage PebbleKit JS timeline topic subscriptions.
+//
+// The compiler emits PKJS code that handles inbox commands:
+//   _rpTLSub:<topic>    — Pebble.timelineSubscribe(topic)
+//   _rpTLUnsub:<topic>  — Pebble.timelineUnsubscribe(topic)
+//   _rpTLList:1         — Pebble.timelineSubscriptions(cb) → forwards result
+//
+// The phone side forwards the subscription list via `_rpTLSubs` (JSON
+// array), which this hook reads from the `__rpTokens` bag.
+// ---------------------------------------------------------------------------
+
+interface RPSubscriptionsBag {
+  _rpTLSubs?: string[];
+  _rpTLSubsErr?: string;
+}
+
+export interface UseTimelineSubscriptionsResult {
+  /** Current subscribed topics; `null` until the phone responds the first time. */
+  topics: string[] | null;
+  /** Last error message from the phone side (`null` when healthy). */
+  error: string | null;
+  /** Ask the phone to subscribe to `topic`. */
+  subscribe(topic: string): void;
+  /** Ask the phone to unsubscribe from `topic`. */
+  unsubscribe(topic: string): void;
+  /** Request an updated subscription list. */
+  refresh(): void;
+}
+
+export function useTimelineSubscriptions(): UseTimelineSubscriptionsResult {
+  const readBag = (): RPSubscriptionsBag | undefined => {
+    if (typeof globalThis === 'undefined') return undefined;
+    return (globalThis as Record<string, unknown>).__rpTokens as RPSubscriptionsBag | undefined;
+  };
+
+  const [topics, setTopics] = useState<string[] | null>(() => readBag()?._rpTLSubs ?? null);
+  const [error, setError] = useState<string | null>(() => readBag()?._rpTLSubsErr ?? null);
+
+  useEffect(() => {
+    if (typeof globalThis === 'undefined') return undefined;
+    const check = () => {
+      const bag = readBag();
+      if (bag?._rpTLSubs) setTopics(bag._rpTLSubs);
+      if (bag?._rpTLSubsErr) setError(bag._rpTLSubsErr);
+    };
+    const w = (globalThis as Record<string, unknown>).watch as
+      | { addEventListener?: (e: string, fn: () => void) => void; removeEventListener?: (e: string, fn: () => void) => void }
+      | undefined;
+    w?.addEventListener?.('message', check);
+    return () => w?.removeEventListener?.('message', check);
+  }, []);
+
+  const subscribe = useCallback((topic: string) => {
+    getPebbleGlobal()?.sendAppMessage?.({ _rpTLSub: topic });
+  }, []);
+  const unsubscribe = useCallback((topic: string) => {
+    getPebbleGlobal()?.sendAppMessage?.({ _rpTLUnsub: topic });
+  }, []);
+  const refresh = useCallback(() => {
+    getPebbleGlobal()?.sendAppMessage?.({ _rpTLList: 1 });
+  }, []);
+
+  return { topics, error, subscribe, unsubscribe, refresh };
+}
+
+// ---------------------------------------------------------------------------
+// useRawResource — load a declared `type: 'raw'` resource as a byte array.
+// ---------------------------------------------------------------------------
+
+interface PebbleResourceCtor {
+  new (name: string): { byteLength: number; slice(begin: number, end: number): ArrayBuffer };
+}
+
+/**
+ * Read a raw resource blob declared via `pebblePiu({ resources: [{ type: 'raw', name, file }] })`.
+ *
+ * On Alloy: uses Moddable's `Resource` constructor.
+ * On Rocky / C / mock: currently returns `null` (C/Rocky paths rely on
+ * compiler-emitted helpers; wire once your app needs them).
+ */
+export function useRawResource(name: string): Uint8Array | null {
+  return useMemoizedValue(() => {
+    if (typeof globalThis === 'undefined') return null;
+    const Res = (globalThis as Record<string, unknown>).Resource as PebbleResourceCtor | undefined;
+    if (!Res) return null;
+    try {
+      const r = new Res(name);
+      const buf = r.slice(0, r.byteLength);
+      return new Uint8Array(buf);
+    } catch {
+      return null;
+    }
+  }, [name]);
+}
+
+function useMemoizedValue<T>(factory: () => T, deps: unknown[]): T {
+  const ref = useRef<{ deps: unknown[]; value: T } | null>(null);
+  const cur = ref.current;
+  const same =
+    cur !== null &&
+    cur.deps.length === deps.length &&
+    cur.deps.every((d, i) => d === deps[i]);
+  if (same) return cur.value;
+  const value = factory();
+  ref.current = { deps, value };
+  return value;
+}
+
+// ---------------------------------------------------------------------------
+// useSmartstrap — UART accessory protocol (fitness bands, GPS, extra sensors).
+//
+// Pebble's Smartstrap API exposes attribute-oriented reads/writes over a
+// 3-pin UART. The watch-side C API is a set of `smartstrap_*` calls; Moddable
+// currently has no public binding, so this hook delegates to whatever the
+// compiler emits on each target:
+//
+//   - C:     smartstrap_subscribe + smartstrap_attribute_create/read/write
+//   - Alloy: `globalThis.Smartstrap` if present, else {available:false}
+//   - Rocky: unsupported → {available:false}
+// ---------------------------------------------------------------------------
+
+export interface SmartstrapAttributeOpts {
+  /** Service ID (2-byte unsigned). */
+  service: number;
+  /** Attribute ID (2-byte unsigned). */
+  attribute: number;
+  /** Buffer size to allocate for this attribute (bytes). */
+  length?: number;
+}
+
+export interface SmartstrapResult {
+  /** Whether a smartstrap is currently connected and responding. */
+  available: boolean;
+  /** Issue a read and receive the bytes via `onNotify`. */
+  read(): void;
+  /** Write `data` to the attribute. */
+  write(data: Uint8Array | ArrayBuffer): void;
+  /** Set a handler for read responses and unsolicited notifications. */
+  onNotify(handler: (data: Uint8Array) => void): () => void;
+}
+
+interface ModdableSmartstrap {
+  available?: boolean;
+  attribute?: (opts: SmartstrapAttributeOpts) => {
+    read(): void;
+    write(data: ArrayBuffer): void;
+    onNotify?: (cb: (buf: ArrayBuffer) => void) => () => void;
+    close?(): void;
+  };
+}
+
+export function useSmartstrap(opts: SmartstrapAttributeOpts): SmartstrapResult {
+  const handlerRef = useRef<((data: Uint8Array) => void) | null>(null);
+  const attrRef = useRef<ReturnType<NonNullable<ModdableSmartstrap['attribute']>> | null>(null);
+  const [available, setAvailable] = useState(false);
+
+  useEffect(() => {
+    if (typeof globalThis === 'undefined') return undefined;
+    const ss = (globalThis as Record<string, unknown>).Smartstrap as ModdableSmartstrap | undefined;
+    if (!ss?.attribute) {
+      setAvailable(false);
+      return undefined;
+    }
+    const attr = ss.attribute(opts);
+    attrRef.current = attr;
+    setAvailable(ss.available ?? true);
+    const unsub = attr.onNotify?.((buf) => {
+      handlerRef.current?.(new Uint8Array(buf));
+    });
+    return () => {
+      unsub?.();
+      attr.close?.();
+      attrRef.current = null;
+    };
+  }, [opts.service, opts.attribute, opts.length]);
+
+  const read = useCallback(() => {
+    attrRef.current?.read();
+  }, []);
+  const write = useCallback((data: Uint8Array | ArrayBuffer) => {
+    let buf: ArrayBuffer;
+    if (data instanceof Uint8Array) {
+      const src = data.buffer as ArrayBuffer;
+      buf = src.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    } else {
+      buf = data;
+    }
+    attrRef.current?.write(buf);
+  }, []);
+  const onNotify = useCallback((handler: (data: Uint8Array) => void) => {
+    handlerRef.current = handler;
+    return () => {
+      if (handlerRef.current === handler) handlerRef.current = null;
+    };
+  }, []);
+
+  return { available, read, write, onNotify };
 }
 
 // ---------------------------------------------------------------------------

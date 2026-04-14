@@ -45,6 +45,21 @@ function fontToC(name: string | undefined): string {
   return FONT_TO_C[name] ?? 'FONT_KEY_GOTHIC_18';
 }
 
+/** Is this font name a system font (vs a declared custom font resource)? */
+function isSystemFontC(name: string | undefined): boolean {
+  return !name || Object.prototype.hasOwnProperty.call(FONT_TO_C, name);
+}
+
+/** Emit the full font expression — system fonts load-once, customs use a static. */
+function fontExprC(name: string | undefined): string {
+  if (isSystemFontC(name)) {
+    return `fonts_get_system_font(${fontToC(name)})`;
+  }
+  // Custom font — resource name uppercased, resolved at window_load into a static.
+  const resName = String(name).toUpperCase();
+  return `s_font_${resName.toLowerCase()}`;
+}
+
 // ---------------------------------------------------------------------------
 // Color mapping
 // ---------------------------------------------------------------------------
@@ -462,16 +477,82 @@ export function emitC(ir: CompilerIR): string {
     lines.push(`static Layer *${bc.layerVar};`);
   }
 
-  // Image bitmaps
+  // Animated image resources — walk the IR to find APNG / PDC-sequence
+  // declarations. Each declares a sequence + a reusable frame bitmap and a
+  // repeating timer that advances to the next frame and redraws.
+  interface AnimatedImageC {
+    resName: string;
+    format: 'apng' | 'pdcs';
+    loop: boolean;
+    el: IRElement;
+  }
+  const animatedImages: AnimatedImageC[] = [];
+  const seenAnimResNames = new Set<string>();
+  function collectAnimated(el: IRElement): void {
+    if (el.type === 'image' && el.animated && el.src) {
+      const resName = el.src.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toUpperCase();
+      if (!seenAnimResNames.has(resName)) {
+        seenAnimResNames.add(resName);
+        animatedImages.push({
+          resName,
+          format: el.animated,
+          loop: el.animLoop !== false,
+          el,
+        });
+      }
+    }
+    for (const c of el.children ?? []) collectAnimated(c);
+  }
+  for (const el of ir.tree) collectAnimated(el);
+
+  // Image bitmaps — exclude animated sources (they live in s_seq_* / s_seqframe_*)
   const imageResNames: string[] = [];
   for (const src of ir.imageResources) {
     const resName = src.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toUpperCase();
+    if (seenAnimResNames.has(resName)) continue;
     if (!imageResNames.includes(resName)) {
       imageResNames.push(resName);
       lines.push(`static GBitmap *s_img_${resName.toLowerCase()};`);
     }
   }
   lines.push('');
+
+  for (const ai of animatedImages) {
+    const lower = ai.resName.toLowerCase();
+    if (ai.format === 'apng') {
+      lines.push(`static GBitmapSequence *s_seq_${lower};`);
+      lines.push(`static GBitmap *s_seqframe_${lower};`);
+    } else {
+      lines.push(`static GDrawCommandSequence *s_seq_${lower};`);
+      lines.push(`static uint32_t s_seqframe_${lower}_idx;`);
+    }
+    lines.push(`static AppTimer *s_seqtimer_${lower};`);
+  }
+  if (animatedImages.length > 0) lines.push('');
+
+  // Custom font resources — any `font="NAME"` value that doesn't match
+  // FONT_TO_C is treated as a user-declared TTF resource loaded via
+  // `fonts_load_custom_font(resource_get_handle(RESOURCE_ID_NAME))`.
+  const customFontNames = new Set<string>();
+  function collectFonts(el: IRElement): void {
+    if (el.type === 'text' || el.type === 'textflow') {
+      if (el.font && !isSystemFontC(el.font)) {
+        customFontNames.add(el.font);
+      }
+    }
+    for (const c of el.children ?? []) collectFonts(c);
+  }
+  for (const el of ir.tree) collectFonts(el);
+  for (const fname of customFontNames) {
+    lines.push(`static GFont s_font_${fname.toLowerCase()};`);
+  }
+  if (customFontNames.size > 0) lines.push('');
+
+  // Forward declarations for per-resource advance callbacks.
+  for (const ai of animatedImages) {
+    lines.push(`static void _seq_advance_${ai.resName.toLowerCase()}(void *data);`);
+  }
+  if (animatedImages.length > 0) lines.push('');
 
   // State variables
   for (const slot of ir.stateSlots) {
@@ -569,6 +650,41 @@ export function emitC(ir: CompilerIR): string {
   }
 
   lines.push('');
+
+  // =========================================================================
+  // Animated sequence advance callbacks (APNG / PDC-sequence)
+  // =========================================================================
+
+  for (const ai of animatedImages) {
+    const lower = ai.resName.toLowerCase();
+    lines.push(`static void _seq_advance_${lower}(void *data) {`);
+    if (ai.format === 'apng') {
+      lines.push(`  if (!s_seq_${lower} || !s_seqframe_${lower}) return;`);
+      lines.push(`  uint32_t delay_ms = 0;`);
+      lines.push(`  bool has_next = gbitmap_sequence_update_bitmap_next_frame(s_seq_${lower}, s_seqframe_${lower}, &delay_ms);`);
+      if (needsDrawLayer) {
+        lines.push(`  if (s_draw_layer) layer_mark_dirty(s_draw_layer);`);
+      }
+      lines.push(`  if (has_next && delay_ms > 0) {`);
+      lines.push(`    s_seqtimer_${lower} = app_timer_register(delay_ms, _seq_advance_${lower}, NULL);`);
+      lines.push(`  } else {`);
+      lines.push(`    s_seqtimer_${lower} = NULL;`);
+      lines.push(`  }`);
+    } else {
+      lines.push(`  if (!s_seq_${lower}) return;`);
+      lines.push(`  uint32_t nframes = gdraw_command_sequence_get_num_frames(s_seq_${lower});`);
+      lines.push(`  if (nframes == 0) return;`);
+      const step = ai.loop ? '(s_seqframe_' + lower + '_idx + 1) % nframes' : '(s_seqframe_' + lower + '_idx + 1 < nframes ? s_seqframe_' + lower + '_idx + 1 : nframes - 1)';
+      lines.push(`  s_seqframe_${lower}_idx = ${step};`);
+      const delay = Math.round(1000 / (ai.el.animFps && ai.el.animFps > 0 ? ai.el.animFps : 10));
+      if (needsDrawLayer) {
+        lines.push(`  if (s_draw_layer) layer_mark_dirty(s_draw_layer);`);
+      }
+      lines.push(`  s_seqtimer_${lower} = app_timer_register(${delay}, _seq_advance_${lower}, NULL);`);
+    }
+    lines.push('}');
+    lines.push('');
+  }
 
   // =========================================================================
   // draw_proc (custom drawing for rects, circles, lines)
@@ -1036,6 +1152,33 @@ export function emitC(ir: CompilerIR): string {
   }
   if (imageResNames.length > 0) lines.push('');
 
+  // Load custom fonts
+  for (const fname of customFontNames) {
+    lines.push(`  s_font_${fname.toLowerCase()} = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_${fname.toUpperCase()}));`);
+  }
+  if (customFontNames.size > 0) lines.push('');
+
+  // Load animated sequence resources and start their advance timers.
+  for (const ai of animatedImages) {
+    const lower = ai.resName.toLowerCase();
+    if (ai.format === 'apng') {
+      lines.push(`  s_seq_${lower} = gbitmap_sequence_create_with_resource(RESOURCE_ID_${ai.resName});`);
+      lines.push(`  if (s_seq_${lower}) {`);
+      lines.push(`    GSize _sz = gbitmap_sequence_get_bitmap_size(s_seq_${lower});`);
+      lines.push(`    s_seqframe_${lower} = gbitmap_create_blank(_sz, GBitmapFormat8Bit);`);
+      lines.push(`    gbitmap_sequence_set_play_count(s_seq_${lower}, ${ai.loop ? 'PLAY_COUNT_INFINITE' : '1'});`);
+      lines.push(`    _seq_advance_${lower}(NULL);`);
+      lines.push(`  }`);
+    } else {
+      lines.push(`  s_seq_${lower} = gdraw_command_sequence_create_with_resource(RESOURCE_ID_${ai.resName});`);
+      lines.push(`  s_seqframe_${lower}_idx = 0;`);
+      lines.push(`  if (s_seq_${lower}) {`);
+      lines.push(`    _seq_advance_${lower}(NULL);`);
+      lines.push(`  }`);
+    }
+  }
+  if (animatedImages.length > 0) lines.push('');
+
   // Helper to emit text layer creation
   function emitTextLayerCreate(te: typeof allTextElements[0], parentVar: string) {
     const el = te.el;
@@ -1049,7 +1192,7 @@ export function emitC(ir: CompilerIR): string {
     const rawW = el.w > 0 ? el.w : ir.platform.width;
     const w = clampW(ax, rawW, ir.platform.width);
     const h = 50;
-    const font = fontToC(el.font);
+    const fontExpr = fontExprC(el.font);
     const color = colorToGColor(el.color ?? '#ffffff');
     const align = alignToC(el.align);
     const text = (el.text ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -1059,7 +1202,7 @@ export function emitC(ir: CompilerIR): string {
       lines.push(`  ${dv.varName} = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
       lines.push(`  text_layer_set_background_color(${dv.varName}, GColorClear);`);
       lines.push(`  text_layer_set_text_color(${dv.varName}, ${color});`);
-      lines.push(`  text_layer_set_font(${dv.varName}, fonts_get_system_font(${font}));`);
+      lines.push(`  text_layer_set_font(${dv.varName}, ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
         lines.push(`  text_layer_set_text_alignment(${dv.varName}, ${align});`);
       }
@@ -1070,7 +1213,7 @@ export function emitC(ir: CompilerIR): string {
       lines.push(`  s_cfg_tl[${cfgIdx}] = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
       lines.push(`  text_layer_set_background_color(s_cfg_tl[${cfgIdx}], GColorClear);`);
       lines.push(`  text_layer_set_text_color(s_cfg_tl[${cfgIdx}], ${color});`);
-      lines.push(`  text_layer_set_font(s_cfg_tl[${cfgIdx}], fonts_get_system_font(${font}));`);
+      lines.push(`  text_layer_set_font(s_cfg_tl[${cfgIdx}], ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
         lines.push(`  text_layer_set_text_alignment(s_cfg_tl[${cfgIdx}], ${align});`);
       }
@@ -1081,7 +1224,7 @@ export function emitC(ir: CompilerIR): string {
       lines.push(`  TextLayer *${localVar} = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
       lines.push(`  text_layer_set_background_color(${localVar}, GColorClear);`);
       lines.push(`  text_layer_set_text_color(${localVar}, ${color});`);
-      lines.push(`  text_layer_set_font(${localVar}, fonts_get_system_font(${font}));`);
+      lines.push(`  text_layer_set_font(${localVar}, ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
         lines.push(`  text_layer_set_text_alignment(${localVar}, ${align});`);
       }
@@ -1139,14 +1282,14 @@ export function emitC(ir: CompilerIR): string {
           : 0;
         const y = templateLabel?.y ?? (firstY + i * itemHeight + subLabelOffset);
         const w = templateLabel?.w ?? ir.platform.width;
-        const font = fontToC(templateLabel?.font);
+        const fontExpr = fontExprC(templateLabel?.font);
         const color = colorToGColor(templateLabel?.color ?? '#ffffff');
         const align = alignToC(templateLabel?.align);
 
         lines.push(`  s_ls[${flatIdx}] = text_layer_create(GRect(${x}, ${y}, ${w}, 24));`);
         lines.push(`  text_layer_set_background_color(s_ls[${flatIdx}], GColorClear);`);
         lines.push(`  text_layer_set_text_color(s_ls[${flatIdx}], ${color});`);
-        lines.push(`  text_layer_set_font(s_ls[${flatIdx}], fonts_get_system_font(${font}));`);
+        lines.push(`  text_layer_set_font(s_ls[${flatIdx}], ${fontExpr});`);
         if (align !== 'GTextAlignmentLeft') {
           lines.push(`  text_layer_set_text_alignment(s_ls[${flatIdx}], ${align});`);
         }
@@ -1195,6 +1338,19 @@ export function emitC(ir: CompilerIR): string {
   }
   for (const resName of imageResNames) {
     lines.push(`  gbitmap_destroy(s_img_${resName.toLowerCase()});`);
+  }
+  for (const fname of customFontNames) {
+    lines.push(`  if (s_font_${fname.toLowerCase()}) { fonts_unload_custom_font(s_font_${fname.toLowerCase()}); s_font_${fname.toLowerCase()} = NULL; }`);
+  }
+  for (const ai of animatedImages) {
+    const lower = ai.resName.toLowerCase();
+    lines.push(`  if (s_seqtimer_${lower}) { app_timer_cancel(s_seqtimer_${lower}); s_seqtimer_${lower} = NULL; }`);
+    if (ai.format === 'apng') {
+      lines.push(`  if (s_seqframe_${lower}) { gbitmap_destroy(s_seqframe_${lower}); s_seqframe_${lower} = NULL; }`);
+      lines.push(`  if (s_seq_${lower}) { gbitmap_sequence_destroy(s_seq_${lower}); s_seq_${lower} = NULL; }`);
+    } else {
+      lines.push(`  if (s_seq_${lower}) { gdraw_command_sequence_destroy(s_seq_${lower}); s_seq_${lower} = NULL; }`);
+    }
   }
   if (needsDrawLayer) {
     lines.push('  layer_destroy(s_draw_layer);');
@@ -1361,7 +1517,23 @@ function emitGraphicsDrawCall(
     case 'image': {
       const src = el.src ?? '';
       const resName = src.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toUpperCase();
-      const varName = `s_img_${resName.toLowerCase()}`;
+      const lower = resName.toLowerCase();
+      if (el.animated === 'apng') {
+        // Native APNG playback — draws the current frame of the sequence.
+        lines.push(`${indent}if (s_seqframe_${lower}) {`);
+        lines.push(`${indent}  graphics_draw_bitmap_in_rect(ctx, s_seqframe_${lower}, GRect(${ax}, ${ay}, ${el.w}, ${el.h}));`);
+        lines.push(`${indent}}`);
+        break;
+      }
+      if (el.animated === 'pdcs') {
+        // PDC-sequence playback — draws the current frame at millisecond offset.
+        lines.push(`${indent}if (s_seq_${lower}) {`);
+        lines.push(`${indent}  GDrawCommandFrame *_f = gdraw_command_sequence_get_frame_by_index(s_seq_${lower}, s_seqframe_${lower}_idx);`);
+        lines.push(`${indent}  if (_f) gdraw_command_frame_draw(ctx, s_seq_${lower}, _f, GPoint(${ax}, ${ay}));`);
+        lines.push(`${indent}}`);
+        break;
+      }
+      const varName = `s_img_${lower}`;
       lines.push(`${indent}if (${varName}) {`);
       const rotation = typeof el.rotation === 'number' ? el.rotation : 0;
       if (rotation !== 0) {

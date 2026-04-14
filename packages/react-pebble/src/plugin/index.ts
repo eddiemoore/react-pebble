@@ -26,6 +26,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
@@ -69,7 +70,7 @@ export interface PebblePiuOptions {
    * (useLocation → 'location', useHealth → 'health', useConfiguration → 'configurable').
    * Any values you pass here are merged in addition to the inferred set.
    */
-  capabilities?: Array<'location' | 'configurable' | 'health'>;
+  capabilities?: Array<'location' | 'configurable' | 'health' | 'timeline' | 'smartstrap'>;
   /**
    * Disable capability auto-inference. Pass only the capabilities in `capabilities`.
    * Default: false (auto-inference is on).
@@ -289,7 +290,7 @@ interface ScaffoldOptions {
   /** `pebble.watchapp.onlyShownOnCommunication` */
   onlyShownOnCommunication?: boolean;
   /** Final list of capabilities (after auto-inference + user additions) */
-  capabilities?: Array<'location' | 'configurable' | 'health'>;
+  capabilities?: Array<'location' | 'configurable' | 'health' | 'timeline' | 'smartstrap'>;
   /** Override `pebble.enableMultiJS` (default true) */
   enableMultiJS?: boolean;
   /** Additional declared resources (fonts, raw, pdc, apng, etc.) */
@@ -321,10 +322,14 @@ function buildMediaEntries(options: ScaffoldOptions): Record<string, unknown>[] 
   const entries: Record<string, unknown>[] = [];
   const seenNames = new Set<string>();
 
-  // User-declared resources take precedence
+  // User-declared resources take precedence. The Pebble SDK waf doesn't
+  // know about `apng` / `pdc-sequence` types — ship those as `raw` so the
+  // asset is bundled verbatim; the runtime uses `gbitmap_sequence_*` /
+  // `gdraw_command_sequence_*` to decode on-device.
   for (const r of options.resources ?? []) {
+    const sdkType = r.type === 'apng' || r.type === 'pdc-sequence' ? 'raw' : r.type;
     const entry: Record<string, unknown> = {
-      type: r.type,
+      type: sdkType,
       name: r.name,
       file: r.file.replace(/^.*\//, ''),
     };
@@ -336,12 +341,20 @@ function buildMediaEntries(options: ScaffoldOptions): Record<string, unknown>[] 
     seenNames.add(r.name);
   }
 
-  // Auto-detected PNGs from the component tree
+  // Auto-detected images from the component tree. Extension picks the
+  // Pebble SDK resource type — APNG and PDC-sequence assets ship as `raw`
+  // because the SDK waf has no `apng` / `pdc-sequence` generator; they're
+  // decoded at runtime via `gbitmap_sequence_*` / `gdraw_command_sequence_*`.
   for (const src of options.imageResources ?? []) {
     const name = src.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toUpperCase();
     if (seenNames.has(name)) continue;
+    const ext = (src.match(/\.([^./]+)$/)?.[1] ?? 'png').toLowerCase();
+    const type: string =
+      ext === 'apng' || ext === 'pdcs' ? 'raw'
+      : ext === 'pdc' ? 'pdc'
+      : 'png';
     entries.push({
-      type: 'png',
+      type,
       name,
       file: src.replace(/^.*\//, ''),
     });
@@ -354,8 +367,9 @@ function buildMediaEntries(options: ScaffoldOptions): Record<string, unknown>[] 
 function computeCapabilities(
   options: PebblePiuOptions,
   hooksUsed: string[],
-): Array<'location' | 'configurable' | 'health'> {
-  const set = new Set<'location' | 'configurable' | 'health'>(options.capabilities ?? []);
+): Array<'location' | 'configurable' | 'health' | 'timeline' | 'smartstrap'> {
+  type Cap = 'location' | 'configurable' | 'health' | 'timeline' | 'smartstrap';
+  const set = new Set<Cap>(options.capabilities ?? []);
   if (!options.noCapabilityAutoInfer) {
     const used = new Set(hooksUsed);
     if (used.has('useLocation')) set.add('location');
@@ -368,6 +382,16 @@ function computeCapabilities(
       used.has('useMeasurementSystem')
     ) {
       set.add('health');
+    }
+    if (
+      used.has('useTimeline') ||
+      used.has('useTimelineToken') ||
+      used.has('useTimelineSubscriptions')
+    ) {
+      set.add('timeline');
+    }
+    if (used.has('useSmartstrap')) {
+      set.add('smartstrap');
     }
   }
   return [...set];
@@ -505,9 +529,15 @@ int main(void) {
     }
   }
 
+  // Always clean the resources directory before copying so stale resources
+  // from previous builds (e.g. a font from a different example) don't leak
+  // into the current pbw and confuse the emulator.
+  const moddableResDir = join(dir, 'src', 'embeddedjs', 'resources');
+  const pebbleResDir = join(dir, 'resources');
+  if (existsSync(pebbleResDir)) rmSync(pebbleResDir, { recursive: true, force: true });
+  if (existsSync(moddableResDir)) rmSync(moddableResDir, { recursive: true, force: true });
+
   if (filesToCopy.length > 0) {
-    const moddableResDir = join(dir, 'src', 'embeddedjs', 'resources');
-    const pebbleResDir = join(dir, 'resources');
     // Alloy builds need the moddable resources dir too
     if (!isRocky && options.target !== 'c') {
       mkdirSync(moddableResDir, { recursive: true });
@@ -518,10 +548,23 @@ int main(void) {
       const srcPath = options.projectRoot ? resolve(options.projectRoot, src) : resolve(src);
       if (existsSync(srcPath)) {
         copyFileSync(srcPath, join(pebbleResDir, fileName));
-        // Only copy PNGs into the Moddable resources dir (fonts/raw/pdc
-        // don't have Moddable equivalents).
-        if (!isRocky && options.target !== 'c' && /\.(png|jpg|jpeg)$/i.test(fileName)) {
+        // Copy bitmap-style assets into the Moddable resources dir so piu's
+        // `new Texture(name)` can find them. PDC / fonts / raw / TTF don't
+        // have Moddable equivalents — they're loaded via the Pebble C SDK.
+        if (!isRocky && options.target !== 'c' && /\.(png|jpg|jpeg|gif|bmp)$/i.test(fileName)) {
           copyFileSync(srcPath, join(moddableResDir, fileName));
+        }
+        // Moddable's piu `Texture` can't decode APNG or PDC-sequence. When
+        // the user ships such an animated resource, also copy the `.png`
+        // sibling (same basename) so the Alloy target can render a static
+        // first frame. The generated piu code references that .png name.
+        if (!isRocky && options.target !== 'c' && /\.(apng|pdcs)$/i.test(fileName)) {
+          const pngFallback = srcPath.replace(/\.(apng|pdcs)$/i, '.png');
+          if (existsSync(pngFallback)) {
+            const pngFile = fileName.replace(/\.(apng|pdcs)$/i, '.png');
+            copyFileSync(pngFallback, join(moddableResDir, pngFile));
+            copyFileSync(pngFallback, join(pebbleResDir, pngFile));
+          }
         }
       }
     }

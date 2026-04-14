@@ -54,7 +54,12 @@ const FONT_TO_ROCKY: Record<string, string> = {
 
 function fontToRocky(name: string | undefined): string {
   if (!name) return '18px Gothic';
-  return FONT_TO_ROCKY[name] ?? '18px Gothic';
+  const mapped = FONT_TO_ROCKY[name];
+  if (mapped) return mapped;
+  if (/^(bold\s|light\s|black\s)?\d+px\s+\S/.test(name)) return name;
+  // Rocky.js has no custom-font loader; fall back to default with a warning.
+  process.stderr.write(`warning: rocky target has no custom-font support — "${name}" falls back to 18px Gothic\n`);
+  return '18px Gothic';
 }
 
 // ---------------------------------------------------------------------------

@@ -20,6 +20,8 @@ export interface PKJSOptions {
   fetchUrls?: Array<{ key: string; url: string }>;
   /** AppSync keys (from useAppSync) */
   appSyncKeys?: string[];
+  /** react-pebble hook names referenced in the entry source. */
+  hooksUsed?: string[];
 }
 
 /**
@@ -33,6 +35,15 @@ export interface PKJSOptions {
  */
 export function emitPKJS(options: PKJSOptions): string {
   const { ir } = options;
+  const hooksUsed = new Set(options.hooksUsed ?? []);
+  const wantsAccountToken = hooksUsed.has('useAccountToken');
+  const wantsWatchToken = hooksUsed.has('useWatchToken');
+  const wantsTimelineToken = hooksUsed.has('useTimelineToken');
+  const wantsTimelineSubs = hooksUsed.has('useTimelineSubscriptions');
+  const wantsTimeline = hooksUsed.has('useTimeline') || wantsTimelineToken || wantsTimelineSubs;
+  const wantsAnyToken = wantsAccountToken || wantsWatchToken || wantsTimelineToken;
+  const wantsInboxHandler = wantsTimelineSubs || wantsTimelineToken || wantsTimeline;
+
   const lines: string[] = [];
 
   lines.push('/**');
@@ -44,6 +55,47 @@ export function emitPKJS(options: PKJSOptions): string {
   // Ready handler
   lines.push('Pebble.addEventListener("ready", function() {');
   lines.push('  console.log("PebbleKit JS ready!");');
+
+  // Identity tokens — forwarded to the watch via AppMessage using reserved keys.
+  if (wantsAnyToken) {
+    lines.push('');
+    lines.push('  // Forward PebbleKit JS identity tokens to the watch');
+    lines.push('  var _rpTokens = {};');
+    if (wantsAccountToken) {
+      lines.push('  try { _rpTokens._rpTokAcct = Pebble.getAccountToken(); } catch (e) {}');
+    }
+    if (wantsWatchToken) {
+      lines.push('  try { _rpTokens._rpTokWatch = Pebble.getWatchToken(); } catch (e) {}');
+    }
+    lines.push('  Pebble.sendAppMessage(_rpTokens);');
+    if (wantsTimelineToken) {
+      lines.push('  // Timeline token is async — forward when it resolves');
+      lines.push('  try {');
+      lines.push('    Pebble.getTimelineToken(function(tl) {');
+      lines.push('      Pebble.sendAppMessage({ _rpTokTL: tl });');
+      lines.push('    }, function(err) {');
+      lines.push('      Pebble.sendAppMessage({ _rpTokTLErr: String(err) });');
+      lines.push('    });');
+      lines.push('  } catch (e) {');
+      lines.push('    Pebble.sendAppMessage({ _rpTokTLErr: String(e) });');
+      lines.push('  }');
+    }
+  }
+
+  // Timeline subscriptions — forward initial list at ready.
+  if (wantsTimelineSubs) {
+    lines.push('');
+    lines.push('  // Forward current timeline subscriptions to the watch');
+    lines.push('  try {');
+    lines.push('    Pebble.timelineSubscriptions(function(topics) {');
+    lines.push('      Pebble.sendAppMessage({ _rpTLSubs: JSON.stringify(topics) });');
+    lines.push('    }, function(err) {');
+    lines.push('      Pebble.sendAppMessage({ _rpTLSubsErr: String(err) });');
+    lines.push('    });');
+    lines.push('  } catch (e) {');
+    lines.push('    Pebble.sendAppMessage({ _rpTLSubsErr: String(e) });');
+    lines.push('  }');
+  }
 
   // If we have message info with mock data, generate the fetch proxy
   if (ir.messageInfo) {
@@ -182,6 +234,97 @@ export function emitPKJS(options: PKJSOptions): string {
     lines.push('Pebble.addEventListener("appmessage", function(e) {');
     lines.push('  console.log("Received from watch: " + JSON.stringify(e.payload));');
     lines.push('});');
+  }
+
+  // Reserved-key inbox handler for timeline / token commands sent from the
+  // watch. This runs alongside any other appmessage listeners.
+  if (wantsInboxHandler) {
+    lines.push('');
+    lines.push('// react-pebble timeline / token control channel');
+    lines.push('Pebble.addEventListener("appmessage", function(e) {');
+    lines.push('  var p = (e && e.payload) || {};');
+    if (wantsTimelineToken) {
+      lines.push('  if (p._rpTokTLRefresh !== undefined) {');
+      lines.push('    try {');
+      lines.push('      Pebble.getTimelineToken(function(tl) {');
+      lines.push('        Pebble.sendAppMessage({ _rpTokTL: tl });');
+      lines.push('      }, function(err) {');
+      lines.push('        Pebble.sendAppMessage({ _rpTokTLErr: String(err) });');
+      lines.push('      });');
+      lines.push('    } catch (ex) { Pebble.sendAppMessage({ _rpTokTLErr: String(ex) }); }');
+      lines.push('  }');
+    }
+    if (wantsTimelineSubs) {
+      lines.push('  if (typeof p._rpTLSub === "string") {');
+      lines.push('    Pebble.timelineSubscribe(p._rpTLSub, function() {');
+      lines.push('      Pebble.timelineSubscriptions(function(topics) {');
+      lines.push('        Pebble.sendAppMessage({ _rpTLSubs: JSON.stringify(topics) });');
+      lines.push('      });');
+      lines.push('    }, function(err) { Pebble.sendAppMessage({ _rpTLSubsErr: String(err) }); });');
+      lines.push('  }');
+      lines.push('  if (typeof p._rpTLUnsub === "string") {');
+      lines.push('    Pebble.timelineUnsubscribe(p._rpTLUnsub, function() {');
+      lines.push('      Pebble.timelineSubscriptions(function(topics) {');
+      lines.push('        Pebble.sendAppMessage({ _rpTLSubs: JSON.stringify(topics) });');
+      lines.push('      });');
+      lines.push('    }, function(err) { Pebble.sendAppMessage({ _rpTLSubsErr: String(err) }); });');
+      lines.push('  }');
+      lines.push('  if (p._rpTLList !== undefined) {');
+      lines.push('    Pebble.timelineSubscriptions(function(topics) {');
+      lines.push('      Pebble.sendAppMessage({ _rpTLSubs: JSON.stringify(topics) });');
+      lines.push('    }, function(err) { Pebble.sendAppMessage({ _rpTLSubsErr: String(err) }); });');
+      lines.push('  }');
+    }
+    if (wantsTimeline) {
+      lines.push('  if (typeof p._rpTLPush === "string") {');
+      lines.push('    _rpTimelinePush(p._rpTLPush);');
+      lines.push('  }');
+      lines.push('  if (typeof p._rpTLRemove === "string") {');
+      lines.push('    _rpTimelineRemove(p._rpTLRemove);');
+      lines.push('  }');
+    }
+    lines.push('});');
+  }
+
+  // Timeline pin push/remove helpers — HTTP PUT/DELETE to the Pebble
+  // timeline public web API using the user's timeline token.
+  if (wantsTimeline) {
+    lines.push('');
+    lines.push('// Timeline pin push — forwards pin JSON to Pebble timeline public API.');
+    lines.push('function _rpTimelinePush(pinJSON) {');
+    lines.push('  var pin;');
+    lines.push('  try { pin = JSON.parse(pinJSON); } catch (e) {');
+    lines.push('    console.log("Timeline push: invalid JSON: " + e); return;');
+    lines.push('  }');
+    lines.push('  if (!pin || !pin.id) { console.log("Timeline push: missing id"); return; }');
+    lines.push('  Pebble.getTimelineToken(function(tok) {');
+    lines.push('    var xhr = new XMLHttpRequest();');
+    lines.push('    xhr.open("PUT", "https://timeline-api.rebble.io/v1/user/pins/" + encodeURIComponent(pin.id));');
+    lines.push('    xhr.setRequestHeader("Content-Type", "application/json");');
+    lines.push('    xhr.setRequestHeader("X-User-Token", tok);');
+    lines.push('    xhr.onload = function() {');
+    lines.push('      console.log("Timeline push " + pin.id + ": " + xhr.status);');
+    lines.push('    };');
+    lines.push('    xhr.onerror = function() {');
+    lines.push('      console.log("Timeline push " + pin.id + " failed");');
+    lines.push('    };');
+    lines.push('    xhr.send(JSON.stringify(pin));');
+    lines.push('  }, function(err) {');
+    lines.push('    console.log("Timeline token fetch failed: " + err);');
+    lines.push('  });');
+    lines.push('}');
+    lines.push('');
+    lines.push('function _rpTimelineRemove(id) {');
+    lines.push('  Pebble.getTimelineToken(function(tok) {');
+    lines.push('    var xhr = new XMLHttpRequest();');
+    lines.push('    xhr.open("DELETE", "https://timeline-api.rebble.io/v1/user/pins/" + encodeURIComponent(id));');
+    lines.push('    xhr.setRequestHeader("X-User-Token", tok);');
+    lines.push('    xhr.onload = function() {');
+    lines.push('      console.log("Timeline remove " + id + ": " + xhr.status);');
+    lines.push('    };');
+    lines.push('    xhr.send();');
+    lines.push('  });');
+    lines.push('}');
   }
 
   lines.push('');

@@ -40,7 +40,20 @@ const FONT_TO_PIU: Record<string, string> = {
 
 function fontToPiu(name: string | undefined): string {
   if (!name) return '18px Gothic';
-  return FONT_TO_PIU[name] ?? '18px Gothic';
+  const mapped = FONT_TO_PIU[name];
+  if (mapped) return mapped;
+  // Already a piu-style string like "18px Gothic" or "bold 14px Roboto"?
+  if (/^(bold\s|light\s|black\s)?\d+px\s+\S/.test(name)) return name;
+  // Unknown family — likely a Pebble C resource name (ROBOTO_24 etc.) that
+  // isn't wired into the Moddable manifest. Piu renders nothing for unknown
+  // families, so fall back to Gothic at a size derived from trailing digits
+  // (e.g. ROBOTO_24 → 24px) and warn the user.
+  const sizeMatch = name.match(/(\d+)$/);
+  const size = sizeMatch ? sizeMatch[1] : '18';
+  process.stderr.write(
+    `warning: alloy target has no Moddable manifest integration for custom fonts — "${name}" falls back to ${size}px Gothic\n`,
+  );
+  return `${size}px Gothic`;
 }
 
 // ---------------------------------------------------------------------------
@@ -328,7 +341,18 @@ function emitIRNode(
     }
 
     case 'image': {
-      const { skinVar } = ensureTexture(ctx, el.src!, el.w, el.h);
+      // Moddable's piu `Texture` only decodes PNG/JPEG; APNG and PDC-sequence
+      // fall back to a static `.png` sibling with the same basename. Warn so
+      // the user provides the fallback (or builds with the `c` target where
+      // native animation is supported).
+      let src = el.src!;
+      if (el.animated && /\.(apng|pdcs)$/i.test(src)) {
+        src = src.replace(/\.(apng|pdcs)$/i, '.png');
+        process.stderr.write(
+          `warning: alloy target can't decode animated ${el.animated} — falling back to ${src.replace(/^.*\//, '')} (first-frame PNG sibling)\n`,
+        );
+      }
+      const { skinVar } = ensureTexture(ctx, src, el.w, el.h);
       const sizeProps = buildSizeProps(el.x, el.y, el.w, el.h, ir.platform.width, ir.platform.height);
       const nameProp = el.name ? `, name: "${el.name}"` : '';
       return `${indent}new Content(null, { ${sizeProps}, skin: ${skinVar}${nameProp} })`;

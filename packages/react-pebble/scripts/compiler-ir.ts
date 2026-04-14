@@ -36,6 +36,12 @@ export interface IRElement {
   rotation?: number;    // path rotation in degrees
   isWrapping?: boolean; // textflow: multi-line wrapping text
   src?: string;         // image/svg source file path
+  /** When set, this image references an animated-sequence resource. */
+  animated?: 'apng' | 'pdcs';
+  /** Whether the animation should loop (default: true). */
+  animLoop?: boolean;
+  /** Frames-per-second hint for fallback runtime playback (default: 10). */
+  animFps?: number;
   svgScale?: number;    // svg uniform scale
   svgScaleX?: number;   // svg horizontal scale
   svgScaleY?: number;   // svg vertical scale

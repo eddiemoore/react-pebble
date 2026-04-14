@@ -373,11 +373,19 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       if (!ctx.imageResources.includes(src)) {
         ctx.imageResources.push(src);
       }
+      const animated = str(p, 'animated');
+      const animLoop = p.animLoop;
+      const animFps = num(p, 'animFps');
       return {
         type: 'image' as const,
         x, y, w, h,
         src,
         elemIndex: elemIdx,
+        ...(animated === 'apng' || animated === 'pdcs' ? {
+          animated: animated as 'apng' | 'pdcs',
+          animLoop: animLoop !== false,
+          animFps: animFps > 0 ? animFps : undefined,
+        } : {}),
       };
     }
 

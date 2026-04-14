@@ -155,7 +155,7 @@ export function main() {
 | `<Card>` | Composite: title bar + body text |
 | `<Badge>` | Composite: circle + centered text |
 | `<TextFlow>` | Multi-line flowing text with paragraph support |
-| `<AnimatedImage>` | Frame sequence animation with FPS and loop control |
+| `<AnimatedImage>` | Frame sequence animation (`frames`+`fps`) or native APNG / PDC-sequence playback (`src="spinner.apng" \| "anim.pdcs"`). |
 
 #### Navigation & Menus
 
@@ -257,7 +257,14 @@ export function main() {
 | `useAppGlance()` | App glance (launcher shortcut) management. |
 | `appGlanceTimeUntil(ts, fmt)` | Template builder for countdown subtitles in glance slices. |
 | `appGlanceTimeSince(ts, fmt)` | Template builder for "time-since" subtitles in glance slices. |
-| `useTimeline()` | Timeline pin creation and management. |
+| `useTimeline()` | Timeline pin creation and management (full Pebble pin spec: layouts, actions, reminders). |
+| `useTimelineToken()` | Fetch the Pebble timeline user token via PKJS (`{ token, error, refresh }`). |
+| `useTimelineSubscriptions()` | Manage topic subscriptions (`subscribe`/`unsubscribe`/`refresh`). |
+| `useAccountToken()` | Stable developer-scoped user id forwarded from PKJS. |
+| `useWatchToken()` | Stable per-(app, watch) identifier forwarded from PKJS. |
+| `useRawResource(name)` | Read a declared `type: 'raw'` resource as a `Uint8Array`. |
+| `useSmartstrap(opts)` | Read/write accessory attributes over the Smartstrap UART protocol. |
+| `TimelineAction.openWatchApp(title, launchCode)` / `.http(...)` / `.remove(...)` | Build entries for `TimelinePin.actions`. |
 | `useQuietTime()` | Whether quiet time / DND is active. |
 | `useLaunchReason()` | Why the app was launched (user, timeline, wakeup). |
 | `useLaunchInfo()` | Full launch context: reason, args, deep-link payload. |
@@ -345,6 +352,50 @@ System fonts organized by family:
 - **Roboto:** `robotoCondensed21`, `roboto21`
 - **LECO:** `leco20`, `leco26`, `leco28`, `leco32`, `leco36`, `leco38`, `leco42`
 - **Droid:** `droid28`
+
+#### Custom fonts
+
+Declare a TTF in the Vite plugin's `resources` list, then reference it in the `font` prop by resource name:
+
+```ts
+pebblePiu({
+  entry: 'src/App.tsx',
+  resources: [
+    { type: 'font', name: 'PIXEL_24', file: 'resources/pixel.ttf',
+      characterRegex: '[A-Za-z0-9 :]' },
+  ],
+});
+
+// <Text font="PIXEL_24" ...>HELLO</Text>
+```
+
+The C emitter resolves the name with `fonts_load_custom_font(resource_get_handle(RESOURCE_ID_PIXEL_24))` at window load and unloads at window unload. The piu emitter emits `"18px PIXEL_24"` — ensure the family name in your Moddable manifest matches. Rocky.js has no runtime custom-font loader; unknown font names log a warning and fall back to the system default.
+
+### Resource declarations
+
+Pass extra resources in the Vite plugin's `resources` option. PNG and APNG/PDCS images are also auto-detected from JSX `src=` values, so you only need explicit declarations for fonts, raw blobs, or overrides. Supported types:
+
+- `png` / `bitmap` — raster images
+- `font` — TTF fonts (see above)
+- `raw` — arbitrary binary/JSON blobs (access with `useRawResource(name)`)
+- `pdc` — Pebble Draw Command (vector) images used with `<SVGImage>`
+- `apng` / `pdc-sequence` — animated-image sequences used with `<AnimatedImage src="…" />`
+
+Each resource accepts a `targetPlatforms` map for per-platform file overrides (e.g. color for basalt, b&w for aplite).
+
+### Auto-inferred capabilities
+
+The plugin sets `pebble.capabilities` in `package.json` from the hooks referenced by your app:
+
+| Hook | Capability |
+|------|------------|
+| `useLocation` | `location` |
+| `useConfiguration` | `configurable` |
+| `useHealth` / `useHealthAlert` / `useHeartRateMonitor` / `useHealthHistory` / `useMeasurementSystem` | `health` |
+| `useTimeline` / `useTimelineToken` / `useTimelineSubscriptions` | `timeline` |
+| `useSmartstrap` | `smartstrap` |
+
+Additional capabilities can be passed via `capabilities: [...]`, or disable auto-inference with `noCapabilityAutoInfer: true`.
 
 ### Colors
 

@@ -59,10 +59,11 @@ deploy_example() {
   pebble kill >/dev/null 2>&1 || true
   sleep 1
 
-  # Install and wait for app to start
+  # Install and wait for app to start. First-run (post-wipe) needs more
+  # time for the emulator to boot; subsequent installs reuse the running emu.
   pebble install --emulator "$PEBBLE_PLATFORM" --logs > /tmp/react-pebble-emu.log 2>&1 &
   EMU_PID=$!
-  sleep 8
+  sleep "${DEPLOY_WAIT:-8}"
 
   # Initial screenshot
   pebble screenshot "$SCREENSHOT_DIR/${name}-initial.png" 2>/dev/null || true
@@ -547,6 +548,63 @@ test_window_stack() {
   screenshot window-stack-blue
   click back
   screenshot window-stack-back-from-blue
+  cleanup
+}
+
+test_tokens() {
+  deploy_example tokens
+  # No buttons — verify three "(loading)" placeholders render (tokens arrive
+  # from PKJS over AppMessage; emulator PKJS may or may not populate them).
+  cleanup
+}
+
+test_timeline_pins() {
+  deploy_example timeline-pins
+  # SELECT pushes demo pin (PKJS HTTP PUT), DOWN removes it. Verify render.
+  click select
+  screenshot timeline-pins-after-push
+  click down
+  screenshot timeline-pins-after-remove
+  cleanup
+}
+
+test_timeline_subs() {
+  deploy_example timeline-subs
+  # UP subscribe, DOWN unsubscribe, SELECT refresh.
+  click up
+  screenshot timeline-subs-after-subscribe
+  click select
+  screenshot timeline-subs-after-refresh
+  click down
+  screenshot timeline-subs-after-unsubscribe
+  cleanup
+}
+
+test_smartstrap_demo() {
+  deploy_example smartstrap-demo
+  # UP read, DOWN write — emulator has no strap so "Available: no".
+  click up
+  screenshot smartstrap-demo-after-read
+  click down
+  screenshot smartstrap-demo-after-write
+  cleanup
+}
+
+test_custom_font() {
+  deploy_example custom-font
+  # Renders three text sizes — font resource must be declared in the plugin
+  # config. Without the TTF, pebble build will fail; set SKIP_CUSTOM_FONT=1
+  # to avoid running this test if you don't have resources/pixel.ttf.
+  cleanup
+}
+
+test_animated_apng() {
+  deploy_example animated-apng
+  # Renders a spinning animation — requires resources/spinner.apng.
+  sleep 2
+  screenshot animated-apng-mid
+  sleep 2
+  screenshot animated-apng-late
   cleanup
 }
 

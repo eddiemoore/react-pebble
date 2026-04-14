@@ -51,6 +51,7 @@ if (ir.imageResources.length > 0) {
 
 // Scan the entry source for hook names that imply Pebble app capabilities.
 // This lets the plugin auto-set `pebble.capabilities` in package.json.
+let hooksUsedList: string[] = [];
 try {
   const entrySrc = readFileSync(entryPath, 'utf-8');
   const hookRe = /\b(use\w+)\b/g;
@@ -59,8 +60,9 @@ try {
   while ((m = hookRe.exec(entrySrc)) !== null) {
     hooksUsed.add(m[1]!);
   }
+  hooksUsedList = [...hooksUsed];
   if (hooksUsed.size > 0) {
-    process.stderr.write('hooksUsed=' + JSON.stringify([...hooksUsed]) + '\n');
+    process.stderr.write('hooksUsed=' + JSON.stringify(hooksUsedList) + '\n');
   }
 } catch {
   // entry unreadable — skip
@@ -79,8 +81,16 @@ if (target === 'rocky') {
 
 process.stdout.write(code);
 
-// Generate PebbleKit JS companion if the app uses phone communication or config
-const needsPKJS = ir.messageInfo || ir.configInfo;
+// Generate PebbleKit JS companion if the app uses phone communication, config,
+// identity tokens, or timeline features.
+const pkjsHooks = [
+  'useAccountToken',
+  'useWatchToken',
+  'useTimelineToken',
+  'useTimeline',
+  'useTimelineSubscriptions',
+];
+const needsPKJS = ir.messageInfo || ir.configInfo || hooksUsedList.some(h => pkjsHooks.includes(h));
 if (needsPKJS) {
   // For config apps, extract the config page URL
   let configUrl: string | undefined;
@@ -127,7 +137,7 @@ if (needsPKJS) {
     }
   }
 
-  const pkjsCode = emitPKJS({ ir, configUrl });
+  const pkjsCode = emitPKJS({ ir, configUrl, hooksUsed: hooksUsedList });
   process.stderr.write('\n--- PebbleKit JS (src/pkjs/index.js) ---\n');
   process.stderr.write(pkjsCode);
   process.stderr.write('--- End PebbleKit JS ---\n');
