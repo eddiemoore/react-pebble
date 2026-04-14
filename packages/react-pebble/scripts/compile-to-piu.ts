@@ -12,6 +12,7 @@
 
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { analyze } from './analyze.js';
 import { emitPiu } from './emit-piu.js';
 import { emitPKJS } from './emit-pkjs.js';
@@ -46,6 +47,23 @@ const ir = await analyze({ entryPath, platform, settleMs });
 
 if (ir.imageResources.length > 0) {
   process.stderr.write('imageResources=' + JSON.stringify(ir.imageResources) + '\n');
+}
+
+// Scan the entry source for hook names that imply Pebble app capabilities.
+// This lets the plugin auto-set `pebble.capabilities` in package.json.
+try {
+  const entrySrc = readFileSync(entryPath, 'utf-8');
+  const hookRe = /\b(use\w+)\b/g;
+  const hooksUsed = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = hookRe.exec(entrySrc)) !== null) {
+    hooksUsed.add(m[1]!);
+  }
+  if (hooksUsed.size > 0) {
+    process.stderr.write('hooksUsed=' + JSON.stringify([...hooksUsed]) + '\n');
+  }
+} catch {
+  // entry unreadable — skip
 }
 
 let code: string;

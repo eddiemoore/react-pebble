@@ -8,10 +8,10 @@ import {} from "piu/MC";
 
 
 const sk0 = new Skin({ fill: "#000000" });
-const st0 = new Style({ font: "18px Gothic", color: "#55FFFF" });
-const st1 = new Style({ font: "bold 42px Bitham", color: "#FFFFFF" });
-const st2 = new Style({ font: "24px Gothic", color: "#55FFFF" });
-const sk1 = new Skin({ fill: "#55FFFF" });
+const st0 = new Style({ font: "18px Gothic", color: "#55ffff" });
+const st1 = new Style({ font: "bold 42px Bitham", color: "#ffffff" });
+const st2 = new Style({ font: "24px Gothic", color: "#55ffff" });
+const sk1 = new Skin({ fill: "#55ffff" });
 
 const bgSkin = new Skin({ fill: "#000000" });
 

@@ -44,6 +44,8 @@ export interface CompileResult {
   mockDataSource: string | null;
   /** Image resource paths referenced in the component */
   imageResources: string[];
+  /** Names of react-pebble hooks referenced in the entry source */
+  hooksUsed: string[];
   /** Generated PebbleKit JS companion code (null if no phone communication needed) */
   pebbleKitJS: string | null;
   /** Diagnostic messages from the compiler */
@@ -129,6 +131,10 @@ export async function compileToPiu(options: CompileOptions): Promise<CompileResu
   const imgMatch = diagnostics.match(/imageResources=(\[.*?\])/);
   const imageResources: string[] = imgMatch?.[1] ? JSON.parse(imgMatch[1]) : [];
 
+  // Extract hook usage (for capability auto-inference)
+  const hooksMatch = diagnostics.match(/hooksUsed=(\[.*?\])/);
+  const hooksUsed: string[] = hooksMatch?.[1] ? JSON.parse(hooksMatch[1]) : [];
+
   // Extract PebbleKit JS companion code if generated
   let pebbleKitJS: string | null = null;
   const pkjsMatch = diagnostics.match(/--- PebbleKit JS \(src\/pkjs\/index\.js\) ---\n([\s\S]*?)--- End PebbleKit JS ---/);
@@ -136,5 +142,5 @@ export async function compileToPiu(options: CompileOptions): Promise<CompileResu
 
   log(`Compiled ${exampleName}: ${code.split('\n').length} lines, buttons=${hasButtons}, messageKeys=[${messageKeys.join(',')}]`);
 
-  return { code, hasButtons, messageKeys, mockDataSource, imageResources, pebbleKitJS, diagnostics };
+  return { code, hasButtons, messageKeys, mockDataSource, imageResources, hooksUsed, pebbleKitJS, diagnostics };
 }

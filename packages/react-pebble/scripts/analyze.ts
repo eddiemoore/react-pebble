@@ -27,11 +27,17 @@ import type {
 
 export function colorToHex(name: string): string {
   const rgb = COLOR_PALETTE[name];
-  if (!rgb) return name;
-  const r = rgb.r.toString(16).padStart(2, '0');
-  const g = rgb.g.toString(16).padStart(2, '0');
-  const b = rgb.b.toString(16).padStart(2, '0');
-  return `#${r}${g}${b}`;
+  if (rgb) {
+    const r = rgb.r.toString(16).padStart(2, '0');
+    const g = rgb.g.toString(16).padStart(2, '0');
+    const b = rgb.b.toString(16).padStart(2, '0');
+    return `#${r}${g}${b}`;
+  }
+  // Bare 6-digit hex (e.g. "AAAAAA") — prefix with #. piu's Style/Skin
+  // color parser requires the leading # to treat the value as a hex literal.
+  if (/^[0-9a-fA-F]{6}$/.test(name)) return `#${name.toLowerCase()}`;
+  if (/^#[0-9a-fA-F]{6}$/.test(name)) return name.toLowerCase();
+  return name;
 }
 
 function num(p: Record<string, unknown>, key: string): number {

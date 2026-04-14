@@ -56,6 +56,118 @@ export interface PebblePiuOptions {
   deploy?: boolean;
   /** Emulator platform for deploy (default: same as platform) */
   emulator?: string;
+  /** Override the UUID (otherwise one is generated and preserved across builds). */
+  uuid?: string;
+  /** Override the app display name in `package.json` `pebble.displayName`. */
+  displayName?: string;
+  /** `pebble.watchapp.hiddenApp` — hides app from menu; useful for companions. */
+  hiddenApp?: boolean;
+  /** `pebble.watchapp.onlyShownOnCommunication` — only shown when phone sends AppMessage. */
+  onlyShownOnCommunication?: boolean;
+  /**
+   * `pebble.capabilities` — auto-inferred from detected hook usage
+   * (useLocation → 'location', useHealth → 'health', useConfiguration → 'configurable').
+   * Any values you pass here are merged in addition to the inferred set.
+   */
+  capabilities?: Array<'location' | 'configurable' | 'health'>;
+  /**
+   * Disable capability auto-inference. Pass only the capabilities in `capabilities`.
+   * Default: false (auto-inference is on).
+   */
+  noCapabilityAutoInfer?: boolean;
+  /** `pebble.enableMultiJS` — default true (enables the richer PebbleKit JS runtime). */
+  enableMultiJS?: boolean;
+  /**
+   * Additional resources (beyond auto-detected images). Use this to add
+   * custom fonts, raw data files, PDC vector files, or APNG animated images.
+   * See the `ResourceDeclaration` type for all fields.
+   */
+  resources?: ResourceDeclaration[];
+  /**
+   * `pebble.resources.publishedMedia` — entries that map resources to
+   * timeline / AppGlance icon slots. Each entry must reference a `name` that
+   * exists in your auto-detected images or `resources` array.
+   */
+  publishedMedia?: PublishedMediaEntry[];
+  /**
+   * Path to a background worker source file. Workers run in plain C (the
+   * Pebble worker runtime does not host Alloy/Moddable/Rocky), so this
+   * should be a handwritten `.c` file. The file is copied into
+   * `worker_src/c/worker.c` in the generated project, and
+   * `pebble.watchapp.workerName` + the wscript worker build are wired up
+   * automatically.
+   *
+   * See `/docs/c/Worker/` and the `app_worker_*` C APIs.
+   */
+  worker?: string;
+  /**
+   * Override `pebble.workerName` (default: derived from `displayName`).
+   * Must match the worker's symbol expected by the bundled watchapp.
+   */
+  workerName?: string;
+}
+
+/**
+ * Declarative Pebble app resource. Each declaration becomes one entry in
+ * `pebble.resources.media` in the generated `package.json`. Source files are
+ * copied verbatim to the generated project's `resources/` directory.
+ */
+export type ResourceDeclaration =
+  | {
+      type: 'png' | 'bitmap';
+      name: string;
+      /** Path to the source .png file, relative to the project root. */
+      file: string;
+      /** Per-platform source file overrides. */
+      targetPlatforms?: Record<string, string>;
+      /** `menuIcon: true` marks the app's launcher icon. */
+      menuIcon?: boolean;
+    }
+  | {
+      type: 'font';
+      name: string;
+      /** Path to the source .ttf file. */
+      file: string;
+      /**
+       * Regex matching the Unicode characters to include in the compiled
+       * font (controls final resource size). e.g. `"[A-Za-z0-9 ]"`.
+       */
+      characterRegex?: string;
+      /** Alternate compatibility for older firmwares. */
+      compatibility?: string;
+      targetPlatforms?: Record<string, string>;
+    }
+  | {
+      type: 'raw';
+      name: string;
+      /** Path to any binary or JSON blob to bundle verbatim. */
+      file: string;
+      targetPlatforms?: Record<string, string>;
+    }
+  | {
+      type: 'pdc';
+      name: string;
+      /** Path to the .pdc (Pebble Draw Command) file. */
+      file: string;
+      targetPlatforms?: Record<string, string>;
+    }
+  | {
+      type: 'apng' | 'pdc-sequence';
+      name: string;
+      /** Path to the .apng or .pdcs file. */
+      file: string;
+      targetPlatforms?: Record<string, string>;
+    };
+
+export interface PublishedMediaEntry {
+  /** Monotonic integer id used by the timeline / AppGlance APIs. */
+  id: number;
+  /** Must match a `name` in your resources (or an auto-inferred image). */
+  name: string;
+  /** 25×25 glance icon. */
+  glance?: string;
+  /** Icon shown in timeline pins that reference this id. */
+  timeline?: { tiny?: string; small?: string; large?: string };
 }
 
 /**
@@ -92,6 +204,7 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
 
         // 2. Scaffold pebble project
         log(`Scaffolding pebble project in ${platBuildDir}...`);
+        const capabilities = computeCapabilities(options, result.hooksUsed);
         scaffoldPebbleProject(platBuildDir, {
           target,
           watchface: !result.hasButtons,
@@ -100,6 +213,16 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
           imageResources: result.imageResources,
           platform,
           projectRoot: resolve(options.entry, '..'),
+          uuid: options.uuid,
+          displayName: options.displayName,
+          hiddenApp: options.hiddenApp,
+          onlyShownOnCommunication: options.onlyShownOnCommunication,
+          capabilities,
+          enableMultiJS: options.enableMultiJS,
+          resources: options.resources,
+          publishedMedia: options.publishedMedia,
+          worker: options.worker,
+          workerName: options.workerName,
         });
 
         // 3. Write compiled output
@@ -157,6 +280,97 @@ interface ScaffoldOptions {
   platform?: string;
   /** Project root directory (for resolving relative image paths) */
   projectRoot?: string;
+  /** Override the UUID (preserved across builds if unset) */
+  uuid?: string;
+  /** Override package.json `pebble.displayName` */
+  displayName?: string;
+  /** `pebble.watchapp.hiddenApp` */
+  hiddenApp?: boolean;
+  /** `pebble.watchapp.onlyShownOnCommunication` */
+  onlyShownOnCommunication?: boolean;
+  /** Final list of capabilities (after auto-inference + user additions) */
+  capabilities?: Array<'location' | 'configurable' | 'health'>;
+  /** Override `pebble.enableMultiJS` (default true) */
+  enableMultiJS?: boolean;
+  /** Additional declared resources (fonts, raw, pdc, apng, etc.) */
+  resources?: ResourceDeclaration[];
+  /** `pebble.resources.publishedMedia` entries */
+  publishedMedia?: PublishedMediaEntry[];
+  /** Path to a background worker C source file. */
+  worker?: string;
+  /** Override `pebble.workerName`. */
+  workerName?: string;
+}
+
+/**
+ * Derive the `pebble.capabilities` array from detected hook usage + explicit
+ * user additions. Hooks that imply capabilities:
+ *
+ *   - useLocation      → 'location'
+ *   - useHealth, useHealthAlert, useHeartRateMonitor, useHealthHistory,
+ *     useMeasurementSystem → 'health'
+ *   - useConfiguration → 'configurable'
+ */
+/**
+ * Build the final `pebble.resources.media` array: auto-detected images
+ * plus any declared resources. Names are uppercased to match Pebble SDK
+ * conventions. Image resources already present in `resources` are skipped
+ * (user declaration wins).
+ */
+function buildMediaEntries(options: ScaffoldOptions): Record<string, unknown>[] {
+  const entries: Record<string, unknown>[] = [];
+  const seenNames = new Set<string>();
+
+  // User-declared resources take precedence
+  for (const r of options.resources ?? []) {
+    const entry: Record<string, unknown> = {
+      type: r.type,
+      name: r.name,
+      file: r.file.replace(/^.*\//, ''),
+    };
+    if ('menuIcon' in r && r.menuIcon) entry.menuIcon = true;
+    if ('characterRegex' in r && r.characterRegex) entry.characterRegex = r.characterRegex;
+    if ('compatibility' in r && r.compatibility) entry.compatibility = r.compatibility;
+    if (r.targetPlatforms) entry.targetPlatforms = r.targetPlatforms;
+    entries.push(entry);
+    seenNames.add(r.name);
+  }
+
+  // Auto-detected PNGs from the component tree
+  for (const src of options.imageResources ?? []) {
+    const name = src.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toUpperCase();
+    if (seenNames.has(name)) continue;
+    entries.push({
+      type: 'png',
+      name,
+      file: src.replace(/^.*\//, ''),
+    });
+    seenNames.add(name);
+  }
+
+  return entries;
+}
+
+function computeCapabilities(
+  options: PebblePiuOptions,
+  hooksUsed: string[],
+): Array<'location' | 'configurable' | 'health'> {
+  const set = new Set<'location' | 'configurable' | 'health'>(options.capabilities ?? []);
+  if (!options.noCapabilityAutoInfer) {
+    const used = new Set(hooksUsed);
+    if (used.has('useLocation')) set.add('location');
+    if (used.has('useConfiguration')) set.add('configurable');
+    if (
+      used.has('useHealth') ||
+      used.has('useHealthAlert') ||
+      used.has('useHeartRateMonitor') ||
+      used.has('useHealthHistory') ||
+      used.has('useMeasurementSystem')
+    ) {
+      set.add('health');
+    }
+  }
+  return [...set];
 }
 
 function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
@@ -173,7 +387,9 @@ function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
   // Preserve UUID across builds (or generate a new one)
   let uuid: string;
   const pkgPath = join(dir, 'package.json');
-  if (existsSync(pkgPath)) {
+  if (options.uuid) {
+    uuid = options.uuid;
+  } else if (existsSync(pkgPath)) {
     try {
       const existing = JSON.parse(readFileSync(pkgPath, 'utf-8'));
       uuid = existing?.pebble?.uuid ?? randomUUID();
@@ -186,24 +402,33 @@ function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
 
   // package.json
   const isRocky = options.target === 'rocky';
+  const watchappConfig: Record<string, unknown> = { watchface: options.watchface };
+  if (options.hiddenApp) watchappConfig.hiddenApp = true;
+  if (options.onlyShownOnCommunication) watchappConfig.onlyShownOnCommunication = true;
+
   const pebbleConfig: Record<string, unknown> = {
-    displayName: 'react-pebble-app',
+    displayName: options.displayName ?? 'react-pebble-app',
     uuid,
     projectType: isRocky ? 'rocky' : options.target === 'c' ? 'native' : 'moddable',
     sdkVersion: '3',
-    enableMultiJS: true,
+    enableMultiJS: options.enableMultiJS ?? true,
     targetPlatforms: (isRocky || options.target === 'c')
       ? [options.platform ?? 'basalt']
       : ['emery', 'gabbro'],
-    watchapp: { watchface: options.watchface },
+    watchapp: watchappConfig,
     resources: {
-      media: (options.imageResources ?? []).map(src => ({
-        type: 'png',
-        name: src.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toUpperCase(),
-        file: src.replace(/^.*\//, ''),
-      })),
+      media: buildMediaEntries(options),
+      ...(options.publishedMedia && options.publishedMedia.length > 0
+        ? { publishedMedia: options.publishedMedia }
+        : {}),
     },
   };
+  if (options.capabilities && options.capabilities.length > 0) {
+    pebbleConfig.capabilities = options.capabilities;
+  }
+  if (options.worker) {
+    pebbleConfig.workerName = options.workerName ?? `${(options.displayName ?? 'react-pebble-app').replace(/\s+/g, '')}_worker`;
+  }
   // Rocky.js projects don't support custom messageKeys
   if (!isRocky) {
     pebbleConfig.messageKeys = options.messageKeys.length > 0 ? options.messageKeys : ['dummy'];
@@ -266,20 +491,60 @@ int main(void) {
     writeFileSync(manifestPath, JSON.stringify(manifestObj, null, 2) + '\n');
   }
 
-  // Copy image resources to both Moddable and Pebble resource directories
-  if (options.imageResources && options.imageResources.length > 0) {
+  // Collect every source file that needs to be copied into the build
+  // project: auto-detected images + user-declared resources + any
+  // platform-specific override paths.
+  const filesToCopy: string[] = [];
+  if (options.imageResources) filesToCopy.push(...options.imageResources);
+  if (options.resources) {
+    for (const r of options.resources) {
+      filesToCopy.push(r.file);
+      if (r.targetPlatforms) {
+        for (const p of Object.values(r.targetPlatforms)) filesToCopy.push(p);
+      }
+    }
+  }
+
+  if (filesToCopy.length > 0) {
     const moddableResDir = join(dir, 'src', 'embeddedjs', 'resources');
     const pebbleResDir = join(dir, 'resources');
-    mkdirSync(moddableResDir, { recursive: true });
+    // Alloy builds need the moddable resources dir too
+    if (!isRocky && options.target !== 'c') {
+      mkdirSync(moddableResDir, { recursive: true });
+    }
     mkdirSync(pebbleResDir, { recursive: true });
-    for (const src of options.imageResources) {
+    for (const src of filesToCopy) {
       const fileName = src.replace(/^.*\//, '');
       const srcPath = options.projectRoot ? resolve(options.projectRoot, src) : resolve(src);
       if (existsSync(srcPath)) {
-        copyFileSync(srcPath, join(moddableResDir, fileName));
         copyFileSync(srcPath, join(pebbleResDir, fileName));
+        // Only copy PNGs into the Moddable resources dir (fonts/raw/pdc
+        // don't have Moddable equivalents).
+        if (!isRocky && options.target !== 'c' && /\.(png|jpg|jpeg)$/i.test(fileName)) {
+          copyFileSync(srcPath, join(moddableResDir, fileName));
+        }
       }
     }
+  }
+
+  // Background worker: copy user's C source into worker_src/c/ so wscript
+  // picks it up (wscript auto-detects the directory's existence).
+  if (options.worker) {
+    const workerSrcPath = options.projectRoot
+      ? resolve(options.projectRoot, options.worker)
+      : resolve(options.worker);
+    if (!existsSync(workerSrcPath)) {
+      throw new Error(`[react-pebble] worker source not found: ${workerSrcPath}`);
+    }
+    if (!workerSrcPath.endsWith('.c')) {
+      throw new Error(
+        `[react-pebble] worker must be a .c file (found ${options.worker}). ` +
+        `Workers run in plain C; they cannot host the Alloy or Rocky JS runtime.`,
+      );
+    }
+    const workerDir = join(dir, 'worker_src', 'c');
+    mkdirSync(workerDir, { recursive: true });
+    copyFileSync(workerSrcPath, join(workerDir, 'worker.c'));
   }
 
   // Phone-side JS

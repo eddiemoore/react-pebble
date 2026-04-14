@@ -9,6 +9,13 @@ rocky.on('draw', function(event) {
 
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, 144, 168);
+  // image: ./assets/batman.png
+  if (typeof _images !== 'undefined' && _images["./assets/batman.png"]) {
+    ctx.drawImage(_images["./assets/batman.png"], 2, 49);
+  } else {
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillRect(2, 49, 140, 70);
+  }
   ctx.fillStyle = '#000000';
   ctx.font = '18px Gothic';
   ctx.textAlign = 'center';

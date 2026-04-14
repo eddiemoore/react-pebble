@@ -219,6 +219,37 @@ function emitDrawCalls(
       lines.push(`${indent}ctx.fillRect(${el.x + minX}, ${el.y + minY}, ${maxX - minX}, ${maxY - minY});`);
       break;
     }
+
+    case 'image': {
+      // Rocky.js cannot load raw bitmap resources on-watch; images must be
+      // preloaded from PebbleKit JS and drawn via a host-provided `drawImage`.
+      // We emit a transform-aware stub so rotation is honored when an image
+      // is available under `_images[src]`.
+      const src = el.src ?? '';
+      const rotation = typeof el.rotation === 'number' ? el.rotation : 0;
+      const pivotX = typeof el.pivotX === 'number' ? el.pivotX : Math.floor(el.w / 2);
+      const pivotY = typeof el.pivotY === 'number' ? el.pivotY : Math.floor(el.h / 2);
+      const centerX = el.x + Math.floor(el.w / 2);
+      const centerY = el.y + Math.floor(el.h / 2);
+      lines.push(`${indent}// image: ${src}${rotation ? ` (rotated ${rotation}°)` : ''}`);
+      lines.push(`${indent}if (typeof _images !== 'undefined' && _images[${JSON.stringify(src)}]) {`);
+      if (rotation !== 0) {
+        lines.push(`${indent}  ctx.save();`);
+        lines.push(`${indent}  ctx.translate(${centerX}, ${centerY});`);
+        lines.push(`${indent}  ctx.rotate(${rotation} * Math.PI / 180);`);
+        lines.push(`${indent}  ctx.translate(-${pivotX}, -${pivotY});`);
+        lines.push(`${indent}  ctx.drawImage(_images[${JSON.stringify(src)}], 0, 0);`);
+        lines.push(`${indent}  ctx.restore();`);
+      } else {
+        lines.push(`${indent}  ctx.drawImage(_images[${JSON.stringify(src)}], ${el.x}, ${el.y});`);
+      }
+      lines.push(`${indent}} else {`);
+      // Placeholder box if image isn't available
+      lines.push(`${indent}  ctx.fillStyle = '#aaaaaa';`);
+      lines.push(`${indent}  ctx.fillRect(${el.x}, ${el.y}, ${el.w}, ${el.h});`);
+      lines.push(`${indent}}`);
+      break;
+    }
   }
 }
 

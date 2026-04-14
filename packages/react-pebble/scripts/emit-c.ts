@@ -1363,7 +1363,21 @@ function emitGraphicsDrawCall(
       const resName = src.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toUpperCase();
       const varName = `s_img_${resName.toLowerCase()}`;
       lines.push(`${indent}if (${varName}) {`);
-      lines.push(`${indent}  graphics_draw_bitmap_in_rect(ctx, ${varName}, GRect(${ax}, ${ay}, ${el.w}, ${el.h}));`);
+      const rotation = typeof el.rotation === 'number' ? el.rotation : 0;
+      if (rotation !== 0) {
+        // Rotating a bitmap via draw_rotated_bitmap — uses the Poco
+        // GDrawCommandImage-style API surfaced by `pebble.h`. The `src_ic`
+        // is the rotation center *within* the source bitmap (pivotX/Y); the
+        // `dest` point is where the center lands on screen.
+        const pivotX = typeof el.pivotX === 'number' ? el.pivotX : Math.floor(el.w / 2);
+        const pivotY = typeof el.pivotY === 'number' ? el.pivotY : Math.floor(el.h / 2);
+        const centerX = ax + Math.floor(el.w / 2);
+        const centerY = ay + Math.floor(el.h / 2);
+        lines.push(`${indent}  // rotated bitmap: ${rotation}° around (${pivotX},${pivotY}) in source`);
+        lines.push(`${indent}  graphics_draw_rotated_bitmap(ctx, ${varName}, GPoint(${pivotX}, ${pivotY}), DEG_TO_TRIGANGLE(${rotation}), GPoint(${centerX}, ${centerY}));`);
+      } else {
+        lines.push(`${indent}  graphics_draw_bitmap_in_rect(ctx, ${varName}, GRect(${ax}, ${ay}, ${el.w}, ${el.h}));`);
+      }
       lines.push(`${indent}}`);
       break;
     }

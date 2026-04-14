@@ -21,3 +21,6 @@ node_modules/
 *.swp
 *.swo
 *~
+
+# Claude Code local session state (lockfiles, local settings)
+.claude/

@@ -76,7 +76,11 @@ export function useApp(): PebbleApp {
 // renderer normalizes them into our four logical buttons before emitting.
 // ---------------------------------------------------------------------------
 
-type ButtonRegistryKey = PebbleButton | `long_${PebbleButton}`;
+type ButtonRegistryKey =
+  | PebbleButton
+  | `long_${PebbleButton}`
+  | `raw_down_${PebbleButton}`
+  | `raw_up_${PebbleButton}`;
 
 interface ButtonRegistryShape {
   _listeners: Map<ButtonRegistryKey, Set<PebbleButtonHandler>>;
@@ -168,8 +172,50 @@ export function useTime(intervalMs = 1000): Date {
   return time;
 }
 
-export function useFormattedTime(format = 'HH:mm'): string {
-  const time = useTime(format.includes('ss') ? 1000 : 60000);
+/**
+ * Returns `true` when the watch is configured to display time in 24-hour
+ * format. Mirrors C SDK `clock_is_24h_style()` and Rocky `userPreferences.clock24h`.
+ *
+ * On Alloy: reads `clock_is_24h_style()` or `userPreferences.clock24h`.
+ * In mock mode: falls back to `Intl.DateTimeFormat` (best-effort).
+ */
+export function clockIs24HourStyle(): boolean {
+  if (typeof globalThis !== 'undefined') {
+    const g = globalThis as Record<string, unknown>;
+    if (typeof g.clock_is_24h_style === 'function') {
+      return Boolean((g.clock_is_24h_style as () => boolean)());
+    }
+    const rocky = (g as { rocky?: { userPreferences?: { clock24h?: boolean } } }).rocky;
+    if (rocky?.userPreferences && typeof rocky.userPreferences.clock24h === 'boolean') {
+      return rocky.userPreferences.clock24h;
+    }
+  }
+  try {
+    if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
+      const opts = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions();
+      return opts.hour12 === false;
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+/**
+ * Format the current time. `format` uses the Pebble/strftime-ish tokens:
+ *   HH — 24-hour hour (00-23)
+ *   hh — 12-hour hour (01-12)
+ *   mm — minute (00-59)
+ *   ss — second (00-59)
+ *   a  — AM/PM marker
+ *
+ * Pass `'auto'` to use the user's preferred 24h/12h style.
+ */
+export function useFormattedTime(format: string = 'HH:mm'): string {
+  const resolvedFormat = format === 'auto'
+    ? (clockIs24HourStyle() ? 'HH:mm' : 'hh:mm a')
+    : format;
+  const time = useTime(resolvedFormat.includes('ss') ? 1000 : 60000);
 
   const hours24 = time.getHours();
   const hours12 = hours24 % 12 || 12;
@@ -177,7 +223,7 @@ export function useFormattedTime(format = 'HH:mm'): string {
   const seconds = time.getSeconds().toString().padStart(2, '0');
   const ampm = hours24 < 12 ? 'AM' : 'PM';
 
-  let result = format;
+  let result = resolvedFormat;
   result = result.replace('HH', hours24.toString().padStart(2, '0'));
   result = result.replace('hh', hours12.toString().padStart(2, '0'));
   result = result.replace('mm', minutes);
@@ -185,6 +231,47 @@ export function useFormattedTime(format = 'HH:mm'): string {
   result = result.replace('a', ampm);
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Time utility functions (pure; not hooks)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a Unix timestamp (seconds) for midnight local time today.
+ * Mirrors C SDK `time_start_of_today()`.
+ */
+export function startOfToday(): number {
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  return Math.floor(midnight.getTime() / 1000);
+}
+
+/**
+ * Convert a `Date` (or local Y/M/D/H/M/S tuple) to a Unix timestamp (seconds).
+ * Mirrors C SDK `clock_to_timestamp()`.
+ */
+export function clockToTimestamp(date: Date): number;
+export function clockToTimestamp(
+  year: number,
+  month: number,
+  day: number,
+  hour?: number,
+  minute?: number,
+  second?: number,
+): number;
+export function clockToTimestamp(
+  dateOrYear: Date | number,
+  month: number = 0,
+  day: number = 1,
+  hour: number = 0,
+  minute: number = 0,
+  second: number = 0,
+): number {
+  const d = dateOrYear instanceof Date
+    ? dateOrYear
+    : new Date(dateOrYear, month, day, hour, minute, second);
+  return Math.floor(d.getTime() / 1000);
 }
 
 // ---------------------------------------------------------------------------
@@ -722,6 +809,154 @@ export function useAccelerometer(options: UseAccelerometerOptions = {}): Acceler
 }
 
 // ---------------------------------------------------------------------------
+// useAccelerometerRaw — higher-fidelity raw accelerometer samples
+// ---------------------------------------------------------------------------
+
+export interface AccelerometerRawSample {
+  x: number;
+  y: number;
+  z: number;
+  /** Milliseconds since epoch (device time). */
+  timestamp: number;
+  /** Whether this sample was captured while the device was vibrating. */
+  didVibrate?: boolean;
+}
+
+export interface UseAccelerometerRawOptions {
+  /**
+   * Samples per batch update (1-25). Mirrors
+   * `accel_service_set_samples_per_update()`.
+   */
+  samplesPerUpdate?: number;
+  /** Sampling rate in Hz (10, 25, 50, or 100). */
+  samplingRateHz?: 10 | 25 | 50 | 100;
+  /** Called with every batch of samples. */
+  onSamples?: (samples: AccelerometerRawSample[]) => void;
+}
+
+/**
+ * Subscribe to the raw accelerometer data service. Yields batches of samples
+ * at the configured rate (vs. `useAccelerometer`, which yields a single
+ * smoothed value). Mirrors C SDK `accel_raw_data_service_subscribe()`.
+ *
+ * On Alloy: uses the `__pbl_accel_raw` global if available, otherwise falls
+ * back to synthesizing batches from `__pbl_accel` at the configured rate.
+ * In mock mode: generates synthetic samples.
+ */
+export function useAccelerometerRaw(options: UseAccelerometerRawOptions = {}): AccelerometerRawSample[] {
+  const samplesPerUpdate = options.samplesPerUpdate ?? 25;
+  const samplingRateHz = options.samplingRateHz ?? 25;
+  const [batch, setBatch] = useState<AccelerometerRawSample[]>([]);
+  const callbackRef = useRef(options.onSamples);
+  callbackRef.current = options.onSamples;
+
+  useEffect(() => {
+    const publish = (samples: AccelerometerRawSample[]) => {
+      setBatch(samples);
+      callbackRef.current?.(samples);
+    };
+
+    const g = globalThis as Record<string, unknown>;
+    const rawSvc = g.__pbl_accel_raw as {
+      onSamples?: (samples: AccelerometerRawSample[]) => void;
+      samplingRate?: number;
+      samplesPerUpdate?: number;
+      start?: () => void;
+      stop?: () => void;
+    } | undefined;
+
+    if (rawSvc) {
+      rawSvc.samplingRate = samplingRateHz;
+      rawSvc.samplesPerUpdate = samplesPerUpdate;
+      rawSvc.onSamples = publish;
+      rawSvc.start?.();
+      return () => rawSvc.stop?.();
+    }
+
+    // Mock mode: synthesize batches at the requested rate.
+    const batchIntervalMs = (samplesPerUpdate * 1000) / samplingRateHz;
+    const sampleIntervalMs = 1000 / samplingRateHz;
+    const id = setInterval(() => {
+      const now = Date.now();
+      const samples: AccelerometerRawSample[] = [];
+      for (let i = 0; i < samplesPerUpdate; i++) {
+        const t = now - (samplesPerUpdate - 1 - i) * sampleIntervalMs;
+        samples.push({
+          x: Math.round(Math.sin(t / 500) * 100),
+          y: Math.round(Math.cos(t / 600) * 80),
+          z: -1000 + Math.round(Math.sin(t / 400) * 40),
+          timestamp: t,
+        });
+      }
+      publish(samples);
+    }, batchIntervalMs);
+    return () => clearInterval(id);
+  }, [samplesPerUpdate, samplingRateHz]);
+
+  return batch;
+}
+
+// ---------------------------------------------------------------------------
+// useAccelerometerTap — low-power tap detection (axis + direction)
+// ---------------------------------------------------------------------------
+
+export type AccelAxis = 'x' | 'y' | 'z';
+export type AccelDirection = 1 | -1;
+
+export interface AccelerometerTapEvent {
+  axis: AccelAxis;
+  direction: AccelDirection;
+}
+
+/**
+ * Subscribe to tap gesture events. Unlike `useAccelerometer({ onTap })`,
+ * this hook reports the axis and direction of the tap — useful for
+ * wrist flicks and shake gestures. Mirrors `accel_tap_service_subscribe()`.
+ *
+ * On Alloy: uses `__pbl_accel_tap` if present, otherwise degrades to the
+ * basic `onTap` callback of the data service.
+ * In mock mode: fires a mock tap every 3 seconds cycling through axes.
+ */
+export function useAccelerometerTap(handler: (event: AccelerometerTapEvent) => void): void {
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
+
+  useEffect(() => {
+    const emit = (event: AccelerometerTapEvent) => handlerRef.current(event);
+
+    const g = globalThis as Record<string, unknown>;
+    const tapSvc = g.__pbl_accel_tap as {
+      onTap?: (axis: AccelAxis, direction: AccelDirection) => void;
+      start?: () => void;
+      stop?: () => void;
+    } | undefined;
+
+    if (tapSvc) {
+      tapSvc.onTap = (axis, direction) => emit({ axis, direction });
+      tapSvc.start?.();
+      return () => tapSvc.stop?.();
+    }
+
+    // Fall back to basic accel onTap if available
+    const accel = g.__pbl_accel as { onTap?: () => void; start?: () => void; stop?: () => void } | undefined;
+    if (accel) {
+      accel.onTap = () => emit({ axis: 'z', direction: 1 });
+      accel.start?.();
+      return () => accel.stop?.();
+    }
+
+    // Mock mode
+    const axes: AccelAxis[] = ['x', 'y', 'z'];
+    let i = 0;
+    const id = setInterval(() => {
+      emit({ axis: axes[i % axes.length]!, direction: (i % 2 === 0 ? 1 : -1) as AccelDirection });
+      i++;
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+}
+
+// ---------------------------------------------------------------------------
 // useCompass — magnetic heading via Moddable sensor API
 // ---------------------------------------------------------------------------
 
@@ -1016,6 +1251,225 @@ export function useHealth(pollInterval = 60000): HealthData {
 }
 
 // ---------------------------------------------------------------------------
+// useHealthAlert — threshold-based health metric alerts (e.g. HR > 140)
+// ---------------------------------------------------------------------------
+
+export type HealthMetric =
+  | 'steps'
+  | 'activeSeconds'
+  | 'walkedDistanceMeters'
+  | 'sleepSeconds'
+  | 'sleepRestfulSeconds'
+  | 'restingKCalories'
+  | 'activeKCalories'
+  | 'heartRateBPM'
+  | 'heartRateRawBPM';
+
+export interface UseHealthAlertOptions {
+  metric: HealthMetric;
+  threshold: number;
+  /** 'above' fires when crossing up; 'below' fires when crossing down. */
+  direction?: 'above' | 'below';
+  onTrigger: (value: number) => void;
+}
+
+/**
+ * Register a metric alert — fires a callback when a health metric crosses
+ * the given threshold. Mirrors `health_service_register_metric_alert`.
+ *
+ * On Alloy: uses `Health.registerMetricAlert(...)` if available.
+ * In mock mode: polls `__pbl_health` at 5s intervals and compares.
+ */
+export function useHealthAlert(options: UseHealthAlertOptions): void {
+  const { metric, threshold, direction = 'above', onTrigger } = options;
+  const cbRef = useRef(onTrigger);
+  cbRef.current = onTrigger;
+
+  useEffect(() => {
+    const g = globalThis as Record<string, unknown>;
+    const health = (g.Health ?? g.__pbl_health) as {
+      registerMetricAlert?: (metric: string, threshold: number, cb: (v: number) => void) => number;
+      cancelMetricAlert?: (handle: number) => void;
+    } | undefined;
+
+    if (health?.registerMetricAlert) {
+      const handle = health.registerMetricAlert(metric, threshold, (v) => {
+        const crossed = direction === 'above' ? v >= threshold : v <= threshold;
+        if (crossed) cbRef.current(v);
+      });
+      return () => health.cancelMetricAlert?.(handle);
+    }
+
+    // Mock: poll every 5 seconds.
+    let lastValue = 0;
+    const id = setInterval(() => {
+      const src = (g.Health ?? g.__pbl_health) as Record<string, unknown> | undefined;
+      if (!src) return;
+      // Map metric to the data field on MOCK_HEALTH / Health global
+      const fieldMap: Record<HealthMetric, string> = {
+        steps: 'steps',
+        activeSeconds: 'activeSeconds',
+        walkedDistanceMeters: 'distance',
+        sleepSeconds: 'sleepSeconds',
+        sleepRestfulSeconds: 'sleepRestfulSeconds',
+        restingKCalories: 'restingCalories',
+        activeKCalories: 'calories',
+        heartRateBPM: 'heartRate',
+        heartRateRawBPM: 'heartRate',
+      };
+      const v = Number(src[fieldMap[metric]] ?? 0);
+      const crossed = direction === 'above'
+        ? lastValue < threshold && v >= threshold
+        : lastValue > threshold && v <= threshold;
+      if (crossed) cbRef.current(v);
+      lastValue = v;
+    }, 5000);
+    return () => clearInterval(id);
+  }, [metric, threshold, direction]);
+}
+
+// ---------------------------------------------------------------------------
+// useHeartRateMonitor — tune HRM sampling cadence (battery vs. freshness)
+// ---------------------------------------------------------------------------
+
+export interface UseHeartRateMonitorOptions {
+  /**
+   * Desired sampling interval in seconds. Mirrors
+   * `health_service_set_heart_rate_sample_period()`. Low values drain battery.
+   * The system will cap the duration; use `expiresAt` to know when the
+   * aggressive sampling lapses.
+   */
+  samplePeriodSeconds: number;
+}
+
+export interface UseHeartRateMonitorResult {
+  /** Unix ms when the aggressive sample period expires (0 if not running). */
+  expiresAt: number;
+  /** Manually extend the aggressive sampling window. */
+  refresh: () => void;
+}
+
+/**
+ * Request more frequent heart rate samples than the default (typically
+ * every 10 minutes) — used by workout or resting-HR features.
+ *
+ * On Alloy: uses `Health.setHeartRateSamplePeriod(seconds)` and
+ * `Health.getHeartRateSamplePeriodExpirationSec()`.
+ * In mock mode: stores the expiry locally.
+ */
+export function useHeartRateMonitor(options: UseHeartRateMonitorOptions): UseHeartRateMonitorResult {
+  const { samplePeriodSeconds } = options;
+  const [expiresAt, setExpiresAt] = useState(0);
+
+  const apply = useCallback(() => {
+    const g = globalThis as Record<string, unknown>;
+    const health = (g.Health ?? g.__pbl_health) as {
+      setHeartRateSamplePeriod?: (seconds: number) => void;
+      getHeartRateSamplePeriodExpirationSec?: () => number;
+    } | undefined;
+    if (health?.setHeartRateSamplePeriod) {
+      health.setHeartRateSamplePeriod(samplePeriodSeconds);
+      const expSec = health.getHeartRateSamplePeriodExpirationSec?.() ?? samplePeriodSeconds * 60;
+      setExpiresAt(Date.now() + expSec * 1000);
+    } else {
+      // Mock: expire after samplePeriodSeconds * 60
+      setExpiresAt(Date.now() + samplePeriodSeconds * 60 * 1000);
+    }
+  }, [samplePeriodSeconds]);
+
+  useEffect(() => {
+    apply();
+  }, [apply]);
+
+  return { expiresAt, refresh: apply };
+}
+
+// ---------------------------------------------------------------------------
+// useHealthHistory — minute-by-minute history of a metric
+// ---------------------------------------------------------------------------
+
+export interface UseHealthHistoryOptions {
+  metric: HealthMetric;
+  /** How many minutes of history to fetch (max 60 on most platforms). */
+  minutes: number;
+}
+
+/**
+ * Fetch a minute-by-minute history of a health metric.
+ * Mirrors `health_service_get_minute_history()`.
+ *
+ * On Alloy: uses `Health.getMinuteHistory(metric, minutes)`.
+ * In mock mode: returns synthetic data approximating the metric's typical range.
+ */
+export function useHealthHistory(options: UseHealthHistoryOptions): number[] {
+  const { metric, minutes } = options;
+  const [history, setHistory] = useState<number[]>([]);
+
+  useEffect(() => {
+    const g = globalThis as Record<string, unknown>;
+    const health = (g.Health ?? g.__pbl_health) as {
+      getMinuteHistory?: (metric: string, minutes: number) => number[];
+    } | undefined;
+    if (health?.getMinuteHistory) {
+      setHistory(health.getMinuteHistory(metric, minutes));
+      return;
+    }
+    // Mock: synthetic values
+    const base = metric === 'heartRateBPM' || metric === 'heartRateRawBPM' ? 72
+      : metric === 'steps' ? 80
+      : metric === 'walkedDistanceMeters' ? 60
+      : metric === 'activeKCalories' ? 2
+      : metric === 'sleepSeconds' ? 60
+      : 0;
+    const mock = Array.from({ length: minutes }, (_, i) =>
+      Math.max(0, Math.round(base + Math.sin(i / 3) * (base * 0.2))),
+    );
+    setHistory(mock);
+  }, [metric, minutes]);
+
+  return history;
+}
+
+// ---------------------------------------------------------------------------
+// useMeasurementSystem — user's preferred measurement system
+// ---------------------------------------------------------------------------
+
+export type MeasurementSystem = 'metric' | 'imperial' | 'unknown';
+
+/**
+ * Returns the user's preferred measurement system for health data display.
+ * Mirrors `health_service_get_measurement_system_for_display()`.
+ *
+ * On Alloy: reads from `Health.measurementSystem` or
+ * `Health.getMeasurementSystemForDisplay()`.
+ * In mock mode: infers from `useLocale().country` (US → imperial, else metric).
+ */
+export function useMeasurementSystem(): MeasurementSystem {
+  if (typeof globalThis !== 'undefined') {
+    const g = globalThis as Record<string, unknown>;
+    const health = (g.Health ?? g.__pbl_health) as {
+      measurementSystem?: MeasurementSystem;
+      getMeasurementSystemForDisplay?: () => MeasurementSystem;
+    } | undefined;
+    if (health?.getMeasurementSystemForDisplay) {
+      return health.getMeasurementSystemForDisplay();
+    }
+    if (health?.measurementSystem) {
+      return health.measurementSystem;
+    }
+  }
+  try {
+    if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
+      const locale = new Intl.DateTimeFormat().resolvedOptions().locale;
+      return locale.endsWith('-US') ? 'imperial' : 'metric';
+    }
+  } catch {
+    // ignore
+  }
+  return 'unknown';
+}
+
+// ---------------------------------------------------------------------------
 // useTimer — one-shot delayed callback
 // ---------------------------------------------------------------------------
 
@@ -1276,6 +1730,208 @@ export function useRepeatClick(
 
   // Cleanup on unmount
   useEffect(() => () => stopRepeat(), [stopRepeat]);
+}
+
+// ---------------------------------------------------------------------------
+// Background Worker API
+// ---------------------------------------------------------------------------
+
+export interface WorkerMessage {
+  /** User-defined message type. 0 is reserved for Pebble system messages. */
+  type: number;
+  /** Opaque payload. Workers typically pack small ints here. */
+  data?: number;
+}
+
+export type WorkerResult =
+  | 'success'
+  | 'notRunning'
+  | 'alreadyRunning'
+  | 'differentApp'
+  | 'notInstalled'
+  | 'error';
+
+export interface UseWorkerLaunchResult {
+  /** Spawn the bundled background worker. */
+  launch: () => WorkerResult;
+  /** Stop the background worker. */
+  kill: () => WorkerResult;
+  /** Whether the worker is currently running. */
+  isRunning: boolean;
+  /** Re-check running status (updates `isRunning`). */
+  refresh: () => void;
+}
+
+/**
+ * Control the app's bundled background worker.
+ *
+ * On Alloy/C: wraps `app_worker_launch()`, `app_worker_kill()`,
+ * `app_worker_is_running()`.
+ * In mock mode: tracks launch/kill state in memory.
+ */
+export function useWorkerLaunch(): UseWorkerLaunchResult {
+  const [isRunning, setRunning] = useState(false);
+
+  const readState = useCallback(() => {
+    const g = globalThis as Record<string, unknown>;
+    if (typeof g.app_worker_is_running === 'function') {
+      return Boolean((g.app_worker_is_running as () => boolean)());
+    }
+    const w = g.AppWorker as { isRunning?: () => boolean } | undefined;
+    return Boolean(w?.isRunning?.());
+  }, []);
+
+  const refresh = useCallback(() => setRunning(readState()), [readState]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const launch = useCallback((): WorkerResult => {
+    const g = globalThis as Record<string, unknown>;
+    const resultMap: Record<number, WorkerResult> = {
+      0: 'success', 1: 'alreadyRunning', 2: 'differentApp', 3: 'notInstalled', 4: 'error',
+    };
+    if (typeof g.app_worker_launch === 'function') {
+      const code = (g.app_worker_launch as () => number)();
+      refresh();
+      return resultMap[code] ?? 'error';
+    }
+    const w = g.AppWorker as { launch?: () => WorkerResult } | undefined;
+    if (w?.launch) {
+      const r = w.launch();
+      refresh();
+      return r;
+    }
+    setRunning(true);
+    return 'success';
+  }, [refresh]);
+
+  const kill = useCallback((): WorkerResult => {
+    const g = globalThis as Record<string, unknown>;
+    const resultMap: Record<number, WorkerResult> = {
+      0: 'success', 1: 'notRunning', 2: 'differentApp', 4: 'error',
+    };
+    if (typeof g.app_worker_kill === 'function') {
+      const code = (g.app_worker_kill as () => number)();
+      refresh();
+      return resultMap[code] ?? 'error';
+    }
+    const w = g.AppWorker as { kill?: () => WorkerResult } | undefined;
+    if (w?.kill) {
+      const r = w.kill();
+      refresh();
+      return r;
+    }
+    setRunning(false);
+    return 'success';
+  }, [refresh]);
+
+  return { launch, kill, isRunning, refresh };
+}
+
+/**
+ * Subscribe to messages from the background worker (or, when used inside
+ * a worker context, messages from the foreground app).
+ *
+ * On Alloy/C: uses `app_worker_message_subscribe()`.
+ * In mock mode: no-op.
+ */
+export function useWorkerMessage(handler: (msg: WorkerMessage) => void): void {
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
+
+  useEffect(() => {
+    const g = globalThis as Record<string, unknown>;
+    const dispatch = (type: number, data?: number) => handlerRef.current({ type, data });
+
+    if (typeof g.app_worker_message_subscribe === 'function') {
+      (g.app_worker_message_subscribe as (cb: (type: number, data: number) => void) => void)(
+        (type, data) => dispatch(type, data),
+      );
+      return () => {
+        if (typeof g.app_worker_message_unsubscribe === 'function') {
+          (g.app_worker_message_unsubscribe as () => void)();
+        }
+      };
+    }
+    const w = g.AppWorker as {
+      onMessage?: (cb: (msg: WorkerMessage) => void) => void;
+      offMessage?: (cb: (msg: WorkerMessage) => void) => void;
+    } | undefined;
+    if (w?.onMessage) {
+      const cb = (msg: WorkerMessage) => handlerRef.current(msg);
+      w.onMessage(cb);
+      return () => w.offMessage?.(cb);
+    }
+    return undefined;
+  }, []);
+}
+
+export interface UseWorkerSenderResult {
+  /** Send a message to the worker (from foreground app) or to the app (from worker). */
+  send: (msg: WorkerMessage) => void;
+}
+
+/**
+ * Returns a `send(msg)` function for cross-process messaging with the
+ * background worker. Mirrors `app_worker_send_message()`.
+ */
+export function useWorkerSender(): UseWorkerSenderResult {
+  const send = useCallback((msg: WorkerMessage) => {
+    const g = globalThis as Record<string, unknown>;
+    if (typeof g.app_worker_send_message === 'function') {
+      (g.app_worker_send_message as (type: number, data: number) => void)(
+        msg.type,
+        msg.data ?? 0,
+      );
+      return;
+    }
+    const w = g.AppWorker as {
+      send?: (msg: WorkerMessage) => void;
+    } | undefined;
+    w?.send?.(msg);
+  }, []);
+
+  return { send };
+}
+
+// ---------------------------------------------------------------------------
+// useRawClick — low-level press/release events for gesture timing
+// ---------------------------------------------------------------------------
+
+export interface UseRawClickOptions {
+  onDown?: () => void;
+  onUp?: () => void;
+}
+
+/**
+ * Subscribe to separate button-down and button-up events for a given button.
+ * Useful for gesture timing, chorded input, or custom click patterns that
+ * the standard `useButton` / `useLongButton` / `useMultiClick` don't cover.
+ *
+ * Mirrors `window_raw_click_subscribe()` on the C side.
+ *
+ * Down/up events are published through `ButtonRegistry` using the
+ * `raw_down_<button>` and `raw_up_<button>` keys. The renderer is expected
+ * to emit those keys when it detects a raw press/release.
+ */
+export function useRawClick(button: PebbleButton, options: UseRawClickOptions): void {
+  const optsRef = useRef(options);
+  optsRef.current = options;
+
+  useEffect(() => {
+    const downKey: ButtonRegistryKey = `raw_down_${button}`;
+    const upKey: ButtonRegistryKey = `raw_up_${button}`;
+    const onDown = () => optsRef.current.onDown?.();
+    const onUp = () => optsRef.current.onUp?.();
+    ButtonRegistry.subscribe(downKey, onDown);
+    ButtonRegistry.subscribe(upKey, onUp);
+    return () => {
+      ButtonRegistry.unsubscribe(downKey, onDown);
+      ButtonRegistry.unsubscribe(upKey, onUp);
+    };
+  }, [button]);
 }
 
 // ---------------------------------------------------------------------------
@@ -1557,6 +2213,31 @@ export interface AppGlanceSlice {
 
 export interface UseAppGlanceResult {
   update: (slices: AppGlanceSlice[]) => void;
+}
+
+/**
+ * Build an AppGlance subtitle that dynamically renders as a countdown to
+ * the given future timestamp (e.g. "in 5 min"). Mirrors the Pebble
+ * `time_until` template format (%aT = abbreviated hours/mins, %uT = unit,
+ * %0T = zero-padded digits).
+ *
+ * @param unixSecondsFuture — target Unix time in seconds
+ * @param format — template string; defaults to `"%aT"` (e.g. "5m", "2h")
+ */
+export function appGlanceTimeUntil(unixSecondsFuture: number, format: string = '%aT'): string {
+  return `<time_until ts="${unixSecondsFuture}" format="${format}">`;
+}
+
+/**
+ * Build an AppGlance subtitle that dynamically renders as the elapsed time
+ * since the given past timestamp (e.g. "3 min ago"). Mirrors
+ * `time_since` template format.
+ *
+ * @param unixSecondsPast — past Unix time in seconds
+ * @param format — template string; defaults to `"%aT ago"`
+ */
+export function appGlanceTimeSince(unixSecondsPast: number, format: string = '%aT ago'): string {
+  return `<time_since ts="${unixSecondsPast}" format="${format}">`;
 }
 
 /**
@@ -2065,31 +2746,148 @@ export type LaunchReason =
   | 'smartstrap'
   | 'unknown';
 
+export interface LaunchInfo {
+  reason: LaunchReason;
+  /** Launch argument (from `launch_get_args()` — set by timeline openWatchApp.launchCode, wakeup, or worker). */
+  args: number;
+}
+
 /**
  * Returns the reason the app was launched.
+ *
+ * Back-compat: returns the `LaunchReason` string directly.
+ * For access to the launch args (timeline `launchCode`, wakeup cookie, etc.),
+ * use `useLaunchInfo()`.
  *
  * On Alloy: reads from LaunchReason global or application.launchReason.
  * In mock mode: returns 'user'.
  */
 export function useLaunchReason(): LaunchReason {
+  return readLaunchInfo().reason;
+}
+
+/**
+ * Returns the full launch context — reason plus the launch argument set by
+ * the caller (timeline pin `launchCode`, `wakeup_schedule(cookie)`, or worker).
+ *
+ * On Alloy: calls `launch_get_args()` if available.
+ * In mock mode: returns `{ reason: 'user', args: 0 }`.
+ */
+export function useLaunchInfo(): LaunchInfo {
+  return readLaunchInfo();
+}
+
+function readLaunchInfo(): LaunchInfo {
+  let reason: LaunchReason = 'user';
+  let args = 0;
   if (typeof globalThis !== 'undefined') {
     const g = globalThis as Record<string, unknown>;
-    // Try LaunchReason global
     if (g.LaunchReason && typeof g.LaunchReason === 'object') {
-      const lr = g.LaunchReason as { reason?: string };
-      if (lr.reason) return lr.reason as LaunchReason;
-    }
-    // Try launch_reason() C-style binding
-    if (typeof g.launch_reason === 'function') {
+      const lr = g.LaunchReason as { reason?: string; args?: number };
+      if (lr.reason) reason = lr.reason as LaunchReason;
+      if (typeof lr.args === 'number') args = lr.args;
+    } else if (typeof g.launch_reason === 'function') {
       const code = (g.launch_reason as () => number)();
       const map: Record<number, LaunchReason> = {
         0: 'user', 1: 'phone', 2: 'wakeup', 3: 'worker',
         4: 'quickLaunch', 5: 'timeline', 6: 'smartstrap',
       };
-      return map[code] ?? 'unknown';
+      reason = map[code] ?? 'unknown';
+    }
+    if (typeof g.launch_get_args === 'function') {
+      try {
+        args = (g.launch_get_args as () => number)();
+      } catch {
+        // ignore
+      }
     }
   }
-  return 'user';
+  return { reason, args };
+}
+
+// ---------------------------------------------------------------------------
+// useExitReason — tell the launcher why the app exited
+// ---------------------------------------------------------------------------
+
+export type ExitReasonCode = 'default' | 'actionPerformed' | 'genericError';
+
+export interface UseExitReasonResult {
+  /** Record a reason the app is about to exit. Called before your app terminates. */
+  setReason: (reason: ExitReasonCode) => void;
+}
+
+/**
+ * Configure the reason the app exited, which the launcher uses to decide what
+ * to show on return (e.g. "Setting saved, please relaunch").
+ *
+ * On Alloy: calls `app_exit_reason_set()` or writes to `ExitReason.current`.
+ * In mock mode: no-op.
+ *
+ * Also available directly on the rendered app via `app.setExitReason(...)`,
+ * but this hook keeps the concept colocated with other hooks.
+ */
+export function useExitReason(): UseExitReasonResult {
+  const setReason = useCallback((reason: ExitReasonCode) => {
+    if (typeof globalThis === 'undefined') return;
+    const g = globalThis as Record<string, unknown>;
+    // C-binding style
+    if (typeof g.app_exit_reason_set === 'function') {
+      const codes: Record<ExitReasonCode, number> = {
+        default: 0,
+        actionPerformed: 1,
+        genericError: 2,
+      };
+      (g.app_exit_reason_set as (code: number) => void)(codes[reason]);
+      return;
+    }
+    // Object-style
+    if (g.ExitReason && typeof g.ExitReason === 'object') {
+      (g.ExitReason as { current?: string }).current = reason;
+    }
+  }, []);
+
+  return { setReason };
+}
+
+// ---------------------------------------------------------------------------
+// useNotification — push a simple notification to the watch from PebbleKit JS
+// ---------------------------------------------------------------------------
+
+export interface SimpleNotification {
+  title: string;
+  body: string;
+}
+
+export interface UseNotificationResult {
+  show: (notification: SimpleNotification) => void;
+}
+
+/**
+ * Push a one-line notification to the watch from phone-side code.
+ *
+ * On Alloy (phone side): calls `Pebble.showSimpleNotificationOnPebble(title, body)`.
+ * In mock mode: logs to console.
+ *
+ * Watchside code doesn't generally call this — it's for phone JS. The hook is
+ * provided for symmetry with other hooks so apps that blend phone/watch logic
+ * in the same source can call it from either side.
+ */
+export function useNotification(): UseNotificationResult {
+  const show = useCallback((n: SimpleNotification) => {
+    if (typeof globalThis === 'undefined') return;
+    const g = globalThis as Record<string, unknown>;
+    const pebble = g.Pebble as {
+      showSimpleNotificationOnPebble?: (title: string, body: string) => void;
+    } | undefined;
+    if (pebble?.showSimpleNotificationOnPebble) {
+      pebble.showSimpleNotificationOnPebble(n.title, n.body);
+      return;
+    }
+    // Mock / non-phone runtime
+    console.log(`[notification] ${n.title}: ${n.body}`);
+  }, []);
+
+  return { show };
 }
 
 // ---------------------------------------------------------------------------
@@ -2328,6 +3126,259 @@ export function usePreferredResultDuration(): number {
     }
   }
   return 3000;
+}
+
+// ---------------------------------------------------------------------------
+// useSports — phone↔watch protocol for running/cycling apps
+// ---------------------------------------------------------------------------
+
+export type SportsState = 'playing' | 'paused' | 'stopped';
+export type SportsUnits = 'metric' | 'imperial';
+
+export interface SportsUpdate {
+  /** Elapsed time (seconds since start). */
+  time?: number;
+  /** Distance (meters or miles depending on units). */
+  distance?: number;
+  /** Current pace (seconds per km or mile). */
+  pace?: number;
+  /** Current speed (km/h or mph). */
+  speed?: number;
+  /** Heart rate (BPM). */
+  heartRate?: number;
+  /** App state. */
+  state?: SportsState;
+  /** Display units on the watch. */
+  units?: SportsUnits;
+  /** Custom labeled data pair (e.g. ["calories", "240"]). */
+  customLabel?: string;
+  customValue?: string;
+}
+
+export interface UseSportsOptions {
+  /** Default units (sent in the first update). */
+  units?: SportsUnits;
+  /** Called when the watch reports a state change (e.g. user hits play/pause). */
+  onStateChange?: (state: SportsState) => void;
+}
+
+export interface UseSportsResult {
+  /** Push a sports metric update to the watch. */
+  update: (patch: SportsUpdate) => void;
+  /** Latest state as reported by the watch. */
+  state: SportsState;
+}
+
+/**
+ * PebbleKit Sports protocol — lets running/cycling apps stream stats to the
+ * watch and receive play/pause/stop state changes. Phone-side helper.
+ *
+ * On PebbleKit JS: sends via `Pebble.sendAppMessage` using the Sports
+ * message keys (0, 1, 2, 3, 4, ...) and listens for `appmessage` state updates.
+ * In mock mode: state transitions fire via the `update({ state })` call.
+ */
+export function useSports(options: UseSportsOptions = {}): UseSportsResult {
+  const [state, setState] = useState<SportsState>('stopped');
+  const unitsRef = useRef<SportsUnits>(options.units ?? 'metric');
+  const onStateChangeRef = useRef(options.onStateChange);
+  onStateChangeRef.current = options.onStateChange;
+
+  useEffect(() => {
+    const g = globalThis as Record<string, unknown>;
+    const pebble = g.Pebble as {
+      addEventListener?: (event: string, cb: (e: { payload?: Record<string, number | string> }) => void) => void;
+      removeEventListener?: (event: string, cb: (e: { payload?: Record<string, number | string> }) => void) => void;
+    } | undefined;
+    if (!pebble?.addEventListener) return undefined;
+
+    const listener = (e: { payload?: Record<string, number | string> }) => {
+      const payload = e.payload ?? {};
+      // Sports message key 7 = state (0/1/2 for stopped/paused/playing in Pebble conventions).
+      const rawState = payload['7'] ?? payload.state;
+      if (rawState !== undefined) {
+        const map: Record<string, SportsState> = { '0': 'stopped', '1': 'paused', '2': 'playing',
+          stopped: 'stopped', paused: 'paused', playing: 'playing' };
+        const next = map[String(rawState)];
+        if (next) {
+          setState(next);
+          onStateChangeRef.current?.(next);
+        }
+      }
+    };
+    pebble.addEventListener('appmessage', listener);
+    return () => pebble.removeEventListener?.('appmessage', listener);
+  }, []);
+
+  const update = useCallback((patch: SportsUpdate) => {
+    if (patch.units) unitsRef.current = patch.units;
+    if (patch.state !== undefined) setState(patch.state);
+    const g = globalThis as Record<string, unknown>;
+    const pebble = g.Pebble as {
+      sendAppMessage?: (msg: Record<string, unknown>, ok?: () => void, fail?: () => void) => void;
+    } | undefined;
+    const msg: Record<string, unknown> = {};
+    if (patch.time !== undefined) msg['0'] = patch.time;
+    if (patch.distance !== undefined) msg['1'] = patch.distance;
+    if (patch.pace !== undefined) msg['2'] = patch.pace;
+    if (patch.speed !== undefined) msg['3'] = patch.speed;
+    if (patch.heartRate !== undefined) msg['4'] = patch.heartRate;
+    if (patch.customLabel !== undefined) msg['5'] = patch.customLabel;
+    if (patch.customValue !== undefined) msg['6'] = patch.customValue;
+    if (patch.state !== undefined) {
+      msg['7'] = patch.state === 'stopped' ? 0 : patch.state === 'paused' ? 1 : 2;
+    }
+    if (patch.units ?? unitsRef.current) {
+      msg['8'] = (patch.units ?? unitsRef.current) === 'imperial' ? 1 : 0;
+    }
+    pebble?.sendAppMessage?.(msg);
+  }, []);
+
+  return { update, state };
+}
+
+// ---------------------------------------------------------------------------
+// Internationalization — useTranslation + defineTranslations
+// ---------------------------------------------------------------------------
+
+export type TranslationDict = Record<string, Record<string, string>>;
+
+let _translationTable: TranslationDict = {};
+let _fallbackLocale = 'en';
+
+/**
+ * Register translation strings. Call once at app startup, before rendering.
+ *
+ *   defineTranslations({
+ *     en: { hello: "Hello", steps: "{n} steps" },
+ *     fr: { hello: "Bonjour", steps: "{n} pas" },
+ *   });
+ *
+ * Translations are looked up by language code first (e.g. 'fr'), then by
+ * full locale (e.g. 'fr-CA'). If neither is present, falls back to
+ * `fallback` (default `'en'`).
+ */
+export function defineTranslations(dict: TranslationDict, fallback: string = 'en'): void {
+  _translationTable = dict;
+  _fallbackLocale = fallback;
+}
+
+/**
+ * Returns a `t(key, params?)` function that resolves translation strings
+ * for the device's current locale. Re-renders when the locale changes.
+ *
+ *   const t = useTranslation();
+ *   return <Text>{t('steps', { n: steps })}</Text>;
+ */
+export function useTranslation(): (key: string, params?: Record<string, string | number>) => string {
+  const { language } = useLocale();
+
+  return useCallback((key: string, params?: Record<string, string | number>): string => {
+    const dict = _translationTable[language]
+      ?? _translationTable[_fallbackLocale]
+      ?? {};
+    let str = dict[key] ?? _translationTable[_fallbackLocale]?.[key] ?? key;
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+      }
+    }
+    return str;
+  }, [language]);
+}
+
+// ---------------------------------------------------------------------------
+// useMemoryStats — heap-used / heap-free / largest-free
+// ---------------------------------------------------------------------------
+
+export interface MemoryStats {
+  used: number;
+  free: number;
+  largestFree: number;
+}
+
+/**
+ * Returns heap memory statistics. Useful for debugging OOMs on constrained
+ * platforms (24 kB on aplite, 64 kB on basalt/chalk, 128 kB elsewhere).
+ *
+ * On Alloy: reads from `memory_bytes_used/free/largest_free` or XS's
+ * `Memory.heap` introspection.
+ * In mock mode: returns plausible static values.
+ *
+ * @param pollInterval — how often to re-sample (ms). Default 1000.
+ */
+export function useMemoryStats(pollInterval: number = 1000): MemoryStats {
+  const [stats, setStats] = useState<MemoryStats>({ used: 0, free: 0, largestFree: 0 });
+
+  useEffect(() => {
+    const read = (): MemoryStats => {
+      const g = globalThis as Record<string, unknown>;
+      if (typeof g.memory_bytes_used === 'function') {
+        return {
+          used: Number((g.memory_bytes_used as () => number)()),
+          free: typeof g.memory_bytes_free === 'function'
+            ? Number((g.memory_bytes_free as () => number)())
+            : 0,
+          largestFree: typeof g.memory_largest_free === 'function'
+            ? Number((g.memory_largest_free as () => number)())
+            : 0,
+        };
+      }
+      // Moddable XS Memory object, if exposed
+      const mem = g.Memory as {
+        used?: number; free?: number; largestFree?: number;
+      } | undefined;
+      if (mem && typeof mem.used === 'number') {
+        return {
+          used: mem.used,
+          free: mem.free ?? 0,
+          largestFree: mem.largestFree ?? 0,
+        };
+      }
+      // Mock fallback
+      return { used: 24_576, free: 40_960, largestFree: 32_768 };
+    };
+
+    setStats(read());
+    const id = setInterval(() => setStats(read()), pollInterval);
+    return () => clearInterval(id);
+  }, [pollInterval]);
+
+  return stats;
+}
+
+// ---------------------------------------------------------------------------
+// useMemoryPressure — subscribe to Rocky 'memorypressure' events
+// ---------------------------------------------------------------------------
+
+export type MemoryPressureLevel = 'normal' | 'high' | 'critical';
+
+/**
+ * Subscribe to memory pressure events (Rocky.js `memorypressure` event).
+ * The handler is called when the runtime is about to start dropping
+ * allocations — your app should shed caches and large allocations.
+ *
+ * On Rocky: registers with `rocky.on('memorypressure', ...)`.
+ * Elsewhere: no-op (Alloy and C SDK don't expose this event directly).
+ */
+export function useMemoryPressure(handler: (level: MemoryPressureLevel) => void): void {
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
+
+  useEffect(() => {
+    const g = globalThis as Record<string, unknown>;
+    const rocky = g.rocky as {
+      on?: (event: string, cb: (ev: { level?: string }) => void) => void;
+      off?: (event: string, cb: (ev: { level?: string }) => void) => void;
+    } | undefined;
+    if (!rocky?.on) return undefined;
+
+    const listener = (ev: { level?: string }) => {
+      const lvl = (ev?.level as MemoryPressureLevel) ?? 'high';
+      handlerRef.current(lvl);
+    };
+    rocky.on('memorypressure', listener);
+    return () => rocky.off?.('memorypressure', listener);
+  }, []);
 }
 
 // ---------------------------------------------------------------------------

@@ -59,7 +59,76 @@ export interface ConfigSelectItem {
   options: Array<{ label: string; value: string }>;
 }
 
-export type ConfigItem = ConfigColorItem | ConfigToggleItem | ConfigTextItem | ConfigSelectItem;
+export interface ConfigInputItem {
+  type: 'input';
+  key: string;
+  label: string;
+  default: string;
+  /** HTML input type: 'text', 'email', 'tel', 'number', 'url', 'password'. */
+  inputType?: 'text' | 'email' | 'tel' | 'number' | 'url' | 'password';
+  placeholder?: string;
+  /** RegExp source for HTML pattern validation. */
+  pattern?: string;
+  /** Min/max for numeric inputs. */
+  min?: number;
+  max?: number;
+}
+
+export interface ConfigRangeItem {
+  type: 'range';
+  key: string;
+  label: string;
+  default: number;
+  min: number;
+  max: number;
+  step?: number;
+  /** Show a live value readout next to the slider (default: true). */
+  showValue?: boolean;
+}
+
+export interface ConfigHeadingItem {
+  type: 'heading';
+  /** Display-only; no key because headings have no value. */
+  label: string;
+  /** Heading level (1-3). Default: 2. */
+  level?: 1 | 2 | 3;
+}
+
+export interface ConfigRadioGroupItem {
+  type: 'radiogroup';
+  key: string;
+  label: string;
+  default: string;
+  options: Array<{ label: string; value: string }>;
+}
+
+export interface ConfigCheckboxGroupItem {
+  type: 'checkboxgroup';
+  key: string;
+  label: string;
+  /** Array of currently-checked option values. */
+  default: string[];
+  options: Array<{ label: string; value: string }>;
+}
+
+export interface ConfigSubmitItem {
+  type: 'submit';
+  label: string;
+  /** Primary color (hex without #). Defaults to Pebble green. */
+  color?: string;
+}
+
+export type ConfigItem =
+  | ConfigColorItem
+  | ConfigToggleItem
+  | ConfigTextItem
+  | ConfigSelectItem
+  | ConfigInputItem
+  | ConfigRangeItem
+  | ConfigHeadingItem
+  | ConfigRadioGroupItem
+  | ConfigCheckboxGroupItem
+  | ConfigSubmitItem;
 
 export interface ConfigSectionSpec {
   title: string;
@@ -97,6 +166,60 @@ export function ConfigSelect(
   defaultValue?: string,
 ): ConfigSelectItem {
   return { type: 'select', key, label, options, default: defaultValue ?? options[0]?.value ?? '' };
+}
+
+export function ConfigInput(
+  key: string,
+  label: string,
+  defaultValue: string = '',
+  options?: Pick<ConfigInputItem, 'inputType' | 'placeholder' | 'pattern' | 'min' | 'max'>,
+): ConfigInputItem {
+  return { type: 'input', key, label, default: defaultValue, ...(options ?? {}) };
+}
+
+export function ConfigRange(
+  key: string,
+  label: string,
+  min: number,
+  max: number,
+  defaultValue?: number,
+  step?: number,
+): ConfigRangeItem {
+  return {
+    type: 'range',
+    key,
+    label,
+    min,
+    max,
+    step,
+    default: defaultValue ?? min,
+  };
+}
+
+export function ConfigHeading(label: string, level: 1 | 2 | 3 = 2): ConfigHeadingItem {
+  return { type: 'heading', label, level };
+}
+
+export function ConfigRadioGroup(
+  key: string,
+  label: string,
+  options: Array<{ label: string; value: string }>,
+  defaultValue?: string,
+): ConfigRadioGroupItem {
+  return { type: 'radiogroup', key, label, options, default: defaultValue ?? options[0]?.value ?? '' };
+}
+
+export function ConfigCheckboxGroup(
+  key: string,
+  label: string,
+  options: Array<{ label: string; value: string }>,
+  defaultValue: string[] = [],
+): ConfigCheckboxGroupItem {
+  return { type: 'checkboxgroup', key, label, options, default: defaultValue };
+}
+
+export function ConfigSubmit(label: string = 'Save Settings', color?: string): ConfigSubmitItem {
+  return { type: 'submit', label, ...(color ? { color } : {}) };
 }
 
 export function ConfigSection(title: string, items: ConfigItem[]): ConfigSectionSpec {
@@ -182,6 +305,70 @@ function renderItemHtml(item: ConfigItem): string {
           <select id="cfg-${item.key}" name="${item.key}">${opts}</select>
         </div>`;
     }
+    case 'input': {
+      const attrs = [
+        `type="${item.inputType ?? 'text'}"`,
+        `id="cfg-${item.key}"`,
+        `name="${item.key}"`,
+        `value="${escapeHtml(item.default)}"`,
+        item.placeholder ? `placeholder="${escapeHtml(item.placeholder)}"` : '',
+        item.pattern ? `pattern="${escapeHtml(item.pattern)}"` : '',
+        item.min !== undefined ? `min="${item.min}"` : '',
+        item.max !== undefined ? `max="${item.max}"` : '',
+      ].filter(Boolean).join(' ');
+      return `
+        <div class="config-item">
+          <label>${escapeHtml(item.label)}</label>
+          <input ${attrs}>
+        </div>`;
+    }
+    case 'range': {
+      const step = item.step ?? 1;
+      const showValue = item.showValue !== false;
+      return `
+        <div class="config-item">
+          <label>${escapeHtml(item.label)}${showValue ? ` <span class="range-value" id="cfg-${item.key}-val">${item.default}</span>` : ''}</label>
+          <input type="range" id="cfg-${item.key}" name="${item.key}" min="${item.min}" max="${item.max}" step="${step}" value="${item.default}"${showValue ? ` oninput="document.getElementById('cfg-${item.key}-val').textContent = this.value"` : ''}>
+        </div>`;
+    }
+    case 'heading': {
+      const lvl = item.level ?? 2;
+      return `<div class="config-heading heading-${lvl}"><h${lvl}>${escapeHtml(item.label)}</h${lvl}></div>`;
+    }
+    case 'radiogroup': {
+      const opts = item.options.map(
+        (o, i) => `
+          <label class="radio-item">
+            <input type="radio" id="cfg-${item.key}-${i}" name="${item.key}" value="${escapeHtml(o.value)}"${o.value === item.default ? ' checked' : ''}>
+            <span>${escapeHtml(o.label)}</span>
+          </label>`,
+      ).join('');
+      return `
+        <div class="config-item radio-group" data-key="${item.key}">
+          <label class="group-label">${escapeHtml(item.label)}</label>
+          ${opts}
+        </div>`;
+    }
+    case 'checkboxgroup': {
+      const defaults = new Set(item.default);
+      const opts = item.options.map(
+        (o, i) => `
+          <label class="checkbox-item">
+            <input type="checkbox" id="cfg-${item.key}-${i}" data-group="${item.key}" value="${escapeHtml(o.value)}"${defaults.has(o.value) ? ' checked' : ''}>
+            <span>${escapeHtml(o.label)}</span>
+          </label>`,
+      ).join('');
+      return `
+        <div class="config-item checkbox-group" data-key="${item.key}">
+          <label class="group-label">${escapeHtml(item.label)}</label>
+          ${opts}
+        </div>`;
+    }
+    case 'submit': {
+      const color = item.color ? `#${item.color}` : '';
+      const style = color ? ` style="background:${color}"` : '';
+      return `<button class="submit-btn inline-submit"${style} onclick="submitSettings()">${escapeHtml(item.label)}</button>`;
+    }
   }
 }
 
@@ -264,8 +451,24 @@ input:checked + .slider:before { transform: translateX(22px); }
   font-size: 16px; font-weight: 600; cursor: pointer;
   transition: background 0.2s;
 }
-.submit-btn:hover { background: #45a049; }
-.submit-btn:active { background: #3d8b40; }
+.submit-btn:hover { filter: brightness(1.08); }
+.submit-btn:active { filter: brightness(0.9); }
+.inline-submit { margin-top: 8px; margin-bottom: 8px; }
+input[type="range"] { width: 100%; }
+.range-value {
+  float: right; font-weight: 600; color: #4CAF50;
+  font-variant-numeric: tabular-nums;
+}
+.config-heading { margin: 20px 0 8px; }
+.config-heading h1 { font-size: 18px; color: #222; }
+.config-heading h2 { font-size: 14px; text-transform: uppercase; color: #888; letter-spacing: 0.5px; }
+.config-heading h3 { font-size: 13px; color: #666; }
+.radio-item, .checkbox-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0; cursor: pointer;
+}
+.radio-item input, .checkbox-item input { margin: 0; }
+.group-label { font-weight: 500; margin-bottom: 6px !important; }
 </style>
 </head>
 <body>
@@ -289,12 +492,31 @@ function loadSavedSettings() {
     var saved = JSON.parse(decodeURIComponent(hash.substring(1)));
     if (!saved || typeof saved !== 'object') return;
     for (var key in saved) {
+      var val = saved[key];
+      // Radio group: pick the matching radio input by name
+      var radios = document.querySelectorAll('input[type="radio"][name="' + key + '"]');
+      if (radios.length > 0) {
+        for (var ri = 0; ri < radios.length; ri++) {
+          radios[ri].checked = (radios[ri].value === String(val));
+        }
+        continue;
+      }
+      // Checkbox group: array of values
+      var boxes = document.querySelectorAll('input[data-group="' + key + '"]');
+      if (boxes.length > 0 && Array.isArray(val)) {
+        for (var bi = 0; bi < boxes.length; bi++) {
+          boxes[bi].checked = val.indexOf(boxes[bi].value) >= 0;
+        }
+        continue;
+      }
       var el = document.getElementById('cfg-' + key);
       if (!el) continue;
-      var val = saved[key];
       if (el.type === 'checkbox') {
         el.checked = val === true || val === 'true' || val === 1;
-        // Update slider visual
+      } else if (el.type === 'range') {
+        el.value = val;
+        var readout = document.getElementById('cfg-' + key + '-val');
+        if (readout) readout.textContent = val;
       } else if (el.type === 'hidden') {
         // Color picker — select the matching swatch
         el.value = val;
@@ -319,11 +541,24 @@ function loadSavedSettings() {
 function submitSettings() {
   var settings = {};
   ${allItems.map((item) => {
+    if (item.type === 'heading' || item.type === 'submit') return '';
     if (item.type === 'toggle') {
       return `settings["${item.key}"] = document.getElementById("cfg-${item.key}").checked;`;
     }
+    if (item.type === 'range') {
+      return `settings["${item.key}"] = Number(document.getElementById("cfg-${item.key}").value);`;
+    }
+    if (item.type === 'input' && item.inputType === 'number') {
+      return `settings["${item.key}"] = Number(document.getElementById("cfg-${item.key}").value);`;
+    }
+    if (item.type === 'radiogroup') {
+      return `(function() { var sel = document.querySelector('input[name="${item.key}"]:checked'); settings["${item.key}"] = sel ? sel.value : ""; })();`;
+    }
+    if (item.type === 'checkboxgroup') {
+      return `(function() { var boxes = document.querySelectorAll('input[data-group="${item.key}"]:checked'); settings["${item.key}"] = Array.prototype.map.call(boxes, function(b) { return b.value; }); })();`;
+    }
     return `settings["${item.key}"] = document.getElementById("cfg-${item.key}").value;`;
-  }).join('\n  ')}
+  }).filter(Boolean).join('\n  ')}
   var encoded = encodeURIComponent(JSON.stringify(settings));
   if (window.location.href.indexOf('pebblejs://') === 0 || navigator.userAgent.indexOf('Pebble') >= 0) {
     window.location.href = 'pebblejs://close#' + encoded;

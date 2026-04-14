@@ -68,13 +68,14 @@ function ensureSkin(ctx: EmitContext, fill: string): string {
 }
 
 function ensureStyle(ctx: EmitContext, font: string, color: string): string {
-  const key = `${font}|${color}`;
+  const hex = colorToHex(color);
+  const key = `${font}|${hex}`;
   const existing = ctx.styles.get(key);
   if (existing) return existing;
   const name = `st${ctx.styleIdx++}`;
   ctx.styles.set(key, name);
   ctx.declarations.push(
-    `const ${name} = new Style({ font: "${fontToPiu(font)}", color: "${color}" });`,
+    `const ${name} = new Style({ font: "${fontToPiu(font)}", color: "${hex}" });`,
   );
   return name;
 }
