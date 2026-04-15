@@ -61,6 +61,11 @@ export interface PebblePiuOptions {
   uuid?: string;
   /** Override the app display name in `package.json` `pebble.displayName`. */
   displayName?: string;
+  /**
+   * Override `pebble.versionLabel` (default: `'1.0.0'`, matching the emitted
+   * npm `version`). Shown in the Pebble mobile app / app store listing.
+   */
+  versionLabel?: string;
   /** `pebble.watchapp.hiddenApp` — hides app from menu; useful for companions. */
   hiddenApp?: boolean;
   /** `pebble.watchapp.onlyShownOnCommunication` — only shown when phone sends AppMessage. */
@@ -229,6 +234,7 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
           projectRoot: resolve(options.entry, '..'),
           uuid: options.uuid,
           displayName: options.displayName,
+          versionLabel: options.versionLabel,
           hiddenApp: options.hiddenApp,
           onlyShownOnCommunication: options.onlyShownOnCommunication,
           capabilities,
@@ -282,7 +288,7 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
 // Pebble project scaffolding
 // ---------------------------------------------------------------------------
 
-interface ScaffoldOptions {
+export interface ScaffoldOptions {
   target: 'alloy' | 'rocky' | 'c';
   watchface: boolean;
   messageKeys: string[];
@@ -298,6 +304,8 @@ interface ScaffoldOptions {
   uuid?: string;
   /** Override package.json `pebble.displayName` */
   displayName?: string;
+  /** Override `pebble.versionLabel` (default: '1.0.0') */
+  versionLabel?: string;
   /** `pebble.watchapp.hiddenApp` */
   hiddenApp?: boolean;
   /** `pebble.watchapp.onlyShownOnCommunication` */
@@ -410,7 +418,7 @@ function computeCapabilities(
   return [...set];
 }
 
-function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
+export function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
   if (options.target === 'rocky') {
     mkdirSync(join(dir, 'src', 'rocky'), { recursive: true });
   } else if (options.target === 'c') {
@@ -448,6 +456,7 @@ function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): void {
     uuid,
     projectType: isRocky ? 'rocky' : options.target === 'c' ? 'native' : 'moddable',
     sdkVersion: '3',
+    versionLabel: options.versionLabel ?? '1.0.0',
     enableMultiJS: options.enableMultiJS ?? true,
     targetPlatforms: (isRocky || options.target === 'c')
       ? [options.platform ?? 'basalt']
