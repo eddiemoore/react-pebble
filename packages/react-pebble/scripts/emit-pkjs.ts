@@ -173,6 +173,24 @@ export function emitPKJS(options: PKJSOptions): string {
 
   // Configuration page support
   if (options.configUrl) {
+    // Lookup table for ConfigCheckboxGroup option arrays. Used during
+    // webviewclosed to convert the submitted string[] (selected option
+    // values) to an int[] (one 0/1 per declared option) aligned with the
+    // declared options. The C-side reads N consecutive AppMessage slots
+    // via pointer arithmetic on MESSAGE_KEY_<key>.
+    const checkboxGroups = (ir.configInfo?.keys ?? []).filter(
+      (k): k is typeof k & { options: string[] } =>
+        k.type === 'checkboxgroup' && Array.isArray(k.options),
+    );
+    if (checkboxGroups.length > 0) {
+      lines.push('');
+      lines.push('var __configOptions = {');
+      for (const k of checkboxGroups) {
+        lines.push(`  "${k.key}": ${JSON.stringify(k.options)},`);
+      }
+      lines.push('};');
+    }
+
     lines.push('');
     lines.push('// Saved settings (persisted in PebbleKit JS localStorage)');
     lines.push('var savedSettings = null;');
@@ -207,6 +225,16 @@ export function emitPKJS(options: PKJSOptions): string {
     lines.push('          msg[key] = parseInt(val, 16);  // 0xRRGGBB for GColorFromHEX');
     lines.push('        } else if (typeof val === "boolean") {');
     lines.push('          msg[key] = val ? 1 : 0;');
+    lines.push('        } else if (Array.isArray(val) && typeof __configOptions !== "undefined" && __configOptions[key]) {');
+    lines.push('          // ConfigCheckboxGroup: convert string[] of selected values to int[]');
+    lines.push('          // aligned with the declared options. The Pebble runtime expands the');
+    lines.push('          // array into N consecutive AppMessage slots starting at MESSAGE_KEY_<key>.');
+    lines.push('          var opts = __configOptions[key];');
+    lines.push('          var out = [];');
+    lines.push('          for (var i = 0; i < opts.length; i++) {');
+    lines.push('            out.push(val.indexOf(opts[i]) >= 0 ? 1 : 0);');
+    lines.push('          }');
+    lines.push('          msg[key] = out;');
     lines.push('        } else {');
     lines.push('          msg[key] = val;');
     lines.push('        }');
