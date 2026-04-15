@@ -9,9 +9,9 @@
  */
 
 import type Poco from 'commodetto/Poco';
-import { render, SCREEN } from '../src/index.js';
+import { render } from '../src/index.js';
 import { Text, Rect, Group, Circle, Line, Path } from '../src/components/index.js';
-import { useTime, polarPoint } from '../src/hooks/index.js';
+import { useTime, polarPoint, useScreen } from '../src/hooks/index.js';
 
 function PolarClock() {
   const time = useTime(1000);
@@ -19,8 +19,7 @@ function PolarClock() {
   const minutes = time.getMinutes();
   const seconds = time.getSeconds();
 
-  const sw = SCREEN.width;
-  const sh = SCREEN.height;
+  const { width: sw, height: sh } = useScreen();
   const cx = Math.floor(sw / 2);
   const cy = Math.floor(Math.min(sw, sh) / 2);
   const faceR = Math.floor(Math.min(sw, sh) / 2 - 4);

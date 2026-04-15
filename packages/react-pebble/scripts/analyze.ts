@@ -14,7 +14,7 @@ import { getTextContent } from '../src/pebble-dom.js';
 import { COLOR_PALETTE } from '../src/pebble-output.js';
 import { _setUseStateImpl, _restoreUseState } from '../src/hooks/index.js';
 import { useState as realUseState } from 'preact/hooks';
-import { _setPlatform, SCREEN } from '../src/platform.js';
+import { PLATFORMS } from '../src/platform.js';
 import type {
   CompilerIR, IRElement, IRStateSlot, IRButtonAction,
   IRStateDep, IRSkinDep, IRBranch, IRConditionalChild,
@@ -153,7 +153,12 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       return {
         type: el.type === 'pbl-root' ? 'root' : 'group',
         x: num(p, 'x'), y: num(p, 'y'),
-        w: SCREEN.width, h: SCREEN.height,
+        // Negative w/h is the "fill parent" sentinel — emitters translate
+        // to the platform-native bind-to-parent idiom (piu: left:0,right:0;
+        // C: full screen). We use -1 instead of 0 because 0 is a legitimate
+        // runtime value for dynamic/animated dimensions.
+        w: num(p, 'w') || num(p, 'width') || -1,
+        h: num(p, 'h') || num(p, 'height') || -1,
         children,
       };
     }
@@ -277,8 +282,8 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       return {
         type: 'group',
         x: num(p, 'x'), y: num(p, 'y'),
-        w: num(p, 'w') || num(p, 'width') || SCREEN.width,
-        h: num(p, 'h') || num(p, 'height') || SCREEN.height,
+        w: num(p, 'w') || num(p, 'width') || -1,
+        h: num(p, 'h') || num(p, 'height') || -1,
         children,
       };
     }
@@ -343,8 +348,9 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       const fontName = str(p, 'font') ?? 'gothic18';
       const colorName = str(p, 'color') ?? 'white';
       const align = str(p, 'align') ?? 'left';
-      const w = num(p, 'w') || num(p, 'width') || SCREEN.width;
-      const h = num(p, 'h') || num(p, 'height') || SCREEN.height;
+      // -1 signals "fill parent" to the emitter (see buildSizeProps).
+      const w = num(p, 'w') || num(p, 'width') || -1;
+      const h = num(p, 'h') || num(p, 'height') || -1;
 
       const labelIdx = ctx.labelIdx++;
       ctx.labelTexts.set(labelIdx, text);
@@ -1088,8 +1094,24 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
   const settle = () =>
     settleMs > 0 ? new Promise<void>((r) => setTimeout(r, settleMs)) : Promise.resolve();
 
-  // Set platform dimensions
-  _setPlatform(platformName);
+  // Look up platform metadata (used for the IR `platform` field and for
+  // stubbing runtime globals below).
+  const platformSpec = PLATFORMS[platformName] ?? PLATFORMS.emery!;
+
+  // Stub the Moddable runtime globals that `getScreen()` / `useWatchInfo()`
+  // read from, so module-level constants in the analyzed entry file observe
+  // the target platform (parity with the old _setPlatform(SCREEN) hack, but
+  // now driven through the same path user code uses).
+  const runtimeGlobals = globalThis as Record<string, unknown>;
+  runtimeGlobals.screen = { width: platformSpec.width, height: platformSpec.height };
+  runtimeGlobals.WatchInfo = {
+    model: platformSpec.name,
+    platform: platformSpec.name,
+    isRound: platformSpec.isRound,
+    isColor: true,
+  };
+  const { _resetScreenCache } = await import('../src/hooks/useScreen.js');
+  _resetScreenCache();
 
   // Import the example module
   const exampleMod = await import(entryPath);
@@ -1889,10 +1911,10 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
 
   return {
     platform: {
-      name: SCREEN.platform,
-      width: SCREEN.width,
-      height: SCREEN.height,
-      isRound: SCREEN.isRound,
+      name: platformSpec.name,
+      width: platformSpec.width,
+      height: platformSpec.height,
+      isRound: platformSpec.isRound,
     },
     tree,
     stateSlots: irStateSlots,

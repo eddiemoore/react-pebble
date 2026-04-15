@@ -12,8 +12,9 @@ export interface WatchInfo {
 /**
  * Returns information about the watch hardware.
  *
- * On Alloy: reads from `WatchInfo` global if available.
- * In mock mode: derives from SCREEN constants.
+ * Reads from the `WatchInfo` global set by the Pebble SDK when available
+ * (Alloy or when the compiler stubs the global for analysis). Falls back
+ * to emery-shaped mock values when neither is present.
  */
 export function useWatchInfo(): WatchInfo {
   if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).WatchInfo) {
@@ -31,7 +32,6 @@ export function useWatchInfo(): WatchInfo {
     };
   }
 
-  // Mock mode: derive from SCREEN (imported lazily to avoid circular deps)
   return {
     model: 'mock',
     platform: 'emery',

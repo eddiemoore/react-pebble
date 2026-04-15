@@ -118,6 +118,7 @@ export {
 } from './useMeasurementSystem.js';
 export { useTimer, type UseTimerResult } from './useTimer.js';
 export { useWatchInfo, type WatchInfo } from './useWatchInfo.js';
+export { useScreen, getScreen, type ScreenInfo } from './useScreen.js';
 export { useLocale, type LocaleInfo } from './useLocale.js';
 export { useUnobstructedArea, type UnobstructedArea } from './useUnobstructedArea.js';
 export { useMultiClick, type MultiClickOptions } from './useMultiClick.js';

@@ -2,6 +2,8 @@
  * useDisplayBounds — content rect that accounts for round displays.
  */
 
+import { getScreen } from './useScreen.js';
+
 export interface DisplayBounds {
   x: number;
   y: number;
@@ -17,14 +19,7 @@ export interface DisplayBounds {
  * full screen minus padding.
  */
 export function useDisplayBounds(padding: number = 0): DisplayBounds {
-  // Import SCREEN lazily to avoid circular deps
-  const screen = (globalThis as Record<string, unknown>).__PEBBLE_SCREEN__ as
-    | { width: number; height: number; isRound: boolean }
-    | undefined;
-
-  const w = screen?.width ?? 200;
-  const h = screen?.height ?? 228;
-  const isRound = screen?.isRound ?? false;
+  const { width: w, height: h, isRound } = getScreen();
 
   if (isRound) {
     // Inscribe a rectangle in the circle (largest rect with ~70.7% of diameter)

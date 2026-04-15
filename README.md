@@ -551,7 +551,7 @@ packages/
       pebble-dom-shim.ts     — DOM adapter for Preact
       pebble-output.ts       — Poco renderer (circles, lines, rounded rects, text wrapping)
       pebble-render.ts       — Mock renderer entry point
-      platform.ts            — Screen dimensions (SCREEN.width/height)
+      platform.ts            — Pebble platform catalog (used by useScreen + compiler)
       types/moddable.d.ts    — Alloy runtime type declarations (Poco, Battery, Watch)
       index.ts               — Public API
     scripts/

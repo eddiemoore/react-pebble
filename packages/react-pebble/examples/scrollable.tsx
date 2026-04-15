@@ -11,9 +11,9 @@
  */
 
 import type Poco from 'commodetto/Poco';
-import { render, SCREEN } from '../src/index.js';
+import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
-import { useButton, useState } from '../src/hooks/index.js';
+import { useButton, useState, useScreen, getScreen } from '../src/hooks/index.js';
 
 const ITEMS = [
   'Introduction',
@@ -32,10 +32,12 @@ const ITEMS = [
 
 const ROW_H = 32;
 const HEADER_H = 28;
-const VIEW_H = SCREEN.height - HEADER_H;
+// Module-level uses the sync getScreen() since it runs before any component renders.
+const VIEW_H = getScreen().height - HEADER_H;
 const VISIBLE = Math.floor(VIEW_H / ROW_H);
 
 function ScrollApp() {
+  const { width, height } = useScreen();
   const [topIdx, setTopIdx] = useState(0);
 
   useButton('down', () => setTopIdx(i => Math.min(i + 1, ITEMS.length - VISIBLE)));
@@ -45,25 +47,25 @@ function ScrollApp() {
 
   return (
     <Group>
-      <Rect x={0} y={0} w={SCREEN.width} h={SCREEN.height} fill="black" />
+      <Rect x={0} y={0} w={width} h={height} fill="black" />
 
-      <Rect x={0} y={0} w={SCREEN.width} h={HEADER_H} fill="white" />
-      <Text x={4} y={4} w={SCREEN.width - 8} font="gothic18Bold" color="black">
+      <Rect x={0} y={0} w={width} h={HEADER_H} fill="white" />
+      <Text x={4} y={4} w={width - 8} font="gothic18Bold" color="black">
         Docs ({topIdx + 1}-{Math.min(topIdx + VISIBLE, ITEMS.length)}/{ITEMS.length})
       </Text>
 
       {visible.map((item, i) => (
         <Group key={i}>
-          <Rect x={0} y={HEADER_H + i * ROW_H} w={SCREEN.width} h={ROW_H - 2} fill={i % 2 === 0 ? 'darkGray' : 'black'} />
-          <Text x={10} y={HEADER_H + i * ROW_H + 6} w={SCREEN.width - 20} font="gothic18" color="white">
+          <Rect x={0} y={HEADER_H + i * ROW_H} w={width} h={ROW_H - 2} fill={i % 2 === 0 ? 'darkGray' : 'black'} />
+          <Text x={10} y={HEADER_H + i * ROW_H + 6} w={width - 20} font="gothic18" color="white">
             {`${topIdx + i + 1}. ${item}`}
           </Text>
         </Group>
       ))}
 
       {/* Scroll indicators */}
-      {topIdx > 0 ? <Rect x={SCREEN.width / 2 - 10} y={HEADER_H + 1} w={20} h={3} fill="cyan" /> : null}
-      {topIdx + VISIBLE < ITEMS.length ? <Rect x={SCREEN.width / 2 - 10} y={SCREEN.height - 3} w={20} h={3} fill="cyan" /> : null}
+      {topIdx > 0 ? <Rect x={width / 2 - 10} y={HEADER_H + 1} w={20} h={3} fill="cyan" /> : null}
+      {topIdx + VISIBLE < ITEMS.length ? <Rect x={width / 2 - 10} y={height - 3} w={20} h={3} fill="cyan" /> : null}
     </Group>
   );
 }

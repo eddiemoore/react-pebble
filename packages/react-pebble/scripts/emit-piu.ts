@@ -109,7 +109,11 @@ function ensureTexture(ctx: EmitContext, src: string, w: number, h: number): { t
 function buildSizeProps(x: number, y: number, w: number, h: number, screenW: number, screenH: number): string {
   const parts: string[] = [];
 
-  if (w >= screenW && x === 0) {
+  // Negative w/h is the analyzer's "fill parent" sentinel for containers
+  // (pbl-root, pbl-group, pbl-scrollable, pbl-textflow) without explicit
+  // dimensions. w === 0 is left as-is because it's a legitimate runtime
+  // value (e.g. the baseline frame of an animated width).
+  if (w < 0 || (w >= screenW && x === 0)) {
     parts.push('left: 0', 'right: 0');
   } else {
     if (x !== 0) parts.push(`left: ${x}`);
@@ -117,7 +121,7 @@ function buildSizeProps(x: number, y: number, w: number, h: number, screenW: num
     parts.push(`width: ${w}`);
   }
 
-  if (h >= screenH && y === 0) {
+  if (h < 0 || (h >= screenH && y === 0)) {
     parts.push('top: 0', 'bottom: 0');
   } else {
     parts.push(`top: ${y}`);

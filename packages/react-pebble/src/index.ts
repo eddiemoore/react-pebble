@@ -22,8 +22,9 @@
  *   render(<WatchFace />, { poco: Poco });
  */
 
-// Platform / screen dimensions
-export { SCREEN, PLATFORMS, _setPlatform } from './platform.js';
+// Platform catalog (static shape metadata). Runtime code should read
+// screen dimensions via `useScreen()` / `getScreen()` from hooks.
+export { PLATFORMS } from './platform.js';
 export type { PebblePlatform } from './platform.js';
 
 // Core render API
@@ -139,6 +140,8 @@ export {
   useMeasurementSystem,
   useTimer,
   useWatchInfo,
+  useScreen,
+  getScreen,
   useLocale,
   useUnobstructedArea,
   useMultiClick,
@@ -231,6 +234,7 @@ export type {
   MeasurementSystem,
   UseTimerResult,
   WatchInfo,
+  ScreenInfo,
   LocaleInfo,
   UnobstructedArea,
   MultiClickOptions,
