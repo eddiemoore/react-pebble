@@ -388,7 +388,6 @@ export function emitC(ir: CompilerIR): string {
   const hasBehavior = ir.hasTimeDeps || ir.hasStateDeps || ir.hasButtons ||
     ir.hasBranches || ir.hasSkinDeps || ir.hasList || ir.hasConditionals;
   const needsTick = ir.hasTimeDeps;
-  const hasSeconds = [...ir.timeDeps.values()].some(fmt => fmt === 'SS' || fmt === 'MMSS') || ir.hasAnimatedElements || ir.timeReactiveGraphics.length > 0;
 
   // =========================================================================
   // Header
@@ -1375,11 +1374,12 @@ export function emitC(ir: CompilerIR): string {
     lines.push('  window_set_click_config_provider(s_window, click_config);');
   }
   if (needsTick) {
-    // If there's a showSeconds config key, always use SECOND_UNIT since user might enable it
+    // showSeconds config key forces SECOND_UNIT regardless of detected granularity
     const hasShowSecondsConfig = hasConfig && ir.configInfo!.keys.some(
       k => k.type === 'boolean' && k.key.toLowerCase().includes('second')
     );
-    const unit = (hasSeconds || hasShowSecondsConfig) ? 'SECOND_UNIT' : 'MINUTE_UNIT';
+    const granularity = hasShowSecondsConfig ? 'second' : (ir.timeGranularity ?? 'minute');
+    const unit = `${granularity.toUpperCase()}_UNIT`;
     lines.push(`  tick_timer_service_subscribe(${unit}, tick_handler);`);
   }
   if (ir.messageInfo) {
