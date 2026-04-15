@@ -135,6 +135,13 @@ export type ResourceDeclaration =
       targetPlatforms?: Record<string, string>;
       /** `menuIcon: true` marks the app's launcher icon. */
       menuIcon?: boolean;
+      /**
+       * Pebble bitmap `memoryFormat`. `Circular` / `8BitCircular` cut RAM on
+       * round displays by storing only the visible pixels. `SmallestPalette`
+       * compresses to the minimum viable bit depth. Leave unset for the
+       * default (SDK picks based on source).
+       */
+      memoryFormat?: 'Smallest' | 'SmallestPalette' | '1Bit' | '8Bit' | '8BitCircular' | 'Circular';
     }
   | {
       type: 'font';
@@ -366,6 +373,7 @@ function buildMediaEntries(options: ScaffoldOptions): Record<string, unknown>[] 
     if ('trackingAdjust' in r && typeof r.trackingAdjust === 'number') {
       entry.trackingAdjust = r.trackingAdjust;
     }
+    if ('memoryFormat' in r && r.memoryFormat) entry.memoryFormat = r.memoryFormat;
     if (r.targetPlatforms) entry.targetPlatforms = r.targetPlatforms;
     entries.push(entry);
     seenNames.add(r.name);

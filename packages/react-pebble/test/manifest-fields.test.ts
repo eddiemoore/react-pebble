@@ -106,4 +106,36 @@ function cleanup(dir: string): void {
   cleanup(dir);
 }
 
+// -----------------------------------------------------------------------
+// Bitmap memoryFormat flows through to resources.media entry
+// -----------------------------------------------------------------------
+{
+  const { dir, pkg } = scaffold({
+    resources: [
+      { type: 'png', name: 'ICON', file: 'fake.png', memoryFormat: 'SmallestPalette' },
+    ],
+  });
+  const entry = pkg.pebble.resources.media.find((m: any) => m.name === 'ICON');
+  assert(!!entry, 'ICON png entry must be emitted');
+  assert(
+    entry.memoryFormat === 'SmallestPalette',
+    `memoryFormat must round-trip, got ${JSON.stringify(entry.memoryFormat)}`,
+  );
+  cleanup(dir);
+}
+
+// Absent by default
+{
+  const { dir, pkg } = scaffold({
+    resources: [{ type: 'png', name: 'PLAIN', file: 'fake.png' }],
+  });
+  const entry = pkg.pebble.resources.media.find((m: any) => m.name === 'PLAIN');
+  assert(!!entry, 'PLAIN png entry must be emitted');
+  assert(
+    !('memoryFormat' in entry),
+    'png without memoryFormat must not emit the field',
+  );
+  cleanup(dir);
+}
+
 console.log('manifest-fields.test.ts: PASS');
