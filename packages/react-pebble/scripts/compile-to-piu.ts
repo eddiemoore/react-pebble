@@ -137,7 +137,7 @@ if (needsPKJS) {
     }
   }
 
-  const pkjsCode = emitPKJS({ ir, configUrl, hooksUsed: hooksUsedList });
+  const pkjsCode = emitPKJS({ ir, configUrl, hooksUsed: hooksUsedList, target });
   process.stderr.write('\n--- PebbleKit JS (src/pkjs/index.js) ---\n');
   process.stderr.write(pkjsCode);
   process.stderr.write('--- End PebbleKit JS ---\n');

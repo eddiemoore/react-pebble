@@ -22,6 +22,8 @@ export interface PKJSOptions {
   appSyncKeys?: string[];
   /** react-pebble hook names referenced in the entry source. */
   hooksUsed?: string[];
+  /** Compile target — affects which phone-side API useMessage uses. */
+  target?: 'alloy' | 'rocky' | 'c';
 }
 
 /**
