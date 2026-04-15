@@ -120,6 +120,8 @@ export interface IRSkinDep {
 
 export type TimeFormat = 'HHMM' | 'MMSS' | 'SS' | 'DATE';
 
+export type TimeGranularity = 'second' | 'minute' | 'hour' | 'day';
+
 // ---------------------------------------------------------------------------
 // Conditional branches
 // ---------------------------------------------------------------------------
@@ -269,6 +271,11 @@ export interface CompilerIR {
   /** Convenience flags */
   hasButtons: boolean;
   hasTimeDeps: boolean;
+  /**
+   * Tick cadence for this app. `null` when `hasTimeDeps` is false.
+   * Explicit `useTime('minute')` overrides format-token detection.
+   */
+  timeGranularity: TimeGranularity | null;
   hasStateDeps: boolean;
   hasBranches: boolean;
   hasConditionals: boolean;
