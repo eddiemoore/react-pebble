@@ -198,8 +198,10 @@ export interface IRMessageInfo {
 export interface IRConfigKey {
   key: string;
   label: string;
-  type: 'color' | 'boolean' | 'string';
-  default: string | boolean;
+  type: 'color' | 'boolean' | 'string' | 'checkboxgroup';
+  default: string | boolean | string[];
+  /** Only set when type === 'checkboxgroup'. Option values in declaration order. */
+  options?: string[];
 }
 
 export interface IRConfigInfo {
