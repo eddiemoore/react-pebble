@@ -426,6 +426,11 @@ export function emitC(ir: CompilerIR): string {
         case 'string':
           lines.push(`  char ${k.key}[64];`);
           break;
+        case 'checkboxgroup': {
+          const size = (k.options ?? []).length;
+          lines.push(`  bool ${k.key}[${size}];`);
+          break;
+        }
       }
     }
     lines.push('} ClaySettings;');
@@ -446,6 +451,15 @@ export function emitC(ir: CompilerIR): string {
         case 'string':
           lines.push(`  strncpy(settings.${k.key}, "${String(k.default).replace(/"/g, '\\"')}", sizeof(settings.${k.key}) - 1);`);
           break;
+        case 'checkboxgroup': {
+          const options = k.options ?? [];
+          const defaults = Array.isArray(k.default) ? k.default : [];
+          for (let i = 0; i < options.length; i++) {
+            const selected = defaults.includes(options[i]!);
+            lines.push(`  settings.${k.key}[${i}] = ${selected ? 'true' : 'false'};`);
+          }
+          break;
+        }
       }
     }
     lines.push('}');
@@ -1100,6 +1114,14 @@ export function emitC(ir: CompilerIR): string {
     // inbox_received_handler
     lines.push('static void prv_inbox_received(DictionaryIterator *iter, void *ctx) {');
     for (const k of cfg.keys) {
+      if (k.type === 'checkboxgroup') {
+        const size = (k.options ?? []).length;
+        lines.push(`  for (int i = 0; i < ${size}; i++) {`);
+        lines.push(`    Tuple *t = dict_find(iter, MESSAGE_KEY_${k.key} + i);`);
+        lines.push(`    if (t) settings.${k.key}[i] = t->value->int32 == 1;`);
+        lines.push('  }');
+        continue;
+      }
       lines.push(`  Tuple *${k.key}_t = dict_find(iter, MESSAGE_KEY_${k.key});`);
       switch (k.type) {
         case 'color':
