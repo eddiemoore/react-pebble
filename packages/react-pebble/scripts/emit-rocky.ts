@@ -472,9 +472,9 @@ export function emitRocky(ir: CompilerIR): string {
   // -----------------------------------------------------------------------
 
   if (needsTime) {
-    // Use secondchange for second-level precision, minutechange for minute-level
-    const hasSeconds = [...ir.timeDeps.values()].some(fmt => fmt === 'SS' || fmt === 'MMSS') || ir.hasAnimatedElements;
-    const event = hasSeconds ? 'secondchange' : 'minutechange';
+    // Pick the coarsest tick event that still captures the app's time deps.
+    // ir.timeGranularity is authoritative (analyzer honors explicit useTime(arg)).
+    const event = `${ir.timeGranularity ?? 'minute'}change`;
     lines.push(`rocky.on('${event}', function(event) {`);
     lines.push('  rocky.requestDraw();');
     lines.push('});');
