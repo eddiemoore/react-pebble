@@ -61,6 +61,15 @@ if (ir.imageResources.length > 0) {
   process.stderr.write('imageResources=' + JSON.stringify(ir.imageResources) + '\n');
 }
 
+if (ir.configInfo && ir.configInfo.keys.length > 0) {
+  const exported = ir.configInfo.keys.map(k => ({
+    key: k.key,
+    type: k.type,
+    ...(k.type === 'checkboxgroup' ? { size: (k.options ?? []).length } : {}),
+  }));
+  process.stderr.write('configKeys=' + JSON.stringify(exported) + '\n');
+}
+
 // Scan the entry source for hook names that imply Pebble app capabilities.
 // This lets the plugin auto-set `pebble.capabilities` in package.json.
 let hooksUsedList: string[] = [];

@@ -138,4 +138,29 @@ function cleanup(dir: string): void {
   cleanup(dir);
 }
 
+// -----------------------------------------------------------------------
+// Config keys flow into pebble.messageKeys
+// -----------------------------------------------------------------------
+{
+  const { dir, pkg } = scaffold({
+    configKeys: [
+      { key: 'theme', type: 'color' },
+      { key: 'metrics', type: 'checkboxgroup', size: 3 },
+    ],
+  });
+  assert(
+    Array.isArray(pkg.pebble.messageKeys),
+    'messageKeys must be an array when config keys are present',
+  );
+  assert(
+    pkg.pebble.messageKeys.includes('theme'),
+    "Scalar config key 'theme' must appear in messageKeys",
+  );
+  assert(
+    pkg.pebble.messageKeys.includes('metrics[3]'),
+    "Checkboxgroup config key must appear as 'metrics[3]' in messageKeys",
+  );
+  cleanup(dir);
+}
+
 console.log('manifest-fields.test.ts: PASS');

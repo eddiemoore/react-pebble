@@ -241,6 +241,7 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
           target,
           watchface: !result.hasButtons,
           messageKeys: result.messageKeys,
+          configKeys: result.configKeys,
           mockDataSource: result.mockDataSource,
           imageResources: result.imageResources,
           platform,
@@ -305,6 +306,8 @@ export interface ScaffoldOptions {
   target: 'alloy' | 'rocky' | 'c';
   watchface: boolean;
   messageKeys: string[];
+  /** Config keys extracted from useConfiguration — used for messageKeys emission. */
+  configKeys?: Array<{ key: string; type: string; size?: number }>;
   /** TypeScript source of mock data (for generating phone-side JS) */
   mockDataSource?: string | null;
   /** Image resource paths referenced in the component */
@@ -494,7 +497,15 @@ export function scaffoldPebbleProject(dir: string, options: ScaffoldOptions): vo
   }
   // Rocky.js projects don't support custom messageKeys
   if (!isRocky) {
-    pebbleConfig.messageKeys = options.messageKeys.length > 0 ? options.messageKeys : ['dummy'];
+    const msgKeys: string[] = [...options.messageKeys];
+    for (const ck of options.configKeys ?? []) {
+      const entry = ck.type === 'checkboxgroup' && ck.size
+        ? `${ck.key}[${ck.size}]`
+        : ck.key;
+      // Avoid duplicates if a config key shares a name with a useMessage key
+      if (!msgKeys.includes(entry)) msgKeys.push(entry);
+    }
+    pebbleConfig.messageKeys = msgKeys.length > 0 ? msgKeys : ['dummy'];
   } else {
     // Rocky.js needs a `main` entry specifying the rockyjs and pkjs paths
     pebbleConfig.main = {

@@ -54,6 +54,8 @@ export interface CompileResult {
   hooksUsed: string[];
   /** Generated PebbleKit JS companion code (null if no phone communication needed) */
   pebbleKitJS: string | null;
+  /** Config keys with their types and sizes (for messageKeys emission). */
+  configKeys: Array<{ key: string; type: string; size?: number }>;
   /** Diagnostic messages from the compiler */
   diagnostics: string;
 }
@@ -152,7 +154,13 @@ export async function compileToPiu(options: CompileOptions): Promise<CompileResu
   const pkjsMatch = diagnostics.match(/--- PebbleKit JS \(src\/pkjs\/index\.js\) ---\n([\s\S]*?)--- End PebbleKit JS ---/);
   if (pkjsMatch?.[1]) pebbleKitJS = pkjsMatch[1];
 
+  // Extract config keys (for messageKeys emission, including "key[N]" notation)
+  const configKeysMatch = diagnostics.match(/configKeys=(\[.*?\])/);
+  const configKeys: CompileResult['configKeys'] = configKeysMatch?.[1]
+    ? JSON.parse(configKeysMatch[1])
+    : [];
+
   log(`Compiled ${exampleName}: ${code.split('\n').length} lines, buttons=${hasButtons}, messageKeys=[${messageKeys.join(',')}]`);
 
-  return { code, hasButtons, messageKeys, mockDataSource, imageResources, hooksUsed, pebbleKitJS, diagnostics };
+  return { code, hasButtons, messageKeys, mockDataSource, imageResources, hooksUsed, pebbleKitJS, configKeys, diagnostics };
 }
