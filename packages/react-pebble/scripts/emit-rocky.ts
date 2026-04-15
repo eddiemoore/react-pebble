@@ -486,24 +486,23 @@ export function emitRocky(ir: CompilerIR): string {
   // -----------------------------------------------------------------------
 
   if (ir.messageInfo) {
-    lines.push('// Phone → watch data');
+    const key = ir.messageInfo.key;
+    lines.push('// Phone → watch data (Rocky postMessage: native objects, no JSON.parse)');
     lines.push("rocky.on('message', function(event) {");
     lines.push('  var data = event.data;');
-    lines.push(`  if (data && data['${ir.messageInfo.key}']) {`);
-    lines.push('    try {');
-    lines.push(`      _data = JSON.parse(data['${ir.messageInfo.key}']);`);
+    lines.push(`  if (data && data['${key}'] !== undefined) {`);
+    lines.push(`    _data = data['${key}'];`);
 
     // Update branch state if applicable
     if (ir.hasBranches) {
       for (const [si, branchList] of ir.branches) {
         if (branchList[0]?.isBaseline) {
-          lines.push(`      s${si} = ${JSON.stringify(branchList[0].value)};`);
+          lines.push(`    s${si} = ${JSON.stringify(branchList[0].value)};`);
         }
       }
     }
 
-    lines.push('      rocky.requestDraw();');
-    lines.push("    } catch (e) { console.log('Parse error: ' + e.message); }");
+    lines.push('    rocky.requestDraw();');
     lines.push('  }');
     lines.push('});');
     lines.push('');

@@ -30,14 +30,12 @@ rocky.on('draw', function(event) {
   }
 });
 
-// Phone → watch data
+// Phone → watch data (Rocky postMessage: native objects, no JSON.parse)
 rocky.on('message', function(event) {
   var data = event.data;
-  if (data && data['items']) {
-    try {
-      _data = JSON.parse(data['items']);
-      rocky.requestDraw();
-    } catch (e) { console.log('Parse error: ' + e.message); }
+  if (data && data['items'] !== undefined) {
+    _data = data['items'];
+    rocky.requestDraw();
   }
 });
 
