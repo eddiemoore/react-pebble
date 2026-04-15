@@ -18,8 +18,38 @@ import { PLATFORMS } from '../src/platform.js';
 import type {
   CompilerIR, IRElement, IRStateSlot, IRButtonAction,
   IRStateDep, IRSkinDep, IRBranch, IRConditionalChild,
-  IRListInfo, IRAnimatedElement, IRTimeReactiveGraphic, IRMessageInfo, IRConfigInfo, TimeFormat,
+  IRListInfo, IRAnimatedElement, IRTimeReactiveGraphic, IRMessageInfo, IRConfigInfo, TimeFormat, TimeGranularity,
 } from './compiler-ir.js';
+
+function detectGranularity(
+  timeDeps: Map<number, TimeFormat>,
+  hasAnimatedElements: boolean,
+  hasTimeReactiveGraphics: boolean,
+): TimeGranularity | null {
+  if (timeDeps.size === 0 && !hasAnimatedElements && !hasTimeReactiveGraphics) {
+    return null;
+  }
+  if (hasAnimatedElements || hasTimeReactiveGraphics) return 'second';
+  const formats = [...timeDeps.values()];
+  if (formats.some(f => f === 'SS' || f === 'MMSS')) return 'second';
+  if (formats.some(f => f === 'HHMM')) return 'minute';
+  if (formats.length > 0 && formats.every(f => f === 'DATE')) return 'day';
+  return 'minute';
+}
+
+function detectExplicitGranularity(sourceText: string): TimeGranularity | null {
+  const strMatch = /\buseTime\s*\(\s*['"](second|minute|hour|day)['"]\s*\)/.exec(sourceText);
+  if (strMatch?.[1]) return strMatch[1] as TimeGranularity;
+  const numMatch = /\buseTime\s*\(\s*(\d+)\s*\)/.exec(sourceText);
+  if (numMatch?.[1]) {
+    const n = Number(numMatch[1]);
+    if (n <= 1000) return 'second';
+    if (n <= 60_000) return 'minute';
+    if (n <= 3_600_000) return 'hour';
+    return 'day';
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1819,6 +1849,19 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
   const hasAnimatedElements = animatedElements.length > 0;
   const hasTimeReactiveGraphics = timeReactiveGraphics.length > 0;
   const hasTimeDeps = dynamicLabels.size > 0 || stateNeedsTime || hasAnimatedElements || hasTimeReactiveGraphics;
+
+  // Tick granularity: explicit `useTime('minute')` arg wins; else derive from
+  // the formats the app actually renders.
+  const entrySrc = readFileSync(entryPath, 'utf-8');
+  const explicitGranularity = detectExplicitGranularity(entrySrc);
+  const detectedGranularity = detectGranularity(
+    labelFormats,
+    hasAnimatedElements,
+    hasTimeReactiveGraphics,
+  );
+  const timeGranularity: TimeGranularity | null = hasTimeDeps
+    ? (explicitGranularity ?? detectedGranularity ?? 'minute')
+    : null;
   const hasStateDeps = stateDeps.size > 0;
   const hasButtons = buttonActions.length > 0;
   const hasBranches = branchInfos.length > 0;
@@ -1932,6 +1975,7 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
     configInfo: irConfigInfo,
     hasButtons,
     hasTimeDeps,
+    timeGranularity,
     hasStateDeps,
     hasBranches,
     hasConditionals,
