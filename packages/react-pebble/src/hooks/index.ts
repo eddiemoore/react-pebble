@@ -48,9 +48,11 @@ export { useLongButton } from './useLongButton.js';
 export {
   clockIs24HourStyle,
   clockToTimestamp,
+  resolveGranularity,
   startOfToday,
   useTime,
 } from './useTime.js';
+export type { TimeGranularity } from './useTime.js';
 export { useFormattedTime } from './useFormattedTime.js';
 export { useInterval } from './useInterval.js';
 export {

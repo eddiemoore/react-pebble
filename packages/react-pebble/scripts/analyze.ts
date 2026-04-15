@@ -877,8 +877,9 @@ function detectListPatterns(exName: string): ListInfoRaw | null {
   if (!mapCallFound || !dataArrayName) return null;
 
   let propertyOrder: string[] | null = null;
-  if (dataArrayObjects && dataArrayObjects.length > 0 && labelsPerItem > 1) {
-    propertyOrder = Object.keys(dataArrayObjects[0]!).slice(0, labelsPerItem);
+  const objs = dataArrayObjects as Record<string, string>[] | null;
+  if (objs && objs.length > 0 && labelsPerItem > 1) {
+    propertyOrder = Object.keys(objs[0]!).slice(0, labelsPerItem);
   }
 
   return { dataArrayName, dataArrayValues, dataArrayObjects, propertyOrder, visibleCount, scrollSetterName, labelsPerItem };
@@ -950,6 +951,8 @@ function extractMockDataSource(exName: string, mockDataArrayName: string): strin
 interface ConfigInfoRaw {
   keys: Array<{ key: string; label: string; type: 'color' | 'boolean' | 'string'; default: string | boolean }>;
   url: string | null;
+  appName: string | null;
+  sectionTitles: string[];
 }
 
 function detectUseConfiguration(exName: string): ConfigInfoRaw | null {
@@ -1087,7 +1090,7 @@ function diffTreeChildren(
   function fingerprint(node: AnyNode): string {
     if (node.type === '#text') return `#text:${node.value}`;
     const el = node as DOMElement;
-    const firstText = el.children.find(c => c.type === '#text' || (c.type !== '#text' && getTextContent(c)));
+    const firstText = el.children.find((c: AnyNode) => c.type === '#text' || !!getTextContent(c));
     const text = firstText ? String(getTextContent(firstText) ?? '') : '';
     return `${el.type}:${text.slice(0, 30)}`;
   }
@@ -1257,7 +1260,7 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
   function mockDate(target: Date) {
     (globalThis as unknown as { Date: unknown }).Date = class MockDate extends OrigDate {
       constructor() { super(); return target; }
-      static now() { return target.getTime(); }
+      static override now() { return target.getTime(); }
     };
   }
 
