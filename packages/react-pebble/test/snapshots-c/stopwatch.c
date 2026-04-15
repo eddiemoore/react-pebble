@@ -107,7 +107,7 @@ static void init(void) {
     .unload = window_unload,
   });
   window_set_click_config_provider(s_window, click_config);
-  tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
+  tick_timer_service_subscribe(SECOND_UNIT, tick_handler);
   window_stack_push(s_window, true);
 }
 

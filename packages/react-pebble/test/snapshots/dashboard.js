@@ -28,11 +28,14 @@ class AppBehavior extends Behavior {
   }
   onDisplaying(app) {
     this.refresh();
-    app.interval = 1000;
-    app.start();
+    this._tick = () => this.onTimeChanged();
+    watch.addEventListener('minutechange', this._tick);
   }
   onTimeChanged() {
     this.refresh();
+  }
+  onUndisplaying(app) {
+    if (this._tick) watch.removeEventListener('minutechange', this._tick);
   }
   refresh() {
     const d = new Date();

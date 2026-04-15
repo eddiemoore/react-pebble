@@ -39,6 +39,6 @@ rocky.on('draw', function(event) {
   ctx.fillText('SELECT start/stop · DOWN reset', 100, 200);
 });
 
-rocky.on('minutechange', function(event) {
+rocky.on('secondchange', function(event) {
   rocky.requestDraw();
 });

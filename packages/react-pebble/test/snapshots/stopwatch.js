@@ -32,13 +32,16 @@ class AppBehavior extends Behavior {
   }
   onDisplaying(app) {
     this.refresh();
-    app.interval = 1000;
-    app.start();
+    this._tick = () => this.onTimeChanged();
+    watch.addEventListener('secondchange', this._tick);
     new PebbleButton({ type: "select", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });
     new PebbleButton({ type: "down", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });
   }
   onTimeChanged() {
     this.refresh();
+  }
+  onUndisplaying(app) {
+    if (this._tick) watch.removeEventListener('secondchange', this._tick);
   }
   onButton(e) {
     const name = e && e.button;

@@ -37,6 +37,6 @@ rocky.on('draw', function(event) {
   ctx.fillText(pad(d.getHours()) + ":" + pad(d.getMinutes()), 72, 140);
 });
 
-rocky.on('minutechange', function(event) {
+rocky.on('secondchange', function(event) {
   rocky.requestDraw();
 });

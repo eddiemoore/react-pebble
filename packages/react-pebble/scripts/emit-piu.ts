@@ -616,8 +616,11 @@ export function emitPiu(ir: CompilerIR, exampleName?: string): string {
       lines.push('    this.refresh();');
     }
     if (ir.hasTimeDeps) {
-      lines.push('    app.interval = 1000;');
-      lines.push('    app.start();');
+      const g = ir.timeGranularity ?? 'minute';
+      // Bind listener once per behavior instance; store on `this` so
+      // onUndisplaying can removeEventListener with the exact same reference.
+      lines.push(`    this._tick = () => this.onTimeChanged();`);
+      lines.push(`    watch.addEventListener('${g}change', this._tick);`);
     }
     if (ir.hasButtons) {
       const usedButtons = [...new Set(ir.buttonActions.map(b => b.button))];
@@ -687,6 +690,16 @@ export function emitPiu(ir: CompilerIR, exampleName?: string): string {
     if (ir.hasTimeDeps) {
       lines.push('  onTimeChanged() {');
       lines.push('    this.refresh();');
+      lines.push('  }');
+    }
+
+    // onUndisplaying — remove the watch listener so we don't leak across
+    // Application rebuilds (watchface Applications are long-lived in
+    // practice; this is defensive).
+    if (ir.hasTimeDeps) {
+      const g = ir.timeGranularity ?? 'minute';
+      lines.push('  onUndisplaying(app) {');
+      lines.push(`    if (this._tick) watch.removeEventListener('${g}change', this._tick);`);
       lines.push('  }');
     }
 
