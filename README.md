@@ -401,6 +401,25 @@ Pass extra resources in the Vite plugin's `resources` option. PNG and APNG/PDCS 
 
 Each resource accepts a `targetPlatforms` map for per-platform file overrides (e.g. color for basalt, b&w for aplite).
 
+Per-type options:
+
+- **font** — `characterRegex` (subset the TTF), `compatibility` (older-firmware alternate), `trackingAdjust` (integer vertical offset in pixels).
+- **png / bitmap** — `menuIcon: true` to mark the launcher icon, `memoryFormat` (one of `'Smallest' | 'SmallestPalette' | '1Bit' | '8Bit' | '8BitCircular' | 'Circular'` — use `'Circular'` / `'8BitCircular'` on round displays to cut RAM).
+
+### Plugin manifest options
+
+Most `pebble.*` fields are emitted automatically (displayName, uuid, projectType, sdkVersion, enableMultiJS, targetPlatforms, watchapp, resources.media, resources.publishedMedia, capabilities, messageKeys, workerName). You can also override:
+
+| Option | Default | Effect |
+|--------|---------|--------|
+| `displayName` | `'react-pebble-app'` | `pebble.displayName` |
+| `versionLabel` | `'1.0.0'` | `pebble.versionLabel` — shown in the Pebble mobile app / store |
+| `hiddenApp` | `false` | `pebble.watchapp.hiddenApp` — hide from launcher |
+| `onlyShownOnCommunication` | `false` | `pebble.watchapp.onlyShownOnCommunication` |
+| `enableMultiJS` | `true` | `pebble.enableMultiJS` |
+| `uuid` | generated | `pebble.uuid` (preserved across builds once set) |
+| `appMessage` | `undefined` | C-target AppMessage buffer sizes: `{ inboxSize?, outboxSize? }`. When unset, the C emitter uses `app_message_inbox_size_maximum()` / `app_message_outbox_size_maximum()` — Pebble's recommended pattern. Set literal bytes only if you need to bound heap usage. |
+
 ### Auto-inferred capabilities
 
 The plugin sets `pebble.capabilities` in `package.json` from the hooks referenced by your app:
