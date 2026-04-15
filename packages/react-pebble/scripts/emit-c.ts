@@ -1384,7 +1384,13 @@ export function emitC(ir: CompilerIR): string {
   }
   if (ir.messageInfo) {
     lines.push('  app_message_register_inbox_received(inbox_received);');
-    lines.push('  app_message_open(512, 64);');
+    const inArg = Number.isFinite(ir.appMessageSizes?.inboxSize)
+      ? String(ir.appMessageSizes!.inboxSize)
+      : 'app_message_inbox_size_maximum()';
+    const outArg = Number.isFinite(ir.appMessageSizes?.outboxSize)
+      ? String(ir.appMessageSizes!.outboxSize)
+      : 'app_message_outbox_size_maximum()';
+    lines.push(`  app_message_open(${inArg}, ${outArg});`);
   }
   if (hasConfig) {
     lines.push('  app_message_register_inbox_received(prv_inbox_received);');

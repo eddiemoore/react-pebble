@@ -76,7 +76,7 @@ static void init(void) {
     .unload = window_unload,
   });
   app_message_register_inbox_received(inbox_received);
-  app_message_open(512, 64);
+  app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
   window_stack_push(s_window, true);
 }
 

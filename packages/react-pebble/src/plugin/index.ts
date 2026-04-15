@@ -79,6 +79,13 @@ export interface PebblePiuOptions {
   /** `pebble.enableMultiJS` — default true (enables the richer PebbleKit JS runtime). */
   enableMultiJS?: boolean;
   /**
+   * Override the AppMessage `inbox`/`outbox` buffer sizes (C target only).
+   * Default: `app_message_open(app_message_inbox_size_maximum(),
+   * app_message_outbox_size_maximum())` — Pebble's recommended maximum
+   * pattern. Set explicit numbers to bound heap usage.
+   */
+  appMessage?: { inboxSize?: number; outboxSize?: number };
+  /**
    * Additional resources (beyond auto-detected images). Use this to add
    * custom fonts, raw data files, PDC vector files, or APNG animated images.
    * See the `ResourceDeclaration` type for all fields.
@@ -201,6 +208,12 @@ export function pebblePiu(options: PebblePiuOptions): Plugin {
           platform,
           target,
           logger: log,
+          appMessageSizes: options.appMessage
+            ? {
+                inboxSize: options.appMessage.inboxSize,
+                outboxSize: options.appMessage.outboxSize,
+              }
+            : undefined,
         });
 
         // 2. Scaffold pebble project

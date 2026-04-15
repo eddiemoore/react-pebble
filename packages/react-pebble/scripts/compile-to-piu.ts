@@ -45,6 +45,18 @@ if (exampleInput.includes('/') || exampleInput.includes('\\')) {
 
 const ir = await analyze({ entryPath, platform, settleMs });
 
+// AppMessage buffer-size override (C target only; no-op otherwise).
+const inboxEnv = process.env.APPMSG_INBOX_SIZE;
+const outboxEnv = process.env.APPMSG_OUTBOX_SIZE;
+if (inboxEnv !== undefined || outboxEnv !== undefined) {
+  ir.appMessageSizes = {
+    inboxSize: inboxEnv !== undefined ? Number(inboxEnv) : NaN,
+    outboxSize: outboxEnv !== undefined ? Number(outboxEnv) : NaN,
+  };
+  // If only one side is overridden, leave the other at "max" by passing NaN —
+  // emit-c.ts falls back to the _maximum() helper when the number isn't finite.
+}
+
 if (ir.imageResources.length > 0) {
   process.stderr.write('imageResources=' + JSON.stringify(ir.imageResources) + '\n');
 }

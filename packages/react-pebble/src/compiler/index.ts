@@ -31,6 +31,12 @@ export interface CompileOptions {
   logger?: (msg: string) => void;
   /** Project root directory (default: process.cwd()) */
   projectRoot?: string;
+  /**
+   * Optional override for AppMessage inbox/outbox sizes (C target only).
+   * When omitted, the C emitter uses `app_message_*_size_maximum()`. When
+   * either field is set, the other falls back to the 'maximum' call.
+   */
+  appMessageSizes?: { inboxSize?: number; outboxSize?: number };
 }
 
 export interface CompileResult {
@@ -86,6 +92,12 @@ export async function compileToPiu(options: CompileOptions): Promise<CompileResu
   }
   if (options.target) {
     env.COMPILE_TARGET = options.target;
+  }
+  if (options.appMessageSizes?.inboxSize !== undefined) {
+    env.APPMSG_INBOX_SIZE = String(options.appMessageSizes.inboxSize);
+  }
+  if (options.appMessageSizes?.outboxSize !== undefined) {
+    env.APPMSG_OUTBOX_SIZE = String(options.appMessageSizes.outboxSize);
   }
 
   // Run the compiler script and capture stdout (code) + stderr (diagnostics)

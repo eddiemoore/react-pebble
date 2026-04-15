@@ -34,6 +34,8 @@ export interface IRElement {
   stroke?: string;      // arc stroke color
   points?: Array<[number, number]>; // path polygon vertices (relative to x,y origin)
   rotation?: number;    // path rotation in degrees
+  pivotX?: number;      // rotation pivot (image) — defaults to w/2
+  pivotY?: number;      // rotation pivot (image) — defaults to h/2
   isWrapping?: boolean; // textflow: multi-line wrapping text
   src?: string;         // image/svg source file path
   /** When set, this image references an animated-sequence resource. */
@@ -277,6 +279,13 @@ export interface CompilerIR {
 
   /** Image resource paths found in the tree */
   imageResources: string[];
+
+  /**
+   * Optional AppMessage inbox/outbox sizes. When omitted, C emitter uses the
+   * Pebble-recommended `app_message_*_size_maximum()` calls. When set, emits
+   * the literal byte counts.
+   */
+  appMessageSizes?: { inboxSize: number; outboxSize: number };
 }
 
 // ---------------------------------------------------------------------------
