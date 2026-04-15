@@ -949,7 +949,13 @@ function extractMockDataSource(exName: string, mockDataArrayName: string): strin
 // ---------------------------------------------------------------------------
 
 interface ConfigInfoRaw {
-  keys: Array<{ key: string; label: string; type: 'color' | 'boolean' | 'string'; default: string | boolean }>;
+  keys: Array<{
+    key: string;
+    label: string;
+    type: 'color' | 'boolean' | 'string' | 'checkboxgroup';
+    default: string | boolean | string[];
+    options?: string[];
+  }>;
   url: string | null;
   appName: string | null;
   sectionTitles: string[];
@@ -1004,6 +1010,14 @@ function detectUseConfiguration(exName: string): ConfigInfoRaw | null {
               keys.push({ key, label: defaultLabel, type: isColor ? 'color' : 'string', default: val });
             } else if (ts.isNumericLiteral(init)) {
               keys.push({ key, label: defaultLabel, type: 'string', default: init.text });
+            } else if (ts.isArrayLiteralExpression(init)) {
+              // Array default → ConfigCheckboxGroup. Capture string-literal
+              // selected values; non-literals are skipped.
+              const defaults: string[] = [];
+              for (const el of init.elements) {
+                if (ts.isStringLiteral(el)) defaults.push(el.text);
+              }
+              keys.push({ key, label: defaultLabel, type: 'checkboxgroup', default: defaults });
             }
           }
         }
@@ -1013,9 +1027,12 @@ function detectUseConfiguration(exName: string): ConfigInfoRaw | null {
 
   if (keys.length === 0) return null;
 
-  // Second pass: scan for ConfigColor/ConfigToggle/ConfigText/ConfigSelect calls
-  // to extract human-readable labels, and ConfigPage/ConfigSection for titles
+  // Second pass: scan for ConfigColor/ConfigToggle/ConfigText/ConfigSelect/
+  // ConfigCheckboxGroup calls to extract human-readable labels (and, for
+  // checkboxgroup, the declared options array). Also ConfigPage/ConfigSection
+  // for titles.
   const labelMap = new Map<string, string>();
+  const optionsMap = new Map<string, string[]>();
   let appName: string | null = null;
   const sectionTitles: string[] = [];
 
@@ -1025,12 +1042,33 @@ function detectUseConfiguration(exName: string): ConfigInfoRaw | null {
     const fnName = node.expression.text;
 
     // Config item labels
-    if (['ConfigColor', 'ConfigToggle', 'ConfigText', 'ConfigSelect'].includes(fnName) &&
+    if (['ConfigColor', 'ConfigToggle', 'ConfigText', 'ConfigSelect', 'ConfigCheckboxGroup'].includes(fnName) &&
         node.arguments.length >= 2) {
       const keyArg = node.arguments[0];
       const labelArg = node.arguments[1];
       if (keyArg && ts.isStringLiteral(keyArg) && labelArg && ts.isStringLiteral(labelArg)) {
         labelMap.set(keyArg.text, labelArg.text);
+      }
+    }
+
+    // ConfigCheckboxGroup options array (3rd arg).
+    // Signature: ConfigCheckboxGroup(key, label, options, default).
+    if (fnName === 'ConfigCheckboxGroup' && node.arguments.length >= 3) {
+      const keyArg = node.arguments[0];
+      const optsArg = node.arguments[2];
+      if (keyArg && ts.isStringLiteral(keyArg) && optsArg && ts.isArrayLiteralExpression(optsArg)) {
+        const optValues: string[] = [];
+        for (const el of optsArg.elements) {
+          if (ts.isObjectLiteralExpression(el)) {
+            for (const prop of el.properties) {
+              if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name) &&
+                  prop.name.text === 'value' && ts.isStringLiteral(prop.initializer)) {
+                optValues.push(prop.initializer.text);
+              }
+            }
+          }
+        }
+        if (optValues.length > 0) optionsMap.set(keyArg.text, optValues);
       }
     }
 
@@ -1056,11 +1094,15 @@ function detectUseConfiguration(exName: string): ConfigInfoRaw | null {
     }
   });
 
-  // Apply labels to keys
+  // Apply labels to keys + options to checkboxgroups
   for (const k of keys) {
     const label = labelMap.get(k.key);
     if (label) {
       k.label = label;
+    }
+    if (k.type === 'checkboxgroup') {
+      const opts = optionsMap.get(k.key);
+      if (opts) k.options = opts;
     }
   }
 
