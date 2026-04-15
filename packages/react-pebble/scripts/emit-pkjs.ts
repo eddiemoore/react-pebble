@@ -99,9 +99,11 @@ export function emitPKJS(options: PKJSOptions): string {
     lines.push('  }');
   }
 
-  // If we have message info with mock data, generate the fetch proxy
+  // If we have message info, emit the phone→watch send path.
+  // Rocky uses native postMessage (raw JS objects); Alloy/C use AppMessage.
   if (ir.messageInfo) {
     const mi = ir.messageInfo;
+    const rocky = options.target === 'rocky';
     if (mi.mockDataSource) {
       lines.push('');
       lines.push('  // Fetch data and send to watch');
@@ -112,12 +114,18 @@ export function emitPKJS(options: PKJSOptions): string {
       lines.push('      try {');
       lines.push('        var data = JSON.parse(this.responseText);');
       lines.push('        var msg = {};');
-      lines.push(`        msg["${mi.key}"] = JSON.stringify(data);`);
-      lines.push('        Pebble.sendAppMessage(msg, function() {');
-      lines.push('          console.log("Data sent to watch successfully");');
-      lines.push('        }, function(e) {');
-      lines.push('          console.log("Failed to send data: " + JSON.stringify(e));');
-      lines.push('        });');
+      if (rocky) {
+        lines.push(`        msg["${mi.key}"] = data;`);
+        lines.push('        Pebble.postMessage(msg);');
+        lines.push('        console.log("Data posted to watch");');
+      } else {
+        lines.push(`        msg["${mi.key}"] = JSON.stringify(data);`);
+        lines.push('        Pebble.sendAppMessage(msg, function() {');
+        lines.push('          console.log("Data sent to watch successfully");');
+        lines.push('        }, function(e) {');
+        lines.push('          console.log("Failed to send data: " + JSON.stringify(e));');
+        lines.push('        });');
+      }
       lines.push('      } catch (e) {');
       lines.push('        console.log("Parse error: " + e);');
       lines.push('      }');
@@ -131,11 +139,15 @@ export function emitPKJS(options: PKJSOptions): string {
       lines.push('');
       lines.push('  fetchAndSend();');
     } else {
-      // No mock data URL — just set up message listener
+      // No mock data URL — emit a usage comment showing how to send data.
       lines.push('');
       lines.push(`  // Message key: "${mi.key}"`);
       lines.push('  // Send data to watch using:');
-      lines.push(`  //   Pebble.sendAppMessage({ "${mi.key}": JSON.stringify(yourData) });`);
+      if (rocky) {
+        lines.push(`  //   Pebble.postMessage({ "${mi.key}": yourData });`);
+      } else {
+        lines.push(`  //   Pebble.sendAppMessage({ "${mi.key}": JSON.stringify(yourData) });`);
+      }
     }
   }
 
