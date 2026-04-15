@@ -16,9 +16,7 @@ rocky.on('draw', function(event) {
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, 144, 168);
   ctx.fillStyle = '#404040';
-  ctx.beginPath();
-  ctx.arc(72, 72, 68, 0, 2 * Math.PI, false);
-  ctx.fill();
+  ctx.rockyFillRadial(72, 72, 0, 68, 0, 2 * Math.PI);
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(72, 9, 3, 10);
   ctx.fillStyle = '#c0c0c0';
@@ -32,9 +30,7 @@ rocky.on('draw', function(event) {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(69, 24, 6, 48);
   ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(72, 72, 4, 0, 2 * Math.PI, false);
-  ctx.fill();
+  ctx.rockyFillRadial(72, 72, 0, 4, 0, 2 * Math.PI);
   ctx.fillStyle = '#c0c0c0';
   ctx.font = '18px Gothic';
   ctx.textAlign = 'center';

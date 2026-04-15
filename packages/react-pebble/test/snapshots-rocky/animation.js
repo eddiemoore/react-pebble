@@ -26,13 +26,9 @@ rocky.on('draw', function(event) {
   ctx.textAlign = 'center';
   ctx.fillText('Animation Demo', 100, 4);
   ctx.fillStyle = '#ff0000';
-  ctx.beginPath();
-  ctx.arc(32, 44, 12, 0, 2 * Math.PI, false);
-  ctx.fill();
+  ctx.rockyFillRadial(32, 44, 0, 12, 0, 2 * Math.PI);
   ctx.fillStyle = '#00ffff';
-  ctx.beginPath();
-  ctx.arc(138, 98, 8, 0, 2 * Math.PI, false);
-  ctx.fill();
+  ctx.rockyFillRadial(138, 98, 0, 8, 0, 2 * Math.PI);
   ctx.fillStyle = '#404040';
   ctx.fillRect(10, 190, 180, 10);
   ctx.fillStyle = '#00ff00';

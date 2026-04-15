@@ -12,9 +12,7 @@ rocky.on('draw', function(event) {
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, 200, 228);
   ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(100, 100, 4, 0, 2 * Math.PI, false);
-  ctx.fill();
+  ctx.rockyFillRadial(100, 100, 0, 4, 0, 2 * Math.PI);
   ctx.fillStyle = '#ff0000';
   ctx.fillRect(100, 40, 2, 60);
   ctx.fillStyle = '#ffffff';

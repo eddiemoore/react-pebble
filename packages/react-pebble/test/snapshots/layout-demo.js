@@ -36,16 +36,16 @@ const WatchApp = Application.template(() => ({
           new RoundRect(null, { left: 144, top: 0, width: 32, height: 32, radius: 16, skin: sk4 })
         ] }),
         new Container(null, { left: 10, right: 0, top: 68, contents: [
-          new Content(null, { left: 0, width: 180, top: 0, height: 30, skin: sk5 }),
-          new Container(null, { left: 0, right: 0, top: 36, contents: [
+          new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+            new Content(null, { left: 0, width: 180, top: 0, height: 30, skin: sk5 }),
             new Label(null, { top: 6, left: 8, width: 164, style: st1, string: "First Card" })
           ] }),
-          new Content(null, { left: 0, width: 180, top: 72, height: 30, skin: sk5 }),
-          new Container(null, { left: 0, right: 0, top: 108, contents: [
+          new Container(null, { left: 0, right: 0, top: 36, contents: [
+            new Content(null, { left: 0, width: 180, top: 0, height: 30, skin: sk5 }),
             new Label(null, { top: 6, left: 8, width: 164, style: st2, string: "Second Card" })
           ] }),
-          new Content(null, { left: 0, width: 180, top: 144, height: 30, skin: sk5 }),
-          new Container(null, { left: 0, right: 0, top: 180, contents: [
+          new Container(null, { left: 0, right: 0, top: 72, contents: [
+            new Content(null, { left: 0, width: 180, top: 0, height: 30, skin: sk5 }),
             new Label(null, { top: 6, left: 8, width: 164, style: st3, string: "Third Card" })
           ] })
         ] })

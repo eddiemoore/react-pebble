@@ -49,7 +49,7 @@ static TextLayer *s_cfg_tl[1];
 
 static void draw_proc(Layer *layer, GContext *ctx) {
   if (settings.showDate) {
-    graphics_context_set_fill_color(ctx, GColorFromHEX(0x55FFFF));
+    graphics_context_set_fill_color(ctx, GColorFromHEX(0x55ffff));
     graphics_fill_rect(ctx, GRect(40, 120, 104, 1), 0, GCornerNone);
   }
 }
@@ -116,7 +116,7 @@ static void window_load(Window *window) {
 
   s_cfg_tl[0] = text_layer_create(GRect(0, 30, 144, 50));
   text_layer_set_background_color(s_cfg_tl[0], GColorClear);
-  text_layer_set_text_color(s_cfg_tl[0], GColorFromHEX(0x55FFFF));
+  text_layer_set_text_color(s_cfg_tl[0], GColorFromHEX(0x55ffff));
   text_layer_set_font(s_cfg_tl[0], fonts_get_system_font(FONT_KEY_GOTHIC_18));
   text_layer_set_text_alignment(s_cfg_tl[0], GTextAlignmentCenter);
   text_layer_set_text(s_cfg_tl[0], "Hello!");
@@ -124,14 +124,14 @@ static void window_load(Window *window) {
 
   s_tl0 = text_layer_create(GRect(0, 70, 144, 50));
   text_layer_set_background_color(s_tl0, GColorClear);
-  text_layer_set_text_color(s_tl0, GColorFromHEX(0xFFFFFF));
+  text_layer_set_text_color(s_tl0, GColorWhite);
   text_layer_set_font(s_tl0, fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
   text_layer_set_text_alignment(s_tl0, GTextAlignmentCenter);
   layer_add_child(root, text_layer_get_layer(s_tl0));
 
   s_tl1 = text_layer_create(GRect(0, 125, 144, 50));
   text_layer_set_background_color(s_tl1, GColorClear);
-  text_layer_set_text_color(s_tl1, GColorFromHEX(0x55FFFF));
+  text_layer_set_text_color(s_tl1, GColorFromHEX(0x55ffff));
   text_layer_set_font(s_tl1, fonts_get_system_font(FONT_KEY_GOTHIC_24));
   text_layer_set_text_alignment(s_tl1, GTextAlignmentCenter);
   layer_add_child(root, text_layer_get_layer(s_tl1));

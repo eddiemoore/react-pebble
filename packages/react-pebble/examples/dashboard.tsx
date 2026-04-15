@@ -41,11 +41,12 @@ function Dashboard() {
         {dateStr}
       </Text>
 
-      {/* Status indicators in a column layout */}
+      {/* Status indicators in a column layout. Each card is one Group so
+          its background Rect paints behind the icon + label. */}
       <Column x={10} y={100} gap={4}>
         {/* Battery card */}
-        <Rect x={0} y={0} w={180} h={36} fill="darkGray" borderRadius={6} />
-        <Group x={0} y={0} h={36}>
+        <Group h={36}>
+          <Rect x={0} y={0} w={180} h={36} fill="darkGray" borderRadius={6} />
           <Circle x={8} y={8} r={10} fill={battery.percent > 20 ? 'green' : 'red'} />
           <Text x={32} y={10} w={140} font="gothic18" color="white">
             Battery: {battery.percent}%{battery.charging ? ' (charging)' : ''}
@@ -53,8 +54,8 @@ function Dashboard() {
         </Group>
 
         {/* Connection card */}
-        <Rect x={0} y={0} w={180} h={36} fill="darkGray" borderRadius={6} />
-        <Group x={0} y={0} h={36}>
+        <Group h={36}>
+          <Rect x={0} y={0} w={180} h={36} fill="darkGray" borderRadius={6} />
           <Circle x={8} y={8} r={10} fill={conn.app ? 'blue' : 'red'} />
           <Text x={32} y={10} w={140} font="gothic18" color="white">
             {conn.app ? 'Connected' : 'Disconnected'}

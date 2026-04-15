@@ -22,13 +22,9 @@ rocky.on('draw', function(event) {
   ctx.fillStyle = s0 ? 'green' : 'black';
   ctx.fillRect(0, 0, 200, 228);
   ctx.fillStyle = '#404040';
-  ctx.beginPath();
-  ctx.arc(100, 84, 60, 0, 2 * Math.PI, false);
-  ctx.fill();
+  ctx.rockyFillRadial(100, 84, 0, 60, 0, 2 * Math.PI);
   ctx.fillStyle = '#000000';
-  ctx.beginPath();
-  ctx.arc(100, 84, 56, 0, 2 * Math.PI, false);
-  ctx.fill();
+  ctx.rockyFillRadial(100, 84, 0, 56, 0, 2 * Math.PI);
   ctx.fillStyle = '#ffffff';
   ctx.font = '42px bold Bitham';
   ctx.textAlign = 'center';

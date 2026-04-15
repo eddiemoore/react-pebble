@@ -21,9 +21,7 @@ rocky.on('draw', function(event) {
   ctx.textAlign = 'left';
   ctx.fillText('Path / Polygon', 4, 4);
   ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(100, 100, 3, 0, 2 * Math.PI, false);
-  ctx.fill();
+  ctx.rockyFillRadial(100, 100, 0, 3, 0, 2 * Math.PI);
   ctx.fillStyle = '#ff0000';
   ctx.fillRect(95, 50, 10, 50);
   ctx.fillStyle = '#00ffff';

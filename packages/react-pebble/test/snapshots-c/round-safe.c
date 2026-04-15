@@ -56,7 +56,7 @@ static void window_load(Window *window) {
   text_layer_set_background_color(tl_4, GColorClear);
   text_layer_set_text_color(tl_4, GColorFromHEX(0x00ffff));
   text_layer_set_font(tl_4, fonts_get_system_font(FONT_KEY_GOTHIC_14));
-  text_layer_set_text(tl_4, "Display: 192x220 (rect)");
+  text_layer_set_text(tl_4, "Display: 136x160 (rect)");
   layer_add_child(root, text_layer_get_layer(tl_4));
 
   TextLayer *tl_5 = text_layer_create(GRect(12, 168, 132, 50));

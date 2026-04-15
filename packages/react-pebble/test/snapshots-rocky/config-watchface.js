@@ -15,19 +15,19 @@ rocky.on('draw', function(event) {
 
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, 200, 228);
-  ctx.fillStyle = '#55FFFF';
+  ctx.fillStyle = '#55ffff';
   ctx.font = '18px Gothic';
   ctx.textAlign = 'center';
   ctx.fillText('Hello!', 100, 30);
-  ctx.fillStyle = '#FFFFFF';
+  ctx.fillStyle = '#ffffff';
   ctx.font = '42px bold Bitham';
   ctx.textAlign = 'center';
   ctx.fillText(pad(d.getHours()) + ":" + pad(d.getMinutes()), 100, 70);
-  ctx.fillStyle = '#55FFFF';
+  ctx.fillStyle = '#55ffff';
   ctx.font = '24px Gothic';
   ctx.textAlign = 'center';
   ctx.fillText(days[d.getDay()] + " " + months[d.getMonth()] + " " + d.getDate(), 100, 125);
-  ctx.fillStyle = '#55FFFF';
+  ctx.fillStyle = '#55ffff';
   ctx.fillRect(40, 120, 120, 1);
 });
 

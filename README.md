@@ -146,13 +146,31 @@ export function main() {
 | `<Scrollable>` | Scrollable container with scroll indicators and clip region |
 | `<RoundSafeArea>` | Auto-insets children on round displays with configurable padding |
 
+##### Layering & nesting
+
+Children of a `<Group>` paint in source order — later siblings draw **on top of** earlier ones. That's how you give something a background: put the background element first, then the foreground content as a later sibling inside the same Group.
+
+`<Column>` and `<Row>` apply an x/y offset to **every** direct child, so don't put a background Rect alongside content inside a Column — it becomes just another stacked item. Instead, make each stacked item its own `<Group>` containing both the background and the content:
+
+```tsx
+<Column gap={4}>
+  <Group h={36}>
+    <Rect x={0} y={0} w={180} h={36} fill="darkGray" borderRadius={6} />
+    <Text x={8} y={10} w={164} color="white">Battery</Text>
+  </Group>
+  {/* more cards... */}
+</Column>
+```
+
+See `examples/layered-cards.tsx` for the full pattern. `<Card>` also accepts `children` so you can nest arbitrary content below its title bar without building your own Group.
+
 #### Composites
 
 | Component | Description |
 |-----------|------------|
 | `<StatusBar>` | Status bar with centered time, background color, and separator style |
 | `<ActionBar>` | Right-edge action bar with icon placeholders for up/select/down |
-| `<Card>` | Composite: title bar + body text |
+| `<Card>` | Composite: title bar + optional body text + optional nested `children` |
 | `<Badge>` | Composite: circle + centered text |
 | `<TextFlow>` | Multi-line flowing text with paragraph support |
 | `<AnimatedImage>` | Frame sequence animation (`frames`+`fps`) or native APNG / PDC-sequence playback (`src="spinner.apng" \| "anim.pdcs"`). |

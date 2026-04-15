@@ -19,9 +19,9 @@ static void draw_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
   graphics_fill_rect(ctx, GRect(10, 68, 134, 30), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 140, 134, 28), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 104, 134, 30), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 212, 134, 0), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 140, 134, 28), 0, GCornerNone);
   graphics_context_set_stroke_color(ctx, GColorFromHEX(0xff00ff));
   graphics_context_set_stroke_width(ctx, 2);
   graphics_draw_line(ctx, GPoint(10, 200), GPoint(60, 220));
@@ -49,21 +49,21 @@ static void window_load(Window *window) {
   text_layer_set_text(tl_0, "Layout Demo");
   layer_add_child(root, text_layer_get_layer(tl_0));
 
-  TextLayer *tl_1 = text_layer_create(GRect(18, 110, 126, 50));
+  TextLayer *tl_1 = text_layer_create(GRect(18, 74, 126, 50));
   text_layer_set_background_color(tl_1, GColorClear);
   text_layer_set_text_color(tl_1, GColorWhite);
   text_layer_set_font(tl_1, fonts_get_system_font(FONT_KEY_GOTHIC_18));
   text_layer_set_text(tl_1, "First Card");
   layer_add_child(root, text_layer_get_layer(tl_1));
 
-  TextLayer *tl_2 = text_layer_create(GRect(18, 182, 126, 50));
+  TextLayer *tl_2 = text_layer_create(GRect(18, 110, 126, 50));
   text_layer_set_background_color(tl_2, GColorClear);
   text_layer_set_text_color(tl_2, GColorFromHEX(0x00ffff));
   text_layer_set_font(tl_2, fonts_get_system_font(FONT_KEY_GOTHIC_18));
   text_layer_set_text(tl_2, "Second Card");
   layer_add_child(root, text_layer_get_layer(tl_2));
 
-  TextLayer *tl_3 = text_layer_create(GRect(18, 254, 126, 50));
+  TextLayer *tl_3 = text_layer_create(GRect(18, 146, 126, 50));
   text_layer_set_background_color(tl_3, GColorClear);
   text_layer_set_text_color(tl_3, GColorFromHEX(0xff8000));
   text_layer_set_font(tl_3, fonts_get_system_font(FONT_KEY_GOTHIC_18));

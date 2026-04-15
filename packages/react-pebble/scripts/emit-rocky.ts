@@ -86,6 +86,11 @@ function emitTimeExpr(fmt: TimeFormat): string {
 /**
  * Collect text alignment — Rocky.js uses ctx.textAlign which is sticky,
  * so we track it to avoid redundant sets.
+ *
+ * Rocky.js's canvas is flat — no nested Containers like piu. The IR stores
+ * each element's x/y **local to its parent Group**, so we thread `offsetX` /
+ * `offsetY` through the recursion and add them to every draw coordinate.
+ * A child Group adds its own x/y to the accumulated offset before recursing.
  */
 function emitDrawCalls(
   el: IRElement,
@@ -93,12 +98,16 @@ function emitDrawCalls(
   indent: string,
   ir: CompilerIR,
   activeBranch?: { slotIndex: number; value: unknown },
+  offsetX = 0,
+  offsetY = 0,
 ): void {
   switch (el.type) {
     case 'root':
     case 'group': {
+      const gx = offsetX + (el.x ?? 0);
+      const gy = offsetY + (el.y ?? 0);
       for (const child of el.children ?? []) {
-        emitDrawCalls(child, lines, indent, ir, activeBranch);
+        emitDrawCalls(child, lines, indent, ir, activeBranch, gx, gy);
       }
       break;
     }
@@ -119,11 +128,13 @@ function emitDrawCalls(
       } else {
         lines.push(`${indent}ctx.fillStyle = '${fill}';`);
       }
-      lines.push(`${indent}ctx.fillRect(${el.x}, ${el.y}, ${el.w}, ${el.h});`);
+      lines.push(`${indent}ctx.fillRect(${el.x + offsetX}, ${el.y + offsetY}, ${el.w}, ${el.h});`);
 
-      // Draw children
+      // Draw children — they position relative to this rect.
+      const childOffsetX = offsetX + el.x;
+      const childOffsetY = offsetY + el.y;
       for (const child of el.children ?? []) {
-        emitDrawCalls(child, lines, indent, ir, activeBranch);
+        emitDrawCalls(child, lines, indent, ir, activeBranch, childOffsetX, childOffsetY);
       }
       break;
     }
@@ -163,15 +174,17 @@ function emitDrawCalls(
 
       // Calculate text position
       const textAlign = el.align ?? 'left';
-      let drawX = el.x;
+      const absX = el.x + offsetX;
+      const absY = el.y + offsetY;
+      let drawX = absX;
       if (textAlign === 'center' && el.w > 0) {
-        drawX = el.x + Math.floor(el.w / 2);
+        drawX = absX + Math.floor(el.w / 2);
       } else if (textAlign === 'right' && el.w > 0) {
-        drawX = el.x + el.w;
+        drawX = absX + el.w;
       }
 
       lines.push(`${indent}ctx.textAlign = '${textAlign}';`);
-      lines.push(`${indent}ctx.fillText(${textExpr}, ${drawX}, ${el.y});`);
+      lines.push(`${indent}ctx.fillText(${textExpr}, ${drawX}, ${absY});`);
       break;
     }
 
@@ -181,30 +194,31 @@ function emitDrawCalls(
       // Rocky.js doesn't have line primitives — use fillRect for h/v lines
       if (el.y === el.y2!) {
         // Horizontal line
-        const left = Math.min(el.x, el.x2!);
+        const left = Math.min(el.x, el.x2!) + offsetX;
         const w = Math.abs(el.x2! - el.x) || 1;
         lines.push(`${indent}ctx.fillStyle = '${color}';`);
-        lines.push(`${indent}ctx.fillRect(${left}, ${el.y}, ${w}, ${sw});`);
+        lines.push(`${indent}ctx.fillRect(${left}, ${el.y + offsetY}, ${w}, ${sw});`);
       } else if (el.x === el.x2!) {
         // Vertical line
-        const top = Math.min(el.y, el.y2!);
+        const top = Math.min(el.y, el.y2!) + offsetY;
         const h = Math.abs(el.y2! - el.y) || 1;
         lines.push(`${indent}ctx.fillStyle = '${color}';`);
-        lines.push(`${indent}ctx.fillRect(${el.x}, ${top}, ${sw}, ${h});`);
+        lines.push(`${indent}ctx.fillRect(${el.x + offsetX}, ${top}, ${sw}, ${h});`);
       }
       break;
     }
 
     case 'circle': {
+      // Rocky.js: `fill()` does not accept arc paths. Use the Pebble-specific
+      // `rockyFillRadial(cx, cy, innerR, outerR, startAngle, endAngle)` which
+      // is the supported way to draw a filled circle (innerR=0 → solid).
       const fill = el.fill ?? '#ffffff';
       const r = el.radius ?? 0;
-      const cx = el.x + r;
-      const cy = el.y + r;
+      const cx = el.x + offsetX + r;
+      const cy = el.y + offsetY + r;
 
       lines.push(`${indent}ctx.fillStyle = '${fill}';`);
-      lines.push(`${indent}ctx.beginPath();`);
-      lines.push(`${indent}ctx.arc(${cx}, ${cy}, ${r}, 0, 2 * Math.PI, false);`);
-      lines.push(`${indent}ctx.fill();`);
+      lines.push(`${indent}ctx.rockyFillRadial(${cx}, ${cy}, 0, ${r}, 0, 2 * Math.PI);`);
       break;
     }
 
@@ -221,7 +235,7 @@ function emitDrawCalls(
       }
       const fill = el.fill ?? '#ffffff';
       lines.push(`${indent}ctx.fillStyle = '${fill}';`);
-      lines.push(`${indent}ctx.fillRect(${el.x + minX}, ${el.y + minY}, ${maxX - minX}, ${maxY - minY});`);
+      lines.push(`${indent}ctx.fillRect(${el.x + offsetX + minX}, ${el.y + offsetY + minY}, ${maxX - minX}, ${maxY - minY});`);
       break;
     }
 
@@ -234,8 +248,10 @@ function emitDrawCalls(
       const rotation = typeof el.rotation === 'number' ? el.rotation : 0;
       const pivotX = typeof el.pivotX === 'number' ? el.pivotX : Math.floor(el.w / 2);
       const pivotY = typeof el.pivotY === 'number' ? el.pivotY : Math.floor(el.h / 2);
-      const centerX = el.x + Math.floor(el.w / 2);
-      const centerY = el.y + Math.floor(el.h / 2);
+      const absX = el.x + offsetX;
+      const absY = el.y + offsetY;
+      const centerX = absX + Math.floor(el.w / 2);
+      const centerY = absY + Math.floor(el.h / 2);
       lines.push(`${indent}// image: ${src}${rotation ? ` (rotated ${rotation}°)` : ''}`);
       lines.push(`${indent}if (typeof _images !== 'undefined' && _images[${JSON.stringify(src)}]) {`);
       if (rotation !== 0) {
@@ -246,12 +262,12 @@ function emitDrawCalls(
         lines.push(`${indent}  ctx.drawImage(_images[${JSON.stringify(src)}], 0, 0);`);
         lines.push(`${indent}  ctx.restore();`);
       } else {
-        lines.push(`${indent}  ctx.drawImage(_images[${JSON.stringify(src)}], ${el.x}, ${el.y});`);
+        lines.push(`${indent}  ctx.drawImage(_images[${JSON.stringify(src)}], ${absX}, ${absY});`);
       }
       lines.push(`${indent}} else {`);
       // Placeholder box if image isn't available
       lines.push(`${indent}  ctx.fillStyle = '#aaaaaa';`);
-      lines.push(`${indent}  ctx.fillRect(${el.x}, ${el.y}, ${el.w}, ${el.h});`);
+      lines.push(`${indent}  ctx.fillRect(${absX}, ${absY}, ${el.w}, ${el.h});`);
       lines.push(`${indent}}`);
       break;
     }
@@ -529,8 +545,12 @@ function emitDrawCallsWithConditionals(
   lines: string[],
   indent: string,
   ir: CompilerIR,
+  offsetX = 0,
+  offsetY = 0,
 ): void {
   if (el.type === 'root' || el.type === 'group') {
+    const gx = offsetX + (el.x ?? 0);
+    const gy = offsetY + (el.y ?? 0);
     for (let i = 0; i < (el.children ?? []).length; i++) {
       const child = el.children![i]!;
       // Check if this child index has a conditional
@@ -539,13 +559,13 @@ function emitDrawCallsWithConditionals(
       );
       if (cond) {
         lines.push(`${indent}if (s${cond.stateSlot}) {`);
-        emitDrawCalls(child, lines, indent + '  ', ir);
+        emitDrawCalls(child, lines, indent + '  ', ir, undefined, gx, gy);
         lines.push(`${indent}}`);
       } else {
-        emitDrawCalls(child, lines, indent, ir);
+        emitDrawCalls(child, lines, indent, ir, undefined, gx, gy);
       }
     }
   } else {
-    emitDrawCalls(el, lines, indent, ir);
+    emitDrawCalls(el, lines, indent, ir, undefined, offsetX, offsetY);
   }
 }

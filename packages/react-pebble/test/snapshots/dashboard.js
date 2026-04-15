@@ -50,13 +50,13 @@ const WatchApp = Application.template(() => ({
         new Label(null, { top: 32, left: 10, width: 180, style: st0, horizontal: "center", name: "tl0", string: "09:07" }),
         new Label(null, { top: 72, left: 10, width: 180, style: st1, horizontal: "center", string: "Thu 15" }),
         new Container(null, { left: 10, right: 0, top: 100, contents: [
-          new Content(null, { left: 0, width: 180, top: 0, height: 36, skin: sk1 }),
-          new Container(null, { left: 0, right: 0, top: 40, contents: [
+          new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+            new Content(null, { left: 0, width: 180, top: 0, height: 36, skin: sk1 }),
             new RoundRect(null, { left: 8, top: 8, width: 20, height: 20, radius: 10, skin: sk2 }),
             new Label(null, { top: 10, left: 32, width: 140, style: st2, string: "Battery: 100%" })
           ] }),
-          new Content(null, { left: 0, width: 180, top: 80, height: 36, skin: sk1 }),
-          new Container(null, { left: 0, right: 0, top: 120, contents: [
+          new Container(null, { left: 0, right: 0, top: 40, contents: [
+            new Content(null, { left: 0, width: 180, top: 0, height: 36, skin: sk1 }),
             new RoundRect(null, { left: 8, top: 8, width: 20, height: 20, radius: 10, skin: sk3 }),
             new Label(null, { top: 10, left: 32, width: 140, style: st2, string: "Connected" })
           ] })

@@ -29,7 +29,7 @@ rocky.on('draw', function(event) {
     ctx.textAlign = 'right';
     ctx.fillText((s1 + 1) + "/5", 196, 4);
     ctx.fillStyle = '#404040';
-    ctx.fillRect(0, 0, 200, 60);
+    ctx.fillRect(0, 32, 200, 60);
     ctx.fillStyle = '#ffffff';
     ctx.font = '18px bold Gothic';
     ctx.fillStyle = '#c0c0c0';
@@ -37,7 +37,7 @@ rocky.on('draw', function(event) {
     ctx.fillStyle = '#00ffff';
     ctx.font = '14px Gothic';
     ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, 200, 60);
+    ctx.fillRect(0, 94, 200, 60);
     ctx.fillStyle = '#ffffff';
     ctx.font = '18px bold Gothic';
     ctx.fillStyle = '#c0c0c0';
@@ -45,7 +45,7 @@ rocky.on('draw', function(event) {
     ctx.fillStyle = '#00ffff';
     ctx.font = '14px Gothic';
     ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, 200, 60);
+    ctx.fillRect(0, 156, 200, 60);
     ctx.fillStyle = '#ffffff';
     ctx.font = '18px bold Gothic';
     ctx.fillStyle = '#c0c0c0';
@@ -65,9 +65,7 @@ rocky.on('draw', function(event) {
     ctx.textAlign = 'left';
     ctx.fillText('Fix login timeout', 10, 50);
     ctx.fillStyle = '#00ff00';
-    ctx.beginPath();
-    ctx.arc(18, 118, 8, 0, 2 * Math.PI, false);
-    ctx.fill();
+    ctx.rockyFillRadial(18, 118, 0, 8, 0, 2 * Math.PI);
     ctx.fillStyle = '#ffffff';
     ctx.font = '18px Gothic';
     ctx.textAlign = 'left';

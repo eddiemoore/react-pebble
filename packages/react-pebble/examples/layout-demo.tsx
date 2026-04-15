@@ -29,24 +29,25 @@ function LayoutDemo() {
         <Circle x={0} y={0} r={16} fill="yellow" />
       </Row>
 
-      {/* Column of rounded cards */}
+      {/* Column of rounded cards — each card is a Group so the
+          background Rect and the label are siblings that layer correctly. */}
       <Column x={10} y={68} gap={6}>
-        <Rect x={0} y={0} w={180} h={30} fill="darkGray" borderRadius={6} />
-        <Group x={0} y={0} h={30}>
+        <Group h={30}>
+          <Rect x={0} y={0} w={180} h={30} fill="darkGray" borderRadius={6} />
           <Text x={8} y={6} w={164} font="gothic18" color="white">
             First Card
           </Text>
         </Group>
 
-        <Rect x={0} y={0} w={180} h={30} fill="darkGray" borderRadius={6} />
-        <Group x={0} y={0} h={30}>
+        <Group h={30}>
+          <Rect x={0} y={0} w={180} h={30} fill="darkGray" borderRadius={6} />
           <Text x={8} y={6} w={164} font="gothic18" color="cyan">
             Second Card
           </Text>
         </Group>
 
-        <Rect x={0} y={0} w={180} h={30} fill="darkGray" borderRadius={6} />
-        <Group x={0} y={0} h={30}>
+        <Group h={30}>
+          <Rect x={0} y={0} w={180} h={30} fill="darkGray" borderRadius={6} />
           <Text x={8} y={6} w={164} font="gothic18" color="orange">
             Third Card
           </Text>

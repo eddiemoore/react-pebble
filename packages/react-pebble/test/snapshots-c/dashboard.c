@@ -16,11 +16,11 @@ static void draw_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
   graphics_fill_rect(ctx, GRect(10, 100, 134, 36), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x00ff00));
-  graphics_fill_circle(ctx, GPoint(28, 158), 10);
+  graphics_fill_circle(ctx, GPoint(28, 118), 10);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 180, 134, 0), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 140, 134, 28), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x0000ff));
-  graphics_fill_circle(ctx, GPoint(28, 238), 10);
+  graphics_fill_circle(ctx, GPoint(28, 158), 10);
 }
 
 static void refresh(void) {
@@ -57,14 +57,14 @@ static void window_load(Window *window) {
   text_layer_set_text(tl_0, "Thu 15");
   layer_add_child(root, text_layer_get_layer(tl_0));
 
-  TextLayer *tl_1 = text_layer_create(GRect(42, 150, 102, 50));
+  TextLayer *tl_1 = text_layer_create(GRect(42, 110, 102, 50));
   text_layer_set_background_color(tl_1, GColorClear);
   text_layer_set_text_color(tl_1, GColorWhite);
   text_layer_set_font(tl_1, fonts_get_system_font(FONT_KEY_GOTHIC_18));
   text_layer_set_text(tl_1, "Battery: 100%");
   layer_add_child(root, text_layer_get_layer(tl_1));
 
-  TextLayer *tl_2 = text_layer_create(GRect(42, 230, 102, 50));
+  TextLayer *tl_2 = text_layer_create(GRect(42, 150, 102, 50));
   text_layer_set_background_color(tl_2, GColorClear);
   text_layer_set_text_color(tl_2, GColorWhite);
   text_layer_set_font(tl_2, fonts_get_system_font(FONT_KEY_GOTHIC_18));

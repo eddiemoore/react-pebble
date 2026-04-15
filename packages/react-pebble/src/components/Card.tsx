@@ -4,6 +4,7 @@ import type { FontName, PositionProps } from './internal/shared-types.js';
 export interface CardProps extends PositionProps {
   title: ReactNode;
   body?: ReactNode;
+  children?: ReactNode;
   titleFont?: FontName;
   bodyFont?: FontName;
   w?: number;
@@ -12,6 +13,7 @@ export interface CardProps extends PositionProps {
 export function Card({
   title,
   body,
+  children,
   titleFont,
   bodyFont,
   x = 0,
@@ -51,6 +53,9 @@ export function Card({
           },
           body,
         )
+      : null,
+    children
+      ? React.createElement('pbl-group', { x: 0, y: bodyY }, children)
       : null,
   );
 }
