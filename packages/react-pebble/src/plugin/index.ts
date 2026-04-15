@@ -148,6 +148,12 @@ export type ResourceDeclaration =
       characterRegex?: string;
       /** Alternate compatibility for older firmwares. */
       compatibility?: string;
+      /**
+       * Pebble font `trackingAdjust` — positive/negative integer that tweaks
+       * vertical placement, in pixels. Useful when a TTF renders too high or
+       * too low for the target bitmap grid.
+       */
+      trackingAdjust?: number;
       targetPlatforms?: Record<string, string>;
     }
   | {
@@ -357,6 +363,9 @@ function buildMediaEntries(options: ScaffoldOptions): Record<string, unknown>[] 
     if ('menuIcon' in r && r.menuIcon) entry.menuIcon = true;
     if ('characterRegex' in r && r.characterRegex) entry.characterRegex = r.characterRegex;
     if ('compatibility' in r && r.compatibility) entry.compatibility = r.compatibility;
+    if ('trackingAdjust' in r && typeof r.trackingAdjust === 'number') {
+      entry.trackingAdjust = r.trackingAdjust;
+    }
     if (r.targetPlatforms) entry.targetPlatforms = r.targetPlatforms;
     entries.push(entry);
     seenNames.add(r.name);

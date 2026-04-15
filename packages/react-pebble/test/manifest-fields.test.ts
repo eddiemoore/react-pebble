@@ -74,4 +74,36 @@ function cleanup(dir: string): void {
   cleanup(dir);
 }
 
+// -----------------------------------------------------------------------
+// Font trackingAdjust flows through to resources.media entry
+// -----------------------------------------------------------------------
+{
+  const { dir, pkg } = scaffold({
+    resources: [
+      { type: 'font', name: 'PIXEL_24', file: 'fake.ttf', trackingAdjust: 2 },
+    ],
+  });
+  const entry = pkg.pebble.resources.media.find((m: any) => m.name === 'PIXEL_24');
+  assert(!!entry, 'PIXEL_24 font entry must be emitted');
+  assert(
+    entry.trackingAdjust === 2,
+    `Font trackingAdjust must round-trip, got ${JSON.stringify(entry.trackingAdjust)}`,
+  );
+  cleanup(dir);
+}
+
+// Absent by default
+{
+  const { dir, pkg } = scaffold({
+    resources: [{ type: 'font', name: 'BASIC', file: 'fake.ttf' }],
+  });
+  const entry = pkg.pebble.resources.media.find((m: any) => m.name === 'BASIC');
+  assert(!!entry, 'BASIC font entry must be emitted');
+  assert(
+    !('trackingAdjust' in entry),
+    'Font without trackingAdjust must not emit the field',
+  );
+  cleanup(dir);
+}
+
 console.log('manifest-fields.test.ts: PASS');
