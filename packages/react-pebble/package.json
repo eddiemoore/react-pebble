@@ -34,6 +34,11 @@
       "types": "./dist/lib/src/config/index.d.ts",
       "import": "./dist/lib/config.js",
       "require": "./dist/lib/config.cjs"
+    },
+    "./timeline": {
+      "types": "./dist/lib/src/timeline/index.d.ts",
+      "import": "./dist/lib/timeline.js",
+      "require": "./dist/lib/timeline.cjs"
     }
   },
   "files": [
