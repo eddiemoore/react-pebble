@@ -438,6 +438,40 @@ Additional capabilities can be passed via `capabilities: [...]`, or disable auto
 
 Named palette: `black`, `white`, `red`, `green`, `blue`, `yellow`, `orange`, `cyan`, `magenta`, `clear`, `lightGray`, `darkGray`
 
+### Timeline Web API (server-side)
+
+Push timeline pins and app glances from a backend (Node, Edge Functions, Deno, Bun) without going through the watch or PKJS:
+
+```ts
+import { pushUserPin, pushSharedPin, pushUserGlance, TimelineApiError } from 'react-pebble/timeline';
+import type { TimelinePin, AppGlanceSlice } from 'react-pebble/timeline';
+
+// Push a pin to one user's timeline (auth: X-User-Token from useTimelineToken)
+const pin: TimelinePin = {
+  id: 'meeting-123',
+  time: Date.now() + 3600_000,
+  layout: { type: 'calendarPin', title: 'Team standup', locationName: 'Zoom' },
+};
+await pushUserPin(userToken, pin);
+
+// Broadcast a shared pin to all subscribers of a topic (auth: developer API key)
+await pushSharedPin(apiKey, pin, ['team-meetings']);
+
+// Set the app's launcher glance
+const slices: AppGlanceSlice[] = [{ subtitle: 'Next: Team standup' }];
+await pushUserGlance(userToken, slices);
+```
+
+| Function | Method | Path | Auth header |
+|----------|--------|------|-------------|
+| `pushUserPin(token, pin)` | PUT | `/v1/user/pins/:id` | `X-User-Token` |
+| `removeUserPin(token, id)` | DELETE | `/v1/user/pins/:id` | `X-User-Token` |
+| `pushSharedPin(key, pin, topics)` | PUT | `/v1/shared/pins/:id` | `X-API-Key` + `X-Pin-Topics` |
+| `removeSharedPin(key, id, topics)` | DELETE | `/v1/shared/pins/:id` | `X-API-Key` + `X-Pin-Topics` |
+| `pushUserGlance(token, slices)` | PUT | `/v1/user/glance` | `X-User-Token` |
+
+All functions accept an optional trailing `{ baseUrl }` to override the default `https://timeline-api.rebble.io`. Non-2xx responses throw `TimelineApiError` with `status`, `statusText`, and `body`.
+
 ## What the compiler detects automatically
 
 The compiler renders your component multiple times with different state values and diffs the output to infer reactive bindings:
