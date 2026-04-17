@@ -20,6 +20,8 @@ class AppBehavior extends Behavior {
   onCreate(app) {
     const c = app.first;
     this.s0 = 0;
+    this.s1 = 0;
+    this.s2 = "calibrated";
     this.sl0 = c.content("sl0");
     this.sl1 = c.content("sl1");
   }

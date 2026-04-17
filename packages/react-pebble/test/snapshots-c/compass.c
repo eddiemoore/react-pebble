@@ -7,6 +7,8 @@ static Window *s_window;
 static Layer *s_draw_layer;
 
 static int s0 = 0;
+static int s1 = 0;
+static char s2[64] = "calibrated";
 
 static TextLayer *s_tl0;
 static char s_tl0_buf[32];
