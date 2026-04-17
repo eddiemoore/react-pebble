@@ -3,6 +3,7 @@
  */
 
 import { useCallback } from 'preact/hooks';
+import { getPebbleGlobal } from './internal/pebble-global.js';
 
 export interface AppGlanceSlice {
   subtitle: string;
@@ -43,6 +44,8 @@ export function appGlanceTimeSince(unixSecondsPast: number, format: string = '%a
  * Update the app glance (status shown in the app launcher).
  *
  * On Alloy: uses the `AppGlance` global.
+ * On Rocky+PKJS: forwards slices to the phone via AppMessage; the
+ * compiler-emitted PKJS calls `Pebble.appGlanceReload`.
  * In mock mode: no-op.
  */
 export function useAppGlance(): UseAppGlanceResult {
@@ -52,7 +55,12 @@ export function useAppGlance(): UseAppGlanceResult {
         update?: (slices: AppGlanceSlice[]) => void;
       };
       ag.update?.(slices);
+      return;
     }
+    // Fallback: forward to PKJS over AppMessage (Rocky+PKJS path)
+    getPebbleGlobal()?.sendAppMessage?.({
+      _rpGlanceUpdate: JSON.stringify(slices),
+    });
   }, []);
 
   return { update };
