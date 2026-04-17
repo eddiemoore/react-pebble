@@ -8,6 +8,7 @@ function pad(n) { return n < 10 ? "0" + n : "" + n; }
 var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
+var s3 = [];
 
 rocky.on('draw', function(event) {
   var ctx = event.context;
