@@ -14,7 +14,7 @@ import { useHealth, useFormattedTime } from '../src/hooks/index.js';
 
 function HealthFace() {
   const time = useFormattedTime('HH:mm');
-  const health = useHealth(30000);
+  const { data: health } = useHealth(30000);
 
   return (
     <Group>

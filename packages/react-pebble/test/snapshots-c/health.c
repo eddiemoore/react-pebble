@@ -6,6 +6,7 @@
 static Window *s_window;
 static Layer *s_draw_layer;
 
+static int s3 = 0;
 
 static TextLayer *s_tl0;
 static char s_tl0_buf[12];

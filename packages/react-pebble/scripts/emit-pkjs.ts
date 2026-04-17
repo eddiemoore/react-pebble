@@ -44,7 +44,8 @@ export function emitPKJS(options: PKJSOptions): string {
   const wantsTimelineSubs = hooksUsed.has('useTimelineSubscriptions');
   const wantsTimeline = hooksUsed.has('useTimeline') || wantsTimelineToken || wantsTimelineSubs;
   const wantsAnyToken = wantsAccountToken || wantsWatchToken || wantsTimelineToken;
-  const wantsInboxHandler = wantsTimelineSubs || wantsTimelineToken || wantsTimeline;
+  const wantsAppGlance = hooksUsed.has('useAppGlance');
+  const wantsInboxHandler = wantsTimelineSubs || wantsTimelineToken || wantsTimeline || wantsAppGlance;
 
   const lines: string[] = [];
 
@@ -323,6 +324,24 @@ export function emitPKJS(options: PKJSOptions): string {
       lines.push('  }');
       lines.push('  if (typeof p._rpTLRemove === "string") {');
       lines.push('    _rpTimelineRemove(p._rpTLRemove);');
+      lines.push('  }');
+    }
+    if (wantsAppGlance) {
+      lines.push('  if (typeof p._rpGlanceUpdate === "string") {');
+      lines.push('    try {');
+      lines.push('      var slices = JSON.parse(p._rpGlanceUpdate);');
+      lines.push('      Pebble.appGlanceReload(function(appGlanceSlices) {');
+      lines.push('        appGlanceSlices.length = 0;');
+      lines.push('        for (var i = 0; i < slices.length; i++) {');
+      lines.push('          appGlanceSlices.push(slices[i]);');
+      lines.push('        }');
+      lines.push('        return slices;');
+      lines.push('      }, function() {');
+      lines.push('        console.log("AppGlance updated via PKJS");');
+      lines.push('      }, function(err) {');
+      lines.push('        console.log("AppGlance update failed: " + err);');
+      lines.push('      });');
+      lines.push('    } catch (e) { console.log("AppGlance parse error: " + e); }');
       lines.push('  }');
     }
     lines.push('});');

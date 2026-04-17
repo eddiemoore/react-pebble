@@ -36,7 +36,7 @@ defineTranslations({
 
 function I18NDemo() {
   const t = useTranslation();
-  const health = useHealth();
+  const { data: health } = useHealth();
 
   return (
     <Group>
