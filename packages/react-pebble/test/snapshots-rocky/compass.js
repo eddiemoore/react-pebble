@@ -5,6 +5,8 @@
 var rocky = require('rocky');
 
 var s0 = 0;
+var s1 = 0;
+var s2 = "calibrated";
 
 rocky.on('draw', function(event) {
   var ctx = event.context;
