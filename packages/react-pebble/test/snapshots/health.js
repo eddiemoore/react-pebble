@@ -25,6 +25,7 @@ const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 class AppBehavior extends Behavior {
   onCreate(app) {
     const c = app.first;
+    this.s3 = [];
     this.tl0 = c.content("tl0");
   }
   onDisplaying(app) {

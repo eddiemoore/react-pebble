@@ -104,7 +104,12 @@ export { useWebSocket, type UseWebSocketResult } from './useWebSocket.js';
 export { useKVStorage } from './useKVStorage.js';
 export { useVibration, type UseVibrationResult } from './useVibration.js';
 export { useLight, type UseLightResult } from './useLight.js';
-export { useHealth, type HealthData } from './useHealth.js';
+export {
+  useHealth,
+  type HealthActivity,
+  type HealthData,
+  type UseHealthResult,
+} from './useHealth.js';
 export {
   useHealthAlert,
   type HealthMetric,

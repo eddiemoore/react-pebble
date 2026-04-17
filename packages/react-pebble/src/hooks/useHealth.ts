@@ -14,6 +14,17 @@ export interface HealthData {
   sleepSeconds: number;
 }
 
+export type HealthActivity = 'sleep' | 'restfulSleep' | 'walk' | 'run' | 'openWorkout';
+
+export interface UseHealthResult {
+  /** Current health metrics. */
+  data: HealthData;
+  /** Averaged metrics (daily/weekly). Null when health service is unavailable. */
+  averaged: { daily: HealthData; weekly: HealthData } | null;
+  /** Currently active health activities. */
+  currentActivities: HealthActivity[];
+}
+
 const MOCK_HEALTH: HealthData = {
   steps: 5432,
   distance: 3800,
@@ -31,8 +42,13 @@ const MOCK_HEALTH: HealthData = {
  *
  * @param pollInterval — how often to re-read in ms (default: 60000)
  */
-export function useHealth(pollInterval = 60000): HealthData {
+export function useHealth(pollInterval = 60000): UseHealthResult {
   const [data, setData] = useState<HealthData>(MOCK_HEALTH);
+  const [averaged, setAveraged] = useState<UseHealthResult['averaged']>({
+    daily: MOCK_HEALTH,
+    weekly: MOCK_HEALTH,
+  });
+  const [currentActivities, setCurrentActivities] = useState<HealthActivity[]>([]);
 
   useEffect(() => {
     const readHealth = () => {
@@ -44,17 +60,34 @@ export function useHealth(pollInterval = 60000): HealthData {
         calories?: number;
         heartRate?: number | null;
         sleepSeconds?: number;
+        getAveraged?: () => { daily: HealthData; weekly: HealthData } | null;
+        getCurrentActivities?: () => HealthActivity[];
       } | undefined;
 
       if (health) {
-        setData({
+        const base: HealthData = {
           steps: health.steps ?? 0,
           distance: health.distance ?? 0,
           activeSeconds: health.activeSeconds ?? 0,
           calories: health.calories ?? 0,
           heartRate: health.heartRate ?? null,
           sleepSeconds: health.sleepSeconds ?? 0,
-        });
+        };
+        setData(base);
+
+        // Averaged metrics: use runtime method if available, otherwise mirror base.
+        if (typeof health.getAveraged === 'function') {
+          setAveraged(health.getAveraged());
+        } else {
+          setAveraged({ daily: base, weekly: base });
+        }
+
+        // Current activities: use runtime method if available, otherwise empty.
+        if (typeof health.getCurrentActivities === 'function') {
+          setCurrentActivities(health.getCurrentActivities());
+        } else {
+          setCurrentActivities([]);
+        }
       }
     };
 
@@ -63,5 +96,5 @@ export function useHealth(pollInterval = 60000): HealthData {
     return () => clearInterval(id);
   }, [pollInterval]);
 
-  return data;
+  return { data, averaged, currentActivities };
 }

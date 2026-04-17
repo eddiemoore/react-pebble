@@ -20,7 +20,7 @@ import {
 } from '../src/hooks/index.js';
 
 function HealthAdvanced() {
-  const health = useHealth();
+  const { data: health } = useHealth();
   const units = useMeasurementSystem();
   const [hrAlert, setHrAlert] = useState<number | null>(null);
 
