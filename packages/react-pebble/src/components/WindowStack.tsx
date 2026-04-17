@@ -51,10 +51,20 @@ export function WindowStack({ initial }: WindowStackProps) {
     setStack((s) => [...s.slice(0, -1), element]);
   }, []);
 
-  // Back button auto-pops when stack has more than one window
+  // Back button auto-pops when stack has more than one window,
+  // unless the top window defines its own onBack handler.
   useButton('back', () => {
-    if (stackRef.current.length > 1) {
-      pop();
+    const s = stackRef.current;
+    if (s.length > 1) {
+      const top = s[s.length - 1];
+      const onBack = top != null && typeof top === 'object' && 'props' in top
+        ? (top as any).props?.onBack
+        : undefined;
+      if (typeof onBack === 'function') {
+        onBack();
+      } else {
+        pop();
+      }
     }
   });
 
