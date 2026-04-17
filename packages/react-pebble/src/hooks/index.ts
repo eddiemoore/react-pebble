@@ -210,6 +210,7 @@ export {
   type ExitReasonCode,
   type UseExitReasonResult,
 } from './useExitReason.js';
+export { useOneClickAction } from './useOneClickAction.js';
 export {
   useNotification,
   type SimpleNotification,
