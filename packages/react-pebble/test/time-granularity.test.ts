@@ -129,4 +129,67 @@ assert(emitC(makeIR('minute')).includes('tick_timer_service_subscribe(MINUTE_UNI
 assert(emitC(makeIR('hour')).includes('tick_timer_service_subscribe(HOUR_UNIT'), 'C hour');
 assert(emitC(makeIR('day')).includes('tick_timer_service_subscribe(DAY_UNIT'), 'C day');
 
+// -----------------------------------------------------------------------
+// emit-piu: Image rotation
+// -----------------------------------------------------------------------
+{
+  const imageIR: CompilerIR = {
+    tree: [{
+      type: 'root', x: 0, y: 0, w: 144, h: 168,
+      children: [
+        {
+          type: 'image', x: 10, y: 20, w: 40, h: 40,
+          src: 'logo.png',
+          rotation: 30,     // 30 degrees
+          pivotX: 20,
+          pivotY: 20,
+        },
+      ],
+    }],
+    platform: { name: 'basalt', width: 144, height: 168 },
+    stateSlots: [],
+    timeDeps: new Map(),
+    stateDeps: new Map(),
+    skinDeps: new Map(),
+    branches: new Map(),
+    conditionalChildren: [],
+    listInfo: null,
+    listSlotLabels: new Set(),
+    timeReactiveGraphics: [],
+    animatedElements: [],
+    messageInfo: null,
+    configInfo: null,
+    hasButtons: false,
+    hasTimeDeps: false,
+    hasStateDeps: false,
+    hasBranches: false,
+    hasConditionals: false,
+    hasSkinDeps: false,
+    hasList: false,
+    hasAnimatedElements: false,
+    hasImages: true,
+    imageResources: [{ src: 'logo.png', width: 40, height: 40 }],
+    timeGranularity: 'minute',
+  } as unknown as CompilerIR;
+
+  const piuImg = emitPiu(imageIR, 'fixture');
+  assert(
+    piuImg.includes('rotation:'),
+    'Alloy image with rotation must emit rotation property',
+  );
+  assert(
+    piuImg.includes('anchor:'),
+    'Alloy image with pivotX/pivotY must emit anchor property',
+  );
+  // Verify radians conversion: 30 degrees ≈ 0.5236 radians
+  const rotMatch = piuImg.match(/rotation:\s*([\d.]+)/);
+  assert(rotMatch !== null, 'rotation value must be present');
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const rotVal = parseFloat(rotMatch![1]!);
+  assert(
+    Math.abs(rotVal - (30 * Math.PI / 180)) < 0.001,
+    `rotation must be in radians (~0.5236), got ${rotVal}`,
+  );
+}
+
 console.log('time-granularity.test.ts: PASS');

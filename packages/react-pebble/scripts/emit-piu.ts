@@ -359,7 +359,19 @@ function emitIRNode(
       const { skinVar } = ensureTexture(ctx, src, el.w, el.h);
       const sizeProps = buildSizeProps(el.x, el.y, el.w, el.h, ir.platform.width, ir.platform.height);
       const nameProp = el.name ? `, name: "${el.name}"` : '';
-      return `${indent}new Content(null, { ${sizeProps}, skin: ${skinVar}${nameProp} })`;
+
+      // Rotation support: Piu Content nodes accept `rotation` (radians).
+      // The IR stores degrees; convert to radians for the emitted code.
+      const extraProps: string[] = [];
+      if (el.rotation) {
+        const rad = (el.rotation * Math.PI) / 180;
+        extraProps.push(`rotation: ${rad}`);
+      }
+      if (el.pivotX != null) extraProps.push(`anchor: { x: ${el.pivotX}, y: ${el.pivotY ?? (el.h / 2)} }`);
+      else if (el.pivotY != null) extraProps.push(`anchor: { x: ${el.w / 2}, y: ${el.pivotY} }`);
+      const extraStr = extraProps.length > 0 ? `, ${extraProps.join(', ')}` : '';
+
+      return `${indent}new Content(null, { ${sizeProps}, skin: ${skinVar}${nameProp}${extraStr} })`;
     }
 
     case 'svg': {
