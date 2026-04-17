@@ -94,7 +94,12 @@ export {
   type AccelDirection,
   type AccelerometerTapEvent,
 } from './useAccelerometerTap.js';
-export { useCompass, type CompassData } from './useCompass.js';
+export {
+  useCompass,
+  type CompassData,
+  type CompassResult,
+  type CompassStatus,
+} from './useCompass.js';
 export { useWebSocket, type UseWebSocketResult } from './useWebSocket.js';
 export { useKVStorage } from './useKVStorage.js';
 export { useVibration, type UseVibrationResult } from './useVibration.js';
