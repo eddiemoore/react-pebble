@@ -89,6 +89,37 @@ try {
   // entry unreadable — skip
 }
 
+// ---------------------------------------------------------------------------
+// Rocky compile-time guardrails — block hooks that require hardware or APIs
+// unavailable on the Rocky.js runtime.
+// ---------------------------------------------------------------------------
+
+if (target === 'rocky') {
+  const ROCKY_BLOCKED_HOOKS: Record<string, string> = {
+    useButton: 'button events',
+    useLongButton: 'button events',
+    useMultiClick: 'button events',
+    useRepeatClick: 'button events',
+    useRawClick: 'button events',
+    useFetch: 'on-watch network APIs (route network requests through PKJS via useMessage)',
+    useHTTPClient: 'on-watch network APIs (route network requests through PKJS via useMessage)',
+    useWebSocket: 'on-watch network APIs (route network requests through PKJS via useMessage)',
+    useLocalStorage: 'on-watch storage',
+    useKVStorage: 'on-watch storage',
+    useFileStorage: 'on-watch storage',
+  };
+
+  const violations = hooksUsedList.filter(h => h in ROCKY_BLOCKED_HOOKS);
+  if (violations.length > 0) {
+    for (const hook of violations) {
+      process.stderr.write(
+        `[react-pebble] ERROR: ${hook} is not supported on the Rocky.js target (no ${ROCKY_BLOCKED_HOOKS[hook]}).\n`,
+      );
+    }
+    process.exit(1);
+  }
+}
+
 let code: string;
 if (target === 'rocky') {
   const { emitRocky } = await import('./emit-rocky.js');
