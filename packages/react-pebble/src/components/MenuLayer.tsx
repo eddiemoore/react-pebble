@@ -27,6 +27,8 @@ export interface MenuLayerProps extends PositionProps, SizeProps {
   highlightTextColor?: ColorName;
   rowHeight?: number;
   headerHeight?: number;
+  centerFocused?: boolean;
+  padBottom?: boolean;
 }
 
 export function MenuLayer({
@@ -45,6 +47,8 @@ export function MenuLayer({
   highlightTextColor = 'black',
   rowHeight = 36,
   headerHeight = 24,
+  centerFocused = false,
+  padBottom = false,
 }: MenuLayerProps) {
   const viewW = w ?? width ?? 200;
   const viewH = h ?? height ?? 228;
@@ -109,15 +113,30 @@ export function MenuLayer({
   }
   const selectedEntryH = rowHeight;
 
+  // When padBottom is enabled, add extra virtual content height so the last
+  // item can scroll up from the bottom of the viewport.
+  const effectiveContentH = padBottom ? totalHeight + rowHeight : totalHeight;
+
   // Ensure selected item is within viewport
   const [scrollOffset, setScrollOffset] = useState(0);
   let newScroll = scrollOffset;
-  if (selectedEntryTop < newScroll) {
-    newScroll = selectedEntryTop;
+
+  if (centerFocused) {
+    // Center the selected row vertically within the viewport
+    newScroll = selectedEntryTop + selectedEntryH / 2 - viewH / 2;
+  } else {
+    if (selectedEntryTop < newScroll) {
+      newScroll = selectedEntryTop;
+    }
+    if (selectedEntryTop + selectedEntryH > newScroll + viewH) {
+      newScroll = selectedEntryTop + selectedEntryH - viewH;
+    }
   }
-  if (selectedEntryTop + selectedEntryH > newScroll + viewH) {
-    newScroll = selectedEntryTop + selectedEntryH - viewH;
-  }
+
+  // Clamp scroll offset within valid range
+  const maxScroll = Math.max(0, effectiveContentH - viewH);
+  newScroll = Math.max(0, Math.min(newScroll, maxScroll));
+
   if (newScroll !== scrollOffset) {
     // Schedule scroll update for next render
     setTimeout(() => setScrollOffset(newScroll), 0);
