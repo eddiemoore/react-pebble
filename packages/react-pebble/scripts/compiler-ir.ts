@@ -36,6 +36,7 @@ export interface IRElement {
   rotation?: number;    // path rotation in degrees
   pivotX?: number;      // rotation pivot (image) — defaults to w/2
   pivotY?: number;      // rotation pivot (image) — defaults to h/2
+  overflow?: string;    // text overflow mode: "wordWrap" | "trailingEllipsis" | "fill"
   isWrapping?: boolean; // textflow: multi-line wrapping text
   src?: string;         // image/svg source file path
   /** When set, this image references an animated-sequence resource. */

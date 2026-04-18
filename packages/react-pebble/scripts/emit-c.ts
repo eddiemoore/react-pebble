@@ -1218,6 +1218,13 @@ export function emitC(ir: CompilerIR): string {
     const align = alignToC(el.align);
     const text = (el.text ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
+    // Map overflow prop to C SDK GTextOverflowMode
+    const overflowMode = el.overflow === 'fill'
+      ? 'GTextOverflowModeFill'
+      : el.overflow === 'trailingEllipsis'
+        ? 'GTextOverflowModeTrailingEllipsis'
+        : 'GTextOverflowModeWordWrap';
+
     if (te.isDynamic && te.dynamicVar) {
       const dv = te.dynamicVar;
       lines.push(`  ${dv.varName} = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
@@ -1226,6 +1233,9 @@ export function emitC(ir: CompilerIR): string {
       lines.push(`  text_layer_set_font(${dv.varName}, ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
         lines.push(`  text_layer_set_text_alignment(${dv.varName}, ${align});`);
+      }
+      if (overflowMode !== 'GTextOverflowModeWordWrap') {
+        lines.push(`  text_layer_set_overflow_mode(${dv.varName}, ${overflowMode});`);
       }
       lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(${dv.varName}));`);
     } else if (hasConfig) {
@@ -1238,6 +1248,9 @@ export function emitC(ir: CompilerIR): string {
       if (align !== 'GTextAlignmentLeft') {
         lines.push(`  text_layer_set_text_alignment(s_cfg_tl[${cfgIdx}], ${align});`);
       }
+      if (overflowMode !== 'GTextOverflowModeWordWrap') {
+        lines.push(`  text_layer_set_overflow_mode(s_cfg_tl[${cfgIdx}], ${overflowMode});`);
+      }
       lines.push(`  text_layer_set_text(s_cfg_tl[${cfgIdx}], "${text}");`);
       lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(s_cfg_tl[${cfgIdx}]));`);
     } else {
@@ -1248,6 +1261,9 @@ export function emitC(ir: CompilerIR): string {
       lines.push(`  text_layer_set_font(${localVar}, ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
         lines.push(`  text_layer_set_text_alignment(${localVar}, ${align});`);
+      }
+      if (overflowMode !== 'GTextOverflowModeWordWrap') {
+        lines.push(`  text_layer_set_overflow_mode(${localVar}, ${overflowMode});`);
       }
       lines.push(`  text_layer_set_text(${localVar}, "${text}");`);
       lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(${localVar}));`);

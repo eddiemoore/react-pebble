@@ -242,6 +242,7 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       const font = str(p, 'font');
       const color = str(p, 'color') ?? 'white';
       const align = str(p, 'align') ?? 'left';
+      const overflow = str(p, 'overflow');
       const w = num(p, 'w') || num(p, 'width');
       const x = num(p, 'x');
       const y = num(p, 'y');
@@ -256,6 +257,7 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
         font: font ?? 'gothic18',
         color: colorToHex(color),
         align,
+        overflow: overflow || undefined,
         labelIndex: labelIdx,
       };
     }

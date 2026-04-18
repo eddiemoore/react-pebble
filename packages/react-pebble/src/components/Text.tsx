@@ -7,10 +7,13 @@ import type {
   SizeProps,
 } from './internal/shared-types.js';
 
+export type TextOverflow = 'wordWrap' | 'trailingEllipsis' | 'fill';
+
 export interface TextProps extends PositionProps, SizeProps {
   font?: FontName;
   color?: ColorName;
   align?: Alignment;
+  overflow?: TextOverflow;
   children?: ReactNode;
 }
 

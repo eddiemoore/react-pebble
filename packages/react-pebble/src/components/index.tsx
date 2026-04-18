@@ -32,7 +32,7 @@ export type {
 export { Window, type WindowProps } from './Window.js';
 export { Rect, type RectProps } from './Rect.js';
 export { Circle, type CircleProps } from './Circle.js';
-export { Text, type TextProps } from './Text.js';
+export { Text, type TextProps, type TextOverflow } from './Text.js';
 export { Line, type LineProps } from './Line.js';
 export { Image, type ImageProps } from './Image.js';
 export { SVGImage, type SVGImageProps } from './SVGImage.js';

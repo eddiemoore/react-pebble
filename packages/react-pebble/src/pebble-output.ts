@@ -400,28 +400,68 @@ export class PocoRenderer {
         const font = this.getFont(str(p, 'font'));
         const color = this.getColor(str(p, 'color') ?? 'white');
         const align = str(p, 'align') ?? 'left';
+        const overflow = str(p, 'overflow') ?? 'wordWrap';
         const lineHeight = (font as unknown as { height: number }).height || 16;
 
-        // Word-wrap text into lines that fit within boxW
-        const lines = this.wrapText(text, font, boxW);
-
-        let ty = y;
-        for (const line of lines) {
-          // Stop if we'd exceed the box height (when specified)
-          if (boxH > 0 && ty - y + lineHeight > boxH) break;
-
+        if (overflow === 'fill') {
+          // Single line, no wrapping, no truncation — draw as-is
           let tx = x;
           if (align === 'center' || align === 'right') {
-            const tw = this.poco.getTextWidth(line, font);
+            const tw = this.poco.getTextWidth(text, font);
             if (align === 'center') {
               tx = x + Math.floor((boxW - tw) / 2);
             } else {
               tx = x + boxW - tw;
             }
           }
+          this.poco.drawText(text, font, color, tx, y);
+        } else if (overflow === 'trailingEllipsis') {
+          // Single line, truncate with '...' if too wide
+          let display = text;
+          const fullWidth = this.poco.getTextWidth(text, font);
+          if (fullWidth > boxW) {
+            const ellipsis = '...';
+            const ellipsisW = this.poco.getTextWidth(ellipsis, font);
+            let truncated = '';
+            for (let i = 0; i < text.length; i++) {
+              const candidate = truncated + text[i];
+              if (this.poco.getTextWidth(candidate, font) + ellipsisW > boxW) break;
+              truncated = candidate;
+            }
+            display = truncated + ellipsis;
+          }
+          let tx = x;
+          if (align === 'center' || align === 'right') {
+            const tw = this.poco.getTextWidth(display, font);
+            if (align === 'center') {
+              tx = x + Math.floor((boxW - tw) / 2);
+            } else {
+              tx = x + boxW - tw;
+            }
+          }
+          this.poco.drawText(display, font, color, tx, y);
+        } else {
+          // Default: wordWrap
+          const lines = this.wrapText(text, font, boxW);
 
-          this.poco.drawText(line, font, color, tx, ty);
-          ty += lineHeight;
+          let ty = y;
+          for (const line of lines) {
+            // Stop if we'd exceed the box height (when specified)
+            if (boxH > 0 && ty - y + lineHeight > boxH) break;
+
+            let tx = x;
+            if (align === 'center' || align === 'right') {
+              const tw = this.poco.getTextWidth(line, font);
+              if (align === 'center') {
+                tx = x + Math.floor((boxW - tw) / 2);
+              } else {
+                tx = x + boxW - tw;
+              }
+            }
+
+            this.poco.drawText(line, font, color, tx, ty);
+            ty += lineHeight;
+          }
         }
         break;
       }
