@@ -13,13 +13,13 @@ static char s_tl0_buf[12];
 
 static void draw_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 70, 85, 50), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 70, 85, 50), 4, GCornersAll);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(105, 70, 39, 50), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(105, 70, 39, 50), 4, GCornersAll);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 130, 85, 38), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 130, 85, 38), 4, GCornersAll);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(105, 130, 39, 38), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(105, 130, 39, 38), 4, GCornersAll);
 }
 
 static void refresh(void) {

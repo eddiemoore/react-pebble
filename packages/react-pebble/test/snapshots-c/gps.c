@@ -15,9 +15,9 @@ static char s_tl0_buf[32];
 
 static void draw_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 80, 134, 50), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 80, 134, 50), 6, GCornersAll);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 138, 134, 30), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 138, 134, 30), 6, GCornersAll);
 }
 
 static void refresh(void) {

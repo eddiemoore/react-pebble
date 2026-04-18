@@ -17,11 +17,11 @@ static void draw_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorFromHEX(0xffff00));
   graphics_fill_circle(ctx, GPoint(180, 44), 16);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 68, 134, 30), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 68, 134, 30), 6, GCornersAll);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 104, 134, 30), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 104, 134, 30), 6, GCornersAll);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 140, 134, 28), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 140, 134, 28), 6, GCornersAll);
   graphics_context_set_stroke_color(ctx, GColorFromHEX(0xff00ff));
   graphics_context_set_stroke_width(ctx, 2);
   graphics_draw_line(ctx, GPoint(10, 200), GPoint(60, 220));

@@ -14,11 +14,11 @@ static char s_tl0_buf[32];
 
 static void draw_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 44, 134, 50), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 44, 134, 50), 8, GCornersAll);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 102, 134, 50), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 102, 134, 50), 8, GCornersAll);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(10, 160, 134, 8), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(10, 160, 134, 8), 8, GCornersAll);
 }
 
 static void refresh(void) {
