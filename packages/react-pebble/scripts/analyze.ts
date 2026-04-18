@@ -222,6 +222,12 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       const borders = p.borders as { left: number; right: number; top: number; bottom: number } | undefined;
       const tiles = p.tiles as { left: number; right: number; top: number; bottom: number } | undefined;
 
+      const borderRadius = num(p, 'borderRadius') || undefined;
+      const borderRadiusTL = num(p, 'borderRadiusTopLeft') || undefined;
+      const borderRadiusTR = num(p, 'borderRadiusTopRight') || undefined;
+      const borderRadiusBL = num(p, 'borderRadiusBottomLeft') || undefined;
+      const borderRadiusBR = num(p, 'borderRadiusBottomRight') || undefined;
+
       return {
         type: 'rect',
         x, y, w, h,
@@ -230,6 +236,11 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
         variant: num(p, 'variant'),
         borders,
         tiles,
+        borderRadius,
+        borderRadiusTL,
+        borderRadiusTR,
+        borderRadiusBL,
+        borderRadiusBR,
         rectIndex: rectIdx,
         elemIndex: elemIdx,
         children: children.length > 0 ? children : undefined,

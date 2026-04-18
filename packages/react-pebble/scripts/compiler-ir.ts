@@ -25,6 +25,11 @@ export interface IRElement {
   color?: string;       // hex color for text
   align?: string;       // text alignment: "left" | "center" | "right"
   radius?: number;      // circle radius
+  borderRadius?: number;       // rect border radius (uniform)
+  borderRadiusTL?: number;     // per-corner: top-left
+  borderRadiusTR?: number;     // per-corner: top-right
+  borderRadiusBL?: number;     // per-corner: bottom-left
+  borderRadiusBR?: number;     // per-corner: bottom-right
   strokeWidth?: number; // line stroke width
   x2?: number;          // line endpoint
   y2?: number;          // line endpoint

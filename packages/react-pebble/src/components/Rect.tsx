@@ -11,6 +11,11 @@ export interface RectProps extends PositionProps, SizeProps {
   stroke?: ColorName;
   strokeWidth?: number;
   borderRadius?: number;
+  /** Per-corner border radius overrides. */
+  borderRadiusTopLeft?: number;
+  borderRadiusTopRight?: number;
+  borderRadiusBottomLeft?: number;
+  borderRadiusBottomRight?: number;
   /** Texture resource path for bitmap-based skins (tiled backgrounds, sprite sheets). */
   texture?: string;
   /** Horizontal variant index (for sprite sheet textures). */
