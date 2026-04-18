@@ -1,3 +1,4 @@
+import { Fragment } from 'preact';
 import { React, type ReactNode } from './internal/preact-compat.js';
 import { usePlatform } from '../hooks/usePlatform.js';
 
@@ -31,23 +32,23 @@ export function PlatformSwitch({
 
   // Shape-specific branches take priority
   if (isRound && round !== undefined) {
-    return React.createElement(React.Fragment, null, round);
+    return React.createElement(Fragment, null, round);
   }
   if (!isRound && rect !== undefined) {
-    return React.createElement(React.Fragment, null, rect);
+    return React.createElement(Fragment, null, rect);
   }
 
   // Color capability branches
   if (isColor && color !== undefined) {
-    return React.createElement(React.Fragment, null, color);
+    return React.createElement(Fragment, null, color);
   }
   if (!isColor && bw !== undefined) {
-    return React.createElement(React.Fragment, null, bw);
+    return React.createElement(Fragment, null, bw);
   }
 
   // Fallback
   if (fallback !== undefined) {
-    return React.createElement(React.Fragment, null, fallback);
+    return React.createElement(Fragment, null, fallback);
   }
 
   return null;
