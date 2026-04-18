@@ -82,5 +82,8 @@ export {
   type NavigationResult,
 } from './WindowStack.js';
 
+// Platform
+export { PlatformSwitch, type PlatformSwitchProps } from './PlatformSwitch.js';
+
 // Animation
 export { AnimatedImage, type AnimatedImageProps } from './AnimatedImage.js';

@@ -192,6 +192,7 @@ export {
   type UseAppSyncOptions,
   type UseAppSyncResult,
 } from './useAppSync.js';
+export { usePlatform, type PlatformInfo } from './usePlatform.js';
 export { pebbleLog, type LogLevel } from './pebble-log.js';
 export {
   useLocation,
