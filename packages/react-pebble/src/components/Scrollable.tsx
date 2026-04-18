@@ -9,6 +9,8 @@ export interface ScrollableProps extends PositionProps, SizeProps {
   scrollStep?: number;
   /** Show scroll indicators at top/bottom (default: true). */
   showIndicators?: boolean;
+  /** When true, scroll by viewport height instead of scrollStep. */
+  paging?: boolean;
   children?: ReactNode;
 }
 
@@ -22,19 +24,21 @@ export function Scrollable({
   contentHeight,
   scrollStep = 20,
   showIndicators = true,
+  paging = false,
   children,
 }: ScrollableProps) {
   const viewW = w ?? width ?? 200;
   const viewH = h ?? height ?? 228;
   const maxOffset = Math.max(0, contentHeight - viewH);
+  const step = paging ? viewH : scrollStep;
 
   const [scrollOffset, setScrollOffset] = useState(0);
 
   useButton('down', () => {
-    setScrollOffset((o) => Math.min(o + scrollStep, maxOffset));
+    setScrollOffset((o) => Math.min(o + step, maxOffset));
   });
   useButton('up', () => {
-    setScrollOffset((o) => Math.max(o - scrollStep, 0));
+    setScrollOffset((o) => Math.max(o - step, 0));
   });
 
   const canScrollUp = scrollOffset > 0;
