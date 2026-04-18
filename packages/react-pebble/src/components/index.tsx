@@ -66,6 +66,7 @@ export {
 } from './ActionMenu.js';
 export { Arc, type ArcProps } from './Arc.js';
 export { TextFlow, type TextFlowProps } from './TextFlow.js';
+export { Dialog, type DialogProps } from './Dialog.js';
 export { RoundSafeArea, type RoundSafeAreaProps } from './RoundSafeArea.js';
 export {
   SimpleMenu,

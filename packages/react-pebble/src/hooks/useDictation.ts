@@ -5,13 +5,15 @@
 import { useCallback } from 'preact/hooks';
 import { useState } from './internal/use-state.js';
 
-export type DictationStatus = 'idle' | 'listening' | 'transcribing' | 'done' | 'error' | 'unsupported';
+export type DictationStatus = 'idle' | 'listening' | 'transcribing' | 'done'
+  | 'error' | 'cancelled' | 'rejected' | 'systemAborted' | 'unsupported';
 
 export interface UseDictationResult {
   text: string | null;
   status: DictationStatus;
   start: () => void;
   error: string | null;
+  errorReason: string | null;
 }
 
 /**
@@ -29,6 +31,7 @@ export function useDictation(): UseDictationResult {
     return 'unsupported';
   });
   const [error, setError] = useState<string | null>(null);
+  const [errorReason, setErrorReason] = useState<string | null>(null);
 
   const start = useCallback(() => {
     if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).Dictation) {
@@ -37,17 +40,32 @@ export function useDictation(): UseDictationResult {
       };
       setStatus('listening');
       setError(null);
+      setErrorReason(null);
       dict.start?.((result, st) => {
         if (result) {
           setText(result);
           setStatus('done');
+          setErrorReason(null);
         } else {
-          setError(st || 'Dictation failed');
-          setStatus('error');
+          const raw = st || 'Dictation failed';
+          const lower = raw.toLowerCase();
+          let granularStatus: DictationStatus;
+          if (lower.includes('cancel')) {
+            granularStatus = 'cancelled';
+          } else if (lower.includes('reject')) {
+            granularStatus = 'rejected';
+          } else if (lower.includes('abort')) {
+            granularStatus = 'systemAborted';
+          } else {
+            granularStatus = 'error';
+          }
+          setError(raw);
+          setErrorReason(raw);
+          setStatus(granularStatus);
         }
       });
     }
   }, []);
 
-  return { text, status, start, error };
+  return { text, status, start, error, errorReason };
 }

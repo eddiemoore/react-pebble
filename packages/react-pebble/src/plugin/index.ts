@@ -26,10 +26,11 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { join, resolve, dirname } from 'node:path';
+import { join, resolve, dirname, basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { compileToPiu } from '../compiler/index.js';
@@ -349,6 +350,54 @@ export interface ScaffoldOptions {
  *     useMeasurementSystem → 'health'
  *   - useConfiguration → 'configurable'
  */
+/** Known platform-tag suffixes for `<basename>~<tag>.<ext>` auto-detection. */
+const PLATFORM_TAGS = new Set([
+  'color', 'bw', 'round', 'rect',
+  'chalk', 'aplite', 'basalt', 'diorite', 'emery', 'gabbro',
+]);
+
+/**
+ * Scan the directory containing `filePath` for platform-tagged siblings
+ * matching `<basename>~<tag>.<ext>`. Returns a map of tag → sibling
+ * filename (e.g. `{ chalk: 'icon~chalk.png' }`), or `undefined` when no
+ * tagged variants exist.
+ *
+ * `filePath` is relative to `projectRoot`; the scan uses an absolute
+ * resolved path for the directory listing but the returned values are
+ * plain filenames (no directory prefix).
+ */
+export function discoverPlatformVariants(
+  filePath: string,
+  projectRoot: string,
+): Record<string, string> | undefined {
+  const absPath = resolve(projectRoot, filePath);
+  const dir = dirname(absPath);
+  const ext = extname(absPath);               // e.g. '.png'
+  const base = basename(absPath, ext);         // e.g. 'icon'
+
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return undefined;
+  }
+
+  const prefix = `${base}~`;
+  const variants: Record<string, string> = {};
+
+  for (const entry of entries) {
+    if (!entry.startsWith(prefix)) continue;
+    const entryExt = extname(entry);
+    if (entryExt.toLowerCase() !== ext.toLowerCase()) continue;
+    const tag = basename(entry, entryExt).slice(prefix.length);
+    if (PLATFORM_TAGS.has(tag)) {
+      variants[tag] = entry;
+    }
+  }
+
+  return Object.keys(variants).length > 0 ? variants : undefined;
+}
+
 /**
  * Build the final `pebble.resources.media` array: auto-detected images
  * plus any declared resources. Names are uppercased to match Pebble SDK
@@ -377,7 +426,12 @@ function buildMediaEntries(options: ScaffoldOptions): Record<string, unknown>[] 
       entry.trackingAdjust = r.trackingAdjust;
     }
     if ('memoryFormat' in r && r.memoryFormat) entry.memoryFormat = r.memoryFormat;
-    if (r.targetPlatforms) entry.targetPlatforms = r.targetPlatforms;
+    if (r.targetPlatforms) {
+      entry.targetPlatforms = r.targetPlatforms;
+    } else if (options.projectRoot) {
+      const variants = discoverPlatformVariants(r.file, options.projectRoot);
+      if (variants) entry.targetPlatforms = variants;
+    }
     entries.push(entry);
     seenNames.add(r.name);
   }
@@ -394,11 +448,16 @@ function buildMediaEntries(options: ScaffoldOptions): Record<string, unknown>[] 
       ext === 'apng' || ext === 'pdcs' ? 'raw'
       : ext === 'pdc' ? 'pdc'
       : 'png';
-    entries.push({
+    const autoEntry: Record<string, unknown> = {
       type,
       name,
       file: src.replace(/^.*\//, ''),
-    });
+    };
+    if (options.projectRoot) {
+      const variants = discoverPlatformVariants(src, options.projectRoot);
+      if (variants) autoEntry.targetPlatforms = variants;
+    }
+    entries.push(autoEntry);
     seenNames.add(name);
   }
 
@@ -567,14 +626,38 @@ int main(void) {
 
   // Collect every source file that needs to be copied into the build
   // project: auto-detected images + user-declared resources + any
-  // platform-specific override paths.
+  // platform-specific override paths (including auto-discovered variants).
   const filesToCopy: string[] = [];
-  if (options.imageResources) filesToCopy.push(...options.imageResources);
+  if (options.imageResources) {
+    for (const img of options.imageResources) {
+      filesToCopy.push(img);
+      // Also copy auto-discovered platform-tagged siblings
+      if (options.projectRoot) {
+        const variants = discoverPlatformVariants(img, options.projectRoot);
+        if (variants) {
+          const imgDir = img.includes('/') ? img.replace(/\/[^/]+$/, '') : '';
+          for (const variantFile of Object.values(variants)) {
+            filesToCopy.push(imgDir ? `${imgDir}/${variantFile}` : variantFile);
+          }
+        }
+      }
+    }
+  }
   if (options.resources) {
     for (const r of options.resources) {
       filesToCopy.push(r.file);
       if (r.targetPlatforms) {
         for (const p of Object.values(r.targetPlatforms)) filesToCopy.push(p);
+      }
+      // Also copy auto-discovered variants for declared resources without explicit targetPlatforms
+      if (!r.targetPlatforms && options.projectRoot) {
+        const variants = discoverPlatformVariants(r.file, options.projectRoot);
+        if (variants) {
+          const rDir = r.file.includes('/') ? r.file.replace(/\/[^/]+$/, '') : '';
+          for (const variantFile of Object.values(variants)) {
+            filesToCopy.push(rDir ? `${rDir}/${variantFile}` : variantFile);
+          }
+        }
       }
     }
   }
