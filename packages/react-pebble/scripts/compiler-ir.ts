@@ -25,6 +25,11 @@ export interface IRElement {
   color?: string;       // hex color for text
   align?: string;       // text alignment: "left" | "center" | "right"
   radius?: number;      // circle radius
+  borderRadius?: number;       // rect border radius (uniform)
+  borderRadiusTL?: number;     // per-corner: top-left
+  borderRadiusTR?: number;     // per-corner: top-right
+  borderRadiusBL?: number;     // per-corner: bottom-left
+  borderRadiusBR?: number;     // per-corner: bottom-right
   strokeWidth?: number; // line stroke width
   x2?: number;          // line endpoint
   y2?: number;          // line endpoint
@@ -36,6 +41,7 @@ export interface IRElement {
   rotation?: number;    // path rotation in degrees
   pivotX?: number;      // rotation pivot (image) — defaults to w/2
   pivotY?: number;      // rotation pivot (image) — defaults to h/2
+  overflow?: string;    // text overflow mode: "wordWrap" | "trailingEllipsis" | "fill"
   isWrapping?: boolean; // textflow: multi-line wrapping text
   src?: string;         // image/svg source file path
   /** When set, this image references an animated-sequence resource. */

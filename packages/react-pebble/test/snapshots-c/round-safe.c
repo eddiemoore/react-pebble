@@ -11,9 +11,9 @@ static void draw_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorWhite);
   graphics_fill_rect(ctx, GRect(8, 8, 136, 28), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(8, 118, 136, 36), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(8, 118, 136, 36), 6, GCornersAll);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(8, 160, 136, 8), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(8, 160, 136, 8), 6, GCornersAll);
 }
 
 static void window_load(Window *window) {

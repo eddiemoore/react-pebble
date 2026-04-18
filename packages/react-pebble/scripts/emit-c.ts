@@ -1218,6 +1218,13 @@ export function emitC(ir: CompilerIR): string {
     const align = alignToC(el.align);
     const text = (el.text ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
+    // Map overflow prop to C SDK GTextOverflowMode
+    const overflowMode = el.overflow === 'fill'
+      ? 'GTextOverflowModeFill'
+      : el.overflow === 'trailingEllipsis'
+        ? 'GTextOverflowModeTrailingEllipsis'
+        : 'GTextOverflowModeWordWrap';
+
     if (te.isDynamic && te.dynamicVar) {
       const dv = te.dynamicVar;
       lines.push(`  ${dv.varName} = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
@@ -1226,6 +1233,9 @@ export function emitC(ir: CompilerIR): string {
       lines.push(`  text_layer_set_font(${dv.varName}, ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
         lines.push(`  text_layer_set_text_alignment(${dv.varName}, ${align});`);
+      }
+      if (overflowMode !== 'GTextOverflowModeWordWrap') {
+        lines.push(`  text_layer_set_overflow_mode(${dv.varName}, ${overflowMode});`);
       }
       lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(${dv.varName}));`);
     } else if (hasConfig) {
@@ -1238,6 +1248,9 @@ export function emitC(ir: CompilerIR): string {
       if (align !== 'GTextAlignmentLeft') {
         lines.push(`  text_layer_set_text_alignment(s_cfg_tl[${cfgIdx}], ${align});`);
       }
+      if (overflowMode !== 'GTextOverflowModeWordWrap') {
+        lines.push(`  text_layer_set_overflow_mode(s_cfg_tl[${cfgIdx}], ${overflowMode});`);
+      }
       lines.push(`  text_layer_set_text(s_cfg_tl[${cfgIdx}], "${text}");`);
       lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(s_cfg_tl[${cfgIdx}]));`);
     } else {
@@ -1248,6 +1261,9 @@ export function emitC(ir: CompilerIR): string {
       lines.push(`  text_layer_set_font(${localVar}, ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
         lines.push(`  text_layer_set_text_alignment(${localVar}, ${align});`);
+      }
+      if (overflowMode !== 'GTextOverflowModeWordWrap') {
+        lines.push(`  text_layer_set_overflow_mode(${localVar}, ${overflowMode});`);
       }
       lines.push(`  text_layer_set_text(${localVar}, "${text}");`);
       lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(${localVar}));`);
@@ -1486,7 +1502,41 @@ function emitGraphicsDrawCall(
       } else {
         lines.push(`${indent}graphics_context_set_fill_color(ctx, ${colorToGColor(fill)});`);
       }
-      lines.push(`${indent}graphics_fill_rect(ctx, GRect(${ax}, ${ay}, ${w}, ${h}), 0, GCornerNone);`);
+      // Per-corner border radius support
+      const elBR = el.borderRadius ?? 0;
+      const hasTL = el.borderRadiusTL !== undefined && el.borderRadiusTL > 0;
+      const hasTR = el.borderRadiusTR !== undefined && el.borderRadiusTR > 0;
+      const hasBL = el.borderRadiusBL !== undefined && el.borderRadiusBL > 0;
+      const hasBR = el.borderRadiusBR !== undefined && el.borderRadiusBR > 0;
+      const hasPerCorner = hasTL || hasTR || hasBL || hasBR;
+
+      if (hasPerCorner || elBR > 0) {
+        const radius = el.borderRadiusTL ?? el.borderRadiusTR ?? el.borderRadiusBL ?? el.borderRadiusBR ?? elBR;
+        if (hasPerCorner) {
+          const corners: string[] = [];
+          if (hasTL || (elBR > 0 && !hasPerCorner)) corners.push('GCornerTopLeft');
+          else if (hasTL) corners.push('GCornerTopLeft');
+          if (hasTR || (elBR > 0 && !hasPerCorner)) corners.push('GCornerTopRight');
+          else if (hasTR) corners.push('GCornerTopRight');
+          if (hasBL || (elBR > 0 && !hasPerCorner)) corners.push('GCornerBottomLeft');
+          else if (hasBL) corners.push('GCornerBottomLeft');
+          if (hasBR || (elBR > 0 && !hasPerCorner)) corners.push('GCornerBottomRight');
+          else if (hasBR) corners.push('GCornerBottomRight');
+
+          // Rebuild: only include corners that have a radius
+          const activeCorners: string[] = [];
+          if (hasTL) activeCorners.push('GCornerTopLeft');
+          if (hasTR) activeCorners.push('GCornerTopRight');
+          if (hasBL) activeCorners.push('GCornerBottomLeft');
+          if (hasBR) activeCorners.push('GCornerBottomRight');
+          const mask = activeCorners.length === 4 ? 'GCornersAll' : activeCorners.join(' | ');
+          lines.push(`${indent}graphics_fill_rect(ctx, GRect(${ax}, ${ay}, ${w}, ${h}), ${radius}, ${mask});`);
+        } else {
+          lines.push(`${indent}graphics_fill_rect(ctx, GRect(${ax}, ${ay}, ${w}, ${h}), ${elBR}, GCornersAll);`);
+        }
+      } else {
+        lines.push(`${indent}graphics_fill_rect(ctx, GRect(${ax}, ${ay}, ${w}, ${h}), 0, GCornerNone);`);
+      }
       break;
     }
 
