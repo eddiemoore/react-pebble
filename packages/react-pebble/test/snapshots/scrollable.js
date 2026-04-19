@@ -4,7 +4,7 @@
 // Regenerate: npx tsx scripts/compile-to-piu.ts > pebble-spike/src/embeddedjs/main.js
 
 import {} from "piu/MC";
-import PebbleButton from "pebble/button";
+
 
 
 const sk0 = new Skin({ fill: "#000000" });
@@ -12,81 +12,70 @@ const sk1 = new Skin({ fill: "#ffffff" });
 const st0 = new Style({ font: "bold 18px Gothic", color: "#000000" });
 const sk2 = new Skin({ fill: "#404040" });
 const st1 = new Style({ font: "18px Gothic", color: "#ffffff" });
-const sk3 = new Skin({ fill: "#00ffff" });
 
 const bgSkin = new Skin({ fill: "#000000" });
 
-const _data = ["Introduction","Getting Started","Installation","Configuration","Components","Hooks","Animation","Sensors","Networking","Storage","Deployment","Troubleshooting"];
-
-class AppBehavior extends Behavior {
-  onCreate(app) {
-    const c = app.first;
-    this.s0 = 0;
-    this.sl0 = c.content("sl0");
-    this._ls = [];
-    this._ls.push(c.content("ls0"));
-    this._ls.push(c.content("ls1"));
-    this._ls.push(c.content("ls2"));
-    this._ls.push(c.content("ls3"));
-    this._ls.push(c.content("ls4"));
-    this._ls.push(c.content("ls5"));
-  }
-  onDisplaying(app) {
-    this.refresh();
-    new PebbleButton({ type: "down", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });
-    new PebbleButton({ type: "up", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });
-  }
-  onButton(e) {
-    const name = e && e.button;
-    if (name === "down") { this.s0 = Math.min(_data.length - 6, this.s0 + 1); this.refresh(); }
-    if (name === "up") { this.s0 = Math.max(0, this.s0 - 1); this.refresh(); }
-  }
-  refresh() {
-    if (this.sl0) this.sl0.string = "Docs (" + (this.s0 + 1) + "-" + MIN(this.s0 + 6, 12) + "/12)";
-    const _start = this.s0;
-    for (let _i = 0; _i < 6; _i++) {
-      const _item = _data[_start + _i];
-      if (this._ls[_i]) {
-        this._ls[_i].string = _item !== undefined ? "" + _item : "";
-        this._ls[_i].visible = (_item !== undefined);
-      }
-    }
-  }
-}
-
 const WatchApp = Application.template(() => ({
   skin: bgSkin,
-  Behavior: AppBehavior,
+
   contents: [
       new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
         new Content(null, { left: 0, right: 0, top: 0, height: 28, skin: sk1 }),
-        new Label(null, { top: 4, left: 4, width: 192, style: st0, name: "sl0", string: "Docs (1-6/12)" }),
-        new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 28, height: 30, skin: sk2 }),
-          new Label(null, { top: 34, left: 10, width: 180, style: st1, name: "ls0", string: "1. Introduction" })
-        ] }),
-        new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 60, height: 30, skin: sk0 }),
-          new Label(null, { top: 66, left: 10, width: 180, style: st1, name: "ls1", string: "2. Getting Started" })
-        ] }),
-        new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 92, height: 30, skin: sk2 }),
-          new Label(null, { top: 98, left: 10, width: 180, style: st1, name: "ls2", string: "3. Installation" })
-        ] }),
-        new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 124, height: 30, skin: sk0 }),
-          new Label(null, { top: 130, left: 10, width: 180, style: st1, name: "ls3", string: "4. Configuration" })
-        ] }),
-        new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 156, height: 30, skin: sk2 }),
-          new Label(null, { top: 162, left: 10, width: 180, style: st1, name: "ls4", string: "5. Components" })
-        ] }),
-        new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 188, height: 30, skin: sk0 }),
-          new Label(null, { top: 194, left: 10, width: 180, style: st1, name: "ls5", string: "6. Hooks" })
-        ] }),
-        new Content(null, { left: 90, width: 20, top: 225, height: 3, skin: sk3 })
+        new Label(null, { top: 4, left: 4, width: 192, style: st0, string: "Docs (paging mode)" }),
+        new Container(null, { left: 0, right: 0, top: 28, contents: [
+          new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+            new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+              new Content(null, { left: 0, right: 0, top: 0, height: 30, skin: sk2 }),
+              new Label(null, { top: 6, left: 10, width: 180, style: st1, string: "1. Introduction" })
+            ] }),
+            new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+              new Content(null, { left: 0, right: 0, top: 32, height: 30, skin: sk0 }),
+              new Label(null, { top: 38, left: 10, width: 180, style: st1, string: "2. Getting Started" })
+            ] }),
+            new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+              new Content(null, { left: 0, right: 0, top: 64, height: 30, skin: sk2 }),
+              new Label(null, { top: 70, left: 10, width: 180, style: st1, string: "3. Installation" })
+            ] }),
+            new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+              new Content(null, { left: 0, right: 0, top: 96, height: 30, skin: sk0 }),
+              new Label(null, { top: 102, left: 10, width: 180, style: st1, string: "4. Configuration" })
+            ] }),
+            new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+              new Content(null, { left: 0, right: 0, top: 128, height: 30, skin: sk2 }),
+              new Label(null, { top: 134, left: 10, width: 180, style: st1, string: "5. Components" })
+            ] }),
+            new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+              new Content(null, { left: 0, right: 0, top: 160, height: 30, skin: sk0 }),
+              new Label(null, { top: 166, left: 10, width: 180, style: st1, string: "6. Hooks" })
+            ] }),
+            new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+              new Content(null, { left: 0, right: 0, top: 192, height: 30, skin: sk2 }),
+              new Label(null, { top: 198, left: 10, width: 180, style: st1, string: "7. Animation" })
+            ] }),
+            new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+              new Content(null, { left: 0, right: 0, top: 224, height: 30, skin: sk0 }),
+              new Label(null, { top: 230, left: 10, width: 180, style: st1, string: "8. Sensors" })
+            ] }),
+            new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+              new Content(null, { left: 0, right: 0, top: 256, height: 30, skin: sk2 }),
+              new Label(null, { top: 262, left: 10, width: 180, style: st1, string: "9. Networking" })
+            ] }),
+            new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+              new Content(null, { left: 0, right: 0, top: 288, height: 30, skin: sk0 }),
+              new Label(null, { top: 294, left: 10, width: 180, style: st1, string: "10. Storage" })
+            ] }),
+            new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+              new Content(null, { left: 0, right: 0, top: 320, height: 30, skin: sk2 }),
+              new Label(null, { top: 326, left: 10, width: 180, style: st1, string: "11. Deployment" })
+            ] }),
+            new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+              new Content(null, { left: 0, right: 0, top: 352, height: 30, skin: sk0 }),
+              new Label(null, { top: 358, left: 10, width: 180, style: st1, string: "12. Troubleshooting" })
+            ] })
+          ] }),
+          new Content(null, { left: 90, width: 20, top: 196, height: 3, skin: sk1 })
+        ] })
       ] })
   ],
 }));

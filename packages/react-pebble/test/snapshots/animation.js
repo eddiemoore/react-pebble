@@ -67,8 +67,8 @@ const WatchApp = Application.template(() => ({
         new Label(null, { top: 4, left: 0, width: 200, style: st0, horizontal: "center", string: "Animation Demo" }),
         new RoundRect(null, { left: 20, top: 32, width: 24, height: 24, radius: 12, skin: sk1, name: "ae1" }),
         new RoundRect(null, { left: 130, top: 90, width: 16, height: 16, radius: 8, skin: sk2, name: "ae2" }),
-        new Content(null, { left: 10, width: 180, top: 190, height: 10, skin: sk3 }),
-        new Content(null, { left: 10, width: 0, top: 190, height: 10, skin: sk4, name: "ae4" }),
+        new RoundRect(null, { left: 10, width: 180, top: 190, height: 10, radius: 5, skin: sk3 }),
+        new RoundRect(null, { left: 10, width: 0, top: 190, height: 10, radius: 5, skin: sk4, name: "ae4" }),
         new Label(null, { top: 205, left: 0, width: 200, style: st1, horizontal: "center", name: "tl1", string: "07:03" })
       ] })
   ],

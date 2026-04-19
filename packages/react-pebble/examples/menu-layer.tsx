@@ -2,22 +2,17 @@
  * examples/menu-layer.tsx — Menu-style list with sections and selection
  *
  * Demonstrates:
- *   - Sectioned list layout with headers
- *   - Selection highlighting
- *   - useButton for UP/DOWN/SELECT navigation
- *   - Conditional view switching
- *
- * Note: Uses primitives directly (Rect/Text/Group) rather than the
- * MenuLayer composite, so the piu compiler can detect button bindings.
+ *   - The MenuLayer composite component
+ *   - `centerFocused` to vertically center the selected row
+ *   - `padBottom` to allow the last item to scroll up from the bottom
+ *   - `onSelect` callback for item selection
  */
 
 import type Poco from 'commodetto/Poco';
 import { render } from '../src/index.js';
-import { Text, Rect, Group } from '../src/components/index.js';
+import { Text, Rect, Group, MenuLayer } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
-
-interface MenuItem { title: string; subtitle?: string }
-interface MenuSection { title: string; items: MenuItem[] }
+import type { MenuSection } from '../src/components/index.js';
 
 const SECTIONS: MenuSection[] = [
   {
@@ -37,16 +32,9 @@ const SECTIONS: MenuSection[] = [
   },
 ];
 
-// Flatten items for linear navigation
-const ALL_ITEMS = SECTIONS.flatMap(s => s.items);
-
 function MenuApp() {
-  const [selectedIdx, setSelectedIdx] = useState(0);
   const [detail, setDetail] = useState('');
 
-  useButton('down', () => setSelectedIdx(i => Math.min(i + 1, ALL_ITEMS.length - 1)));
-  useButton('up', () => setSelectedIdx(i => Math.max(i - 1, 0)));
-  useButton('select', () => setDetail(ALL_ITEMS[selectedIdx]?.title ?? ''));
   useButton('back', () => setDetail(''));
 
   if (detail) {
@@ -67,49 +55,26 @@ function MenuApp() {
     );
   }
 
-  // Build the menu rows
-  const rowH = 40;
-  const headerH = 26;
-  let y = 0;
-  let itemIdx = 0;
-
-  const rows: Array<{ kind: 'header' | 'item'; y: number; title: string; subtitle?: string; isSelected: boolean }> = [];
-
-  for (const section of SECTIONS) {
-    rows.push({ kind: 'header', y, title: section.title, isSelected: false });
-    y += headerH;
-    for (const item of section.items) {
-      rows.push({ kind: 'item', y, title: item.title, subtitle: item.subtitle, isSelected: itemIdx === selectedIdx });
-      y += rowH;
-      itemIdx++;
-    }
-  }
-
   return (
     <Group>
       <Rect x={0} y={0} w={200} h={228} fill="black" />
-      {rows.map((row, i) =>
-        row.kind === 'header' ? (
-          <Group key={`h${i}`}>
-            <Rect x={0} y={row.y} w={200} h={headerH} fill="darkGray" />
-            <Text x={4} y={row.y + 4} w={192} font="gothic14Bold" color="white">
-              {row.title}
-            </Text>
-          </Group>
-        ) : (
-          <Group key={`i${i}`}>
-            <Rect x={0} y={row.y} w={200} h={rowH} fill={row.isSelected ? 'cyan' : 'black'} />
-            <Text x={8} y={row.y + 2} w={184} font="gothic18Bold" color={row.isSelected ? 'black' : 'white'}>
-              {row.title}
-            </Text>
-            {row.subtitle ? (
-              <Text x={8} y={row.y + 22} w={184} font="gothic14" color={row.isSelected ? 'black' : 'lightGray'}>
-                {row.subtitle}
-              </Text>
-            ) : null}
-          </Group>
-        )
-      )}
+      {/* centerFocused keeps the highlighted row in the vertical center;
+          padBottom adds extra space so the last item can scroll up. */}
+      <MenuLayer
+        x={0}
+        y={0}
+        w={200}
+        h={228}
+        sections={SECTIONS}
+        centerFocused
+        padBottom
+        highlightColor="cyan"
+        highlightTextColor="black"
+        onSelect={(section, item) => {
+          const selected = SECTIONS[section]?.items[item];
+          if (selected) setDetail(selected.title);
+        }}
+      />
     </Group>
   );
 }

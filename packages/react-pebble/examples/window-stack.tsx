@@ -11,14 +11,14 @@
 import type Poco from 'commodetto/Poco';
 import { render } from '../src/index.js';
 import { Text, Rect, Group, Window, WindowStack, useNavigation } from '../src/components/index.js';
-import { useButton } from '../src/hooks/index.js';
+import { useButton, useState } from '../src/hooks/index.js';
 
 function HomeScreen() {
   const nav = useNavigation();
 
   useButton('select', () => nav.push(<DetailScreen title="Page 2" />));
   useButton('up', () => nav.push(<ColorScreen color="blue" label="Blue" />));
-  useButton('down', () => nav.push(<ColorScreen color="red" label="Red" />));
+  useButton('down', () => nav.push(<ConfirmScreen />));
 
   return (
     <Group>
@@ -35,7 +35,7 @@ function HomeScreen() {
         SELECT = Detail
       </Text>
       <Text x={0} y={160} w={200} font="gothic14" color="lightGray" align="center">
-        UP = Blue / DOWN = Red
+        UP = Blue / DOWN = Confirm
       </Text>
       <Text x={0} y={190} w={200} font="gothic14" color="lightGray" align="center">
         Depth: {nav.stackDepth}
@@ -89,6 +89,40 @@ function ColorScreen({ color, label }: { color: string; label: string }) {
         Depth: {nav.stackDepth}
       </Text>
     </Group>
+  );
+}
+
+/**
+ * ConfirmScreen — demonstrates `onBack` handler and `backgroundColor` prop
+ * on a Window pushed into the stack.  Instead of auto-popping, the custom
+ * onBack shows a "goodbye" message before popping after a short delay.
+ */
+function ConfirmScreen() {
+  const nav = useNavigation();
+  const [message, setMessage] = useState('');
+
+  return (
+    <Window
+      backgroundColor="darkGreen"
+      onBack={() => {
+        setMessage('Goodbye!');
+        // Pop after a brief pause so the user sees the message
+        setTimeout(() => nav.pop(), 500);
+      }}
+    >
+      <Text x={0} y={40} w={200} font="gothic18Bold" color="white" align="center">
+        Confirm Screen
+      </Text>
+      <Text x={0} y={90} w={200} font="gothic24Bold" color="white" align="center">
+        {message || 'Press BACK'}
+      </Text>
+      <Text x={0} y={150} w={200} font="gothic14" color="lightGray" align="center">
+        onBack shows a message first
+      </Text>
+      <Text x={0} y={200} w={200} font="gothic14" color="lightGray" align="center">
+        Depth: {nav.stackDepth}
+      </Text>
+    </Window>
   );
 }
 

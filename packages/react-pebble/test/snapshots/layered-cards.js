@@ -34,39 +34,39 @@ const WatchApp = Application.template(() => ({
         ] }),
         new Container(null, { left: 10, right: 0, top: 28, contents: [
           new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-            new Content(null, { left: 0, width: 180, top: 0, height: 36, skin: sk2 }),
+            new RoundRect(null, { left: 0, width: 180, top: 0, height: 36, radius: 6, skin: sk2 }),
             new Container(null, { left: 8, right: 0, top: 6, contents: [
               new RoundRect(null, { left: 0, top: 0, width: 16, height: 16, radius: 8, skin: sk3 }),
               new Label(null, { top: 0, left: 48, width: 100, style: st0, string: "CPU" }),
               new Label(null, { top: 0, left: 156, width: 40, style: st1, horizontal: "right", string: "42%" })
             ] }),
             new Container(null, { left: 8, right: 0, top: 24, contents: [
-              new Content(null, { left: 0, width: 164, top: 0, height: 8, skin: sk0 }),
-              new Content(null, { left: 0, width: 69, top: 0, height: 8, skin: sk3 })
+              new RoundRect(null, { left: 0, width: 164, top: 0, height: 8, radius: 3, skin: sk0 }),
+              new RoundRect(null, { left: 0, width: 69, top: 0, height: 8, radius: 3, skin: sk3 })
             ] })
           ] }),
           new Container(null, { left: 0, right: 0, top: 40, contents: [
-            new Content(null, { left: 0, width: 180, top: 0, height: 36, skin: sk2 }),
+            new RoundRect(null, { left: 0, width: 180, top: 0, height: 36, radius: 6, skin: sk2 }),
             new Container(null, { left: 8, right: 0, top: 6, contents: [
               new RoundRect(null, { left: 0, top: 0, width: 16, height: 16, radius: 8, skin: sk4 }),
               new Label(null, { top: 0, left: 48, width: 100, style: st0, string: "Memory" }),
               new Label(null, { top: 0, left: 156, width: 40, style: st1, horizontal: "right", string: "71%" })
             ] }),
             new Container(null, { left: 8, right: 0, top: 24, contents: [
-              new Content(null, { left: 0, width: 164, top: 0, height: 8, skin: sk0 }),
-              new Content(null, { left: 0, width: 116, top: 0, height: 8, skin: sk4 })
+              new RoundRect(null, { left: 0, width: 164, top: 0, height: 8, radius: 3, skin: sk0 }),
+              new RoundRect(null, { left: 0, width: 116, top: 0, height: 8, radius: 3, skin: sk4 })
             ] })
           ] }),
           new Container(null, { left: 0, right: 0, top: 80, contents: [
-            new Content(null, { left: 0, width: 180, top: 0, height: 36, skin: sk2 }),
+            new RoundRect(null, { left: 0, width: 180, top: 0, height: 36, radius: 6, skin: sk2 }),
             new Container(null, { left: 8, right: 0, top: 6, contents: [
               new RoundRect(null, { left: 0, top: 0, width: 16, height: 16, radius: 8, skin: sk5 }),
               new Label(null, { top: 0, left: 48, width: 100, style: st0, string: "Disk" }),
               new Label(null, { top: 0, left: 156, width: 40, style: st1, horizontal: "right", string: "88%" })
             ] }),
             new Container(null, { left: 8, right: 0, top: 24, contents: [
-              new Content(null, { left: 0, width: 164, top: 0, height: 8, skin: sk0 }),
-              new Content(null, { left: 0, width: 144, top: 0, height: 8, skin: sk5 })
+              new RoundRect(null, { left: 0, width: 164, top: 0, height: 8, radius: 3, skin: sk0 }),
+              new RoundRect(null, { left: 0, width: 144, top: 0, height: 8, radius: 3, skin: sk5 })
             ] })
           ] })
         ] }),
