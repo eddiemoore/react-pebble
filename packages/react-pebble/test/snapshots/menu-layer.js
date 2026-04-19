@@ -14,31 +14,28 @@ const sk2 = new Skin({ fill: "#00ffff" });
 const st1 = new Style({ font: "bold 18px Gothic", color: "#000000" });
 const st2 = new Style({ font: "14px Gothic", color: "#000000" });
 const st3 = new Style({ font: "bold 18px Gothic", color: "#ffffff" });
-const st4 = new Style({ font: "14px Gothic", color: "#c0c0c0" });
+const st4 = new Style({ font: "14px Gothic", color: "#ffffff" });
 
 const bgSkin = new Skin({ fill: "#000000" });
 
 class AppBehavior extends Behavior {
   onCreate(app) {
     const c = app.first;
-    this.s0 = 0;
-    this.s1 = "";
+    this.s0 = "";
+    this.s1 = 0;
+    this.s2 = 0;
     this.sr2 = c.content("sr2");
   }
   onDisplaying(app) {
     this.refresh();
-    new PebbleButton({ type: "down", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });
-    new PebbleButton({ type: "up", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });
     new PebbleButton({ type: "back", onPush: (pushed, name) => { if (pushed) this.onButton({ button: name }); } });
   }
   onButton(e) {
     const name = e && e.button;
-    if (name === "down") { this.s0 += 1; this.refresh(); }
-    if (name === "up") { this.s0 -= 1; this.refresh(); }
-    if (name === "back") { this.s1 = ""; this.refresh(); }
+    if (name === "back") { this.s0 = ""; this.refresh(); }
   }
   refresh() {
-    if (this.sr2) this.sr2.skin = (this.s0 !== 0) ? sk0 : sk2;
+    if (this.sr2) this.sr2.skin = (this.s1 !== 0) ? sk0 : sk2;
   }
 }
 
@@ -49,37 +46,27 @@ const WatchApp = Application.template(() => ({
       new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
         new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 0, height: 26, skin: sk1 }),
-          new Label(null, { top: 4, left: 4, width: 192, style: st0, string: "Settings" })
-        ] }),
-        new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 26, height: 40, skin: sk2, name: "sr2" }),
-          new Label(null, { top: 28, left: 8, width: 184, style: st1, string: "Notifications" }),
-          new Label(null, { top: 48, left: 8, width: 184, style: st2, string: "Manage alerts" })
-        ] }),
-        new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 66, height: 40, skin: sk0 }),
-          new Label(null, { top: 68, left: 8, width: 184, style: st3, string: "Display" }),
-          new Label(null, { top: 88, left: 8, width: 184, style: st4, string: "Brightness & theme" })
-        ] }),
-        new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 106, height: 40, skin: sk0 }),
-          new Label(null, { top: 108, left: 8, width: 184, style: st3, string: "Bluetooth" }),
-          new Label(null, { top: 128, left: 8, width: 184, style: st4, string: "Connected" })
-        ] }),
-        new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 146, height: 26, skin: sk1 }),
-          new Label(null, { top: 150, left: 4, width: 192, style: st0, string: "About" })
-        ] }),
-        new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 172, height: 40, skin: sk0 }),
-          new Label(null, { top: 174, left: 8, width: 184, style: st3, string: "Version" }),
-          new Label(null, { top: 194, left: 8, width: 184, style: st4, string: "v2.1.0" })
-        ] }),
-        new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
-          new Content(null, { left: 0, right: 0, top: 212, height: 40, skin: sk0 }),
-          new Label(null, { top: 214, left: 8, width: 184, style: st3, string: "Model" }),
-          new Label(null, { top: 234, left: 8, width: 184, style: st4, string: "Pebble Time 2" })
+          new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
+            new Content(null, { left: 0, right: 0, top: 0, height: 24, skin: sk1 }),
+            new Label(null, { top: 2, left: 4, width: 192, style: st0, string: "Settings" }),
+            new Content(null, { left: 0, right: 0, top: 24, height: 36, skin: sk2, name: "sr2" }),
+            new Label(null, { top: 26, left: 8, width: 184, style: st1, string: "Notifications" }),
+            new Label(null, { top: 44, left: 8, width: 184, style: st2, string: "Manage alerts" }),
+            new Content(null, { left: 0, right: 0, top: 60, height: 36, skin: sk0 }),
+            new Label(null, { top: 62, left: 8, width: 184, style: st3, string: "Display" }),
+            new Label(null, { top: 80, left: 8, width: 184, style: st4, string: "Brightness & theme" }),
+            new Content(null, { left: 0, right: 0, top: 96, height: 36, skin: sk0 }),
+            new Label(null, { top: 98, left: 8, width: 184, style: st3, string: "Bluetooth" }),
+            new Label(null, { top: 116, left: 8, width: 184, style: st4, string: "Connected" }),
+            new Content(null, { left: 0, right: 0, top: 132, height: 24, skin: sk1 }),
+            new Label(null, { top: 134, left: 4, width: 192, style: st0, string: "About" }),
+            new Content(null, { left: 0, right: 0, top: 156, height: 36, skin: sk0 }),
+            new Label(null, { top: 158, left: 8, width: 184, style: st3, string: "Version" }),
+            new Label(null, { top: 176, left: 8, width: 184, style: st4, string: "v2.1.0" }),
+            new Content(null, { left: 0, right: 0, top: 192, height: 36, skin: sk0 }),
+            new Label(null, { top: 194, left: 8, width: 184, style: st3, string: "Model" }),
+            new Label(null, { top: 212, left: 8, width: 184, style: st4, string: "Pebble Time 2" })
+          ] })
         ] })
       ] })
   ],

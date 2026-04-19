@@ -25,7 +25,7 @@ const WatchApp = Application.template(() => ({
         new Label(null, { top: 6, left: 4, width: 192, style: st0, string: "Home" }),
         new Label(null, { top: 80, left: 0, width: 200, style: st1, horizontal: "center", string: "Window Stack" }),
         new Label(null, { top: 140, left: 0, width: 200, style: st2, horizontal: "center", string: "SELECT = Detail" }),
-        new Label(null, { top: 160, left: 0, width: 200, style: st2, horizontal: "center", string: "UP = Blue / DOWN = Red" }),
+        new Label(null, { top: 160, left: 0, width: 200, style: st2, horizontal: "center", string: "UP = Blue / DOWN = Confirm" }),
         new Label(null, { top: 190, left: 0, width: 200, style: st2, horizontal: "center", string: "Depth: 1" })
       ] })
   ],

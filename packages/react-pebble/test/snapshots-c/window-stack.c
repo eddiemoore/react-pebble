@@ -50,7 +50,7 @@ static void window_load(Window *window) {
   text_layer_set_text_color(tl_3, GColorFromHEX(0xc0c0c0));
   text_layer_set_font(tl_3, fonts_get_system_font(FONT_KEY_GOTHIC_14));
   text_layer_set_text_alignment(tl_3, GTextAlignmentCenter);
-  text_layer_set_text(tl_3, "UP = Blue / DOWN = Red");
+  text_layer_set_text(tl_3, "UP = Blue / DOWN = Confirm");
   layer_add_child(root, text_layer_get_layer(tl_3));
 
   TextLayer *tl_4 = text_layer_create(GRect(0, 190, 144, 50));

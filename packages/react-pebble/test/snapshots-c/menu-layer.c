@@ -6,53 +6,42 @@
 static Window *s_window;
 static Layer *s_draw_layer;
 
-static int s0 = 0;
-static char s1[64] = "";
+static char s0[64] = "";
+static int s1 = 0;
+static int s2 = 0;
 
 
 static void draw_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(0, 0, 144, 26), 0, GCornerNone);
-  graphics_context_set_fill_color(ctx, (s0 != 0) ? GColorFromHEX(0xblack) : GColorFromHEX(0xcyan));
-  graphics_fill_rect(ctx, GRect(0, 26, 144, 40), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(0, 0, 144, 24), 0, GCornerNone);
+  graphics_context_set_fill_color(ctx, (s1 != 0) ? GColorFromHEX(0xblack) : GColorFromHEX(0xcyan));
+  graphics_fill_rect(ctx, GRect(0, 24, 144, 36), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, GColorBlack);
-  graphics_fill_rect(ctx, GRect(0, 66, 144, 40), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(0, 60, 144, 36), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, GColorBlack);
-  graphics_fill_rect(ctx, GRect(0, 106, 144, 40), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(0, 96, 144, 36), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
-  graphics_fill_rect(ctx, GRect(0, 146, 144, 22), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(0, 132, 144, 24), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, GColorBlack);
-  graphics_fill_rect(ctx, GRect(0, 172, 144, 0), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(0, 156, 144, 12), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, GColorBlack);
-  graphics_fill_rect(ctx, GRect(0, 212, 144, 0), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(0, 192, 144, 0), 0, GCornerNone);
 }
 
 static void refresh(void) {
   layer_mark_dirty(s_draw_layer);
 }
 
-static void down_handler(ClickRecognizerRef ref, void *ctx) {
-  s0 += 1;
-  refresh();
-}
-
-static void up_handler(ClickRecognizerRef ref, void *ctx) {
-  s0 -= 1;
-  refresh();
-}
-
 static void back_handler(ClickRecognizerRef ref, void *ctx) {
-  if (strcmp(s1, "") == 0) {
+  if (strcmp(s0, "") == 0) {
     window_stack_pop(true);
   } else {
-    strncpy(s1, "", sizeof(s1) - 1);
+    strncpy(s0, "", sizeof(s0) - 1);
     refresh();
   }
 }
 
 static void click_config(void *ctx) {
-  window_single_click_subscribe(BUTTON_ID_DOWN, down_handler);
-  window_single_click_subscribe(BUTTON_ID_UP, up_handler);
   window_single_click_subscribe(BUTTON_ID_BACK, back_handler);
 }
 
@@ -64,86 +53,86 @@ static void window_load(Window *window) {
   layer_set_update_proc(s_draw_layer, draw_proc);
   layer_add_child(root, s_draw_layer);
 
-  TextLayer *tl_0 = text_layer_create(GRect(4, 4, 140, 50));
+  TextLayer *tl_0 = text_layer_create(GRect(4, 2, 140, 50));
   text_layer_set_background_color(tl_0, GColorClear);
   text_layer_set_text_color(tl_0, GColorWhite);
   text_layer_set_font(tl_0, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
   text_layer_set_text(tl_0, "Settings");
   layer_add_child(root, text_layer_get_layer(tl_0));
 
-  TextLayer *tl_1 = text_layer_create(GRect(8, 28, 136, 50));
+  TextLayer *tl_1 = text_layer_create(GRect(8, 26, 136, 50));
   text_layer_set_background_color(tl_1, GColorClear);
   text_layer_set_text_color(tl_1, GColorBlack);
   text_layer_set_font(tl_1, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
   text_layer_set_text(tl_1, "Notifications");
   layer_add_child(root, text_layer_get_layer(tl_1));
 
-  TextLayer *tl_2 = text_layer_create(GRect(8, 48, 136, 50));
+  TextLayer *tl_2 = text_layer_create(GRect(8, 44, 136, 50));
   text_layer_set_background_color(tl_2, GColorClear);
   text_layer_set_text_color(tl_2, GColorBlack);
   text_layer_set_font(tl_2, fonts_get_system_font(FONT_KEY_GOTHIC_14));
   text_layer_set_text(tl_2, "Manage alerts");
   layer_add_child(root, text_layer_get_layer(tl_2));
 
-  TextLayer *tl_3 = text_layer_create(GRect(8, 68, 136, 50));
+  TextLayer *tl_3 = text_layer_create(GRect(8, 62, 136, 50));
   text_layer_set_background_color(tl_3, GColorClear);
   text_layer_set_text_color(tl_3, GColorWhite);
   text_layer_set_font(tl_3, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
   text_layer_set_text(tl_3, "Display");
   layer_add_child(root, text_layer_get_layer(tl_3));
 
-  TextLayer *tl_4 = text_layer_create(GRect(8, 88, 136, 50));
+  TextLayer *tl_4 = text_layer_create(GRect(8, 80, 136, 50));
   text_layer_set_background_color(tl_4, GColorClear);
-  text_layer_set_text_color(tl_4, GColorFromHEX(0xc0c0c0));
+  text_layer_set_text_color(tl_4, GColorWhite);
   text_layer_set_font(tl_4, fonts_get_system_font(FONT_KEY_GOTHIC_14));
   text_layer_set_text(tl_4, "Brightness & theme");
   layer_add_child(root, text_layer_get_layer(tl_4));
 
-  TextLayer *tl_5 = text_layer_create(GRect(8, 108, 136, 50));
+  TextLayer *tl_5 = text_layer_create(GRect(8, 98, 136, 50));
   text_layer_set_background_color(tl_5, GColorClear);
   text_layer_set_text_color(tl_5, GColorWhite);
   text_layer_set_font(tl_5, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
   text_layer_set_text(tl_5, "Bluetooth");
   layer_add_child(root, text_layer_get_layer(tl_5));
 
-  TextLayer *tl_6 = text_layer_create(GRect(8, 128, 136, 50));
+  TextLayer *tl_6 = text_layer_create(GRect(8, 116, 136, 50));
   text_layer_set_background_color(tl_6, GColorClear);
-  text_layer_set_text_color(tl_6, GColorFromHEX(0xc0c0c0));
+  text_layer_set_text_color(tl_6, GColorWhite);
   text_layer_set_font(tl_6, fonts_get_system_font(FONT_KEY_GOTHIC_14));
   text_layer_set_text(tl_6, "Connected");
   layer_add_child(root, text_layer_get_layer(tl_6));
 
-  TextLayer *tl_7 = text_layer_create(GRect(4, 150, 140, 50));
+  TextLayer *tl_7 = text_layer_create(GRect(4, 134, 140, 50));
   text_layer_set_background_color(tl_7, GColorClear);
   text_layer_set_text_color(tl_7, GColorWhite);
   text_layer_set_font(tl_7, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
   text_layer_set_text(tl_7, "About");
   layer_add_child(root, text_layer_get_layer(tl_7));
 
-  TextLayer *tl_8 = text_layer_create(GRect(8, 174, 136, 50));
+  TextLayer *tl_8 = text_layer_create(GRect(8, 158, 136, 50));
   text_layer_set_background_color(tl_8, GColorClear);
   text_layer_set_text_color(tl_8, GColorWhite);
   text_layer_set_font(tl_8, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
   text_layer_set_text(tl_8, "Version");
   layer_add_child(root, text_layer_get_layer(tl_8));
 
-  TextLayer *tl_9 = text_layer_create(GRect(8, 194, 136, 50));
+  TextLayer *tl_9 = text_layer_create(GRect(8, 176, 136, 50));
   text_layer_set_background_color(tl_9, GColorClear);
-  text_layer_set_text_color(tl_9, GColorFromHEX(0xc0c0c0));
+  text_layer_set_text_color(tl_9, GColorWhite);
   text_layer_set_font(tl_9, fonts_get_system_font(FONT_KEY_GOTHIC_14));
   text_layer_set_text(tl_9, "v2.1.0");
   layer_add_child(root, text_layer_get_layer(tl_9));
 
-  TextLayer *tl_10 = text_layer_create(GRect(8, 214, 136, 50));
+  TextLayer *tl_10 = text_layer_create(GRect(8, 194, 136, 50));
   text_layer_set_background_color(tl_10, GColorClear);
   text_layer_set_text_color(tl_10, GColorWhite);
   text_layer_set_font(tl_10, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
   text_layer_set_text(tl_10, "Model");
   layer_add_child(root, text_layer_get_layer(tl_10));
 
-  TextLayer *tl_11 = text_layer_create(GRect(8, 234, 136, 50));
+  TextLayer *tl_11 = text_layer_create(GRect(8, 212, 136, 50));
   text_layer_set_background_color(tl_11, GColorClear);
-  text_layer_set_text_color(tl_11, GColorFromHEX(0xc0c0c0));
+  text_layer_set_text_color(tl_11, GColorWhite);
   text_layer_set_font(tl_11, fonts_get_system_font(FONT_KEY_GOTHIC_14));
   text_layer_set_text(tl_11, "Pebble Time 2");
   layer_add_child(root, text_layer_get_layer(tl_11));

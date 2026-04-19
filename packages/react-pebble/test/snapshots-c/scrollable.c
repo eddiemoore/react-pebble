@@ -8,12 +8,6 @@ static Layer *s_draw_layer;
 
 static int s0 = 0;
 
-static TextLayer *s_tl0;
-static char s_tl0_buf[32];
-static TextLayer *s_ls[4];
-static char s_ls_buf[4][32];
-static const char *_data[] = {"Introduction", "Getting Started", "Installation", "Configuration", "Components", "Hooks", "Animation", "Sensors", "Networking", "Storage", "Deployment", "Troubleshooting"};
-static int _data_len = 12;
 
 static void draw_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorWhite);
@@ -26,45 +20,24 @@ static void draw_proc(Layer *layer, GContext *ctx) {
   graphics_fill_rect(ctx, GRect(0, 92, 144, 30), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, GColorBlack);
   graphics_fill_rect(ctx, GRect(0, 124, 144, 30), 0, GCornerNone);
-  graphics_context_set_fill_color(ctx, GColorFromHEX(0x00ffff));
-  graphics_fill_rect(ctx, GRect(62, 165, 20, 3), 0, GCornerNone);
-}
-
-static void refresh(void) {
-  snprintf(s_tl0_buf, sizeof(s_tl0_buf), "Docs (%d-%d/12)", s0 + 1, (s0 + 4) < 12 ? (s0 + 4) : 12);
-  text_layer_set_text(s_tl0, s_tl0_buf);
-  int _start = s0;
-  for (int _i = 0; _i < 4; _i++) {
-    int _idx = _start + _i;
-    if (_idx < _data_len) {
-      snprintf(s_ls_buf[_i], sizeof(s_ls_buf[_i]), "%s", _data[_idx]);
-    } else {
-      s_ls_buf[_i][0] = '\0';
-    }
-    text_layer_set_text(s_ls[_i], s_ls_buf[_i]);
-  }
-}
-
-static void down_handler(ClickRecognizerRef ref, void *ctx) {
-  s0 += 1;
-  if (s0 > _data_len - 4) s0 = _data_len - 4;
-  refresh();
-}
-
-static void up_handler(ClickRecognizerRef ref, void *ctx) {
-  s0 -= 1;
-  if (s0 < 0) s0 = 0;
-  refresh();
-}
-
-static void back_handler(ClickRecognizerRef ref, void *ctx) {
-  window_stack_pop(true);
-}
-
-static void click_config(void *ctx) {
-  window_single_click_subscribe(BUTTON_ID_DOWN, down_handler);
-  window_single_click_subscribe(BUTTON_ID_UP, up_handler);
-  window_single_click_subscribe(BUTTON_ID_BACK, back_handler);
+  graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
+  graphics_fill_rect(ctx, GRect(0, 156, 144, 12), 0, GCornerNone);
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, GRect(0, 188, 144, 0), 0, GCornerNone);
+  graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
+  graphics_fill_rect(ctx, GRect(0, 220, 144, 0), 0, GCornerNone);
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, GRect(0, 252, 144, 0), 0, GCornerNone);
+  graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
+  graphics_fill_rect(ctx, GRect(0, 284, 144, 0), 0, GCornerNone);
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, GRect(0, 316, 144, 0), 0, GCornerNone);
+  graphics_context_set_fill_color(ctx, GColorFromHEX(0x404040));
+  graphics_fill_rect(ctx, GRect(0, 348, 144, 0), 0, GCornerNone);
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, GRect(0, 380, 144, 0), 0, GCornerNone);
+  graphics_context_set_fill_color(ctx, GColorWhite);
+  graphics_fill_rect(ctx, GRect(62, 164, 20, 3), 0, GCornerNone);
 }
 
 static void window_load(Window *window) {
@@ -75,40 +48,100 @@ static void window_load(Window *window) {
   layer_set_update_proc(s_draw_layer, draw_proc);
   layer_add_child(root, s_draw_layer);
 
-  s_tl0 = text_layer_create(GRect(4, 4, 136, 50));
-  text_layer_set_background_color(s_tl0, GColorClear);
-  text_layer_set_text_color(s_tl0, GColorBlack);
-  text_layer_set_font(s_tl0, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
-  layer_add_child(root, text_layer_get_layer(s_tl0));
+  TextLayer *tl_0 = text_layer_create(GRect(4, 4, 136, 50));
+  text_layer_set_background_color(tl_0, GColorClear);
+  text_layer_set_text_color(tl_0, GColorBlack);
+  text_layer_set_font(tl_0, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+  text_layer_set_text(tl_0, "Docs (paging mode)");
+  layer_add_child(root, text_layer_get_layer(tl_0));
 
-  // List item layers
-  s_ls[0] = text_layer_create(GRect(10, 34, 124, 24));
-  text_layer_set_background_color(s_ls[0], GColorClear);
-  text_layer_set_text_color(s_ls[0], GColorWhite);
-  text_layer_set_font(s_ls[0], fonts_get_system_font(FONT_KEY_GOTHIC_18));
-  layer_add_child(root, text_layer_get_layer(s_ls[0]));
-  s_ls[1] = text_layer_create(GRect(10, 66, 124, 24));
-  text_layer_set_background_color(s_ls[1], GColorClear);
-  text_layer_set_text_color(s_ls[1], GColorWhite);
-  text_layer_set_font(s_ls[1], fonts_get_system_font(FONT_KEY_GOTHIC_18));
-  layer_add_child(root, text_layer_get_layer(s_ls[1]));
-  s_ls[2] = text_layer_create(GRect(10, 98, 124, 24));
-  text_layer_set_background_color(s_ls[2], GColorClear);
-  text_layer_set_text_color(s_ls[2], GColorWhite);
-  text_layer_set_font(s_ls[2], fonts_get_system_font(FONT_KEY_GOTHIC_18));
-  layer_add_child(root, text_layer_get_layer(s_ls[2]));
-  s_ls[3] = text_layer_create(GRect(10, 130, 124, 24));
-  text_layer_set_background_color(s_ls[3], GColorClear);
-  text_layer_set_text_color(s_ls[3], GColorWhite);
-  text_layer_set_font(s_ls[3], fonts_get_system_font(FONT_KEY_GOTHIC_18));
-  layer_add_child(root, text_layer_get_layer(s_ls[3]));
+  TextLayer *tl_1 = text_layer_create(GRect(10, 34, 124, 50));
+  text_layer_set_background_color(tl_1, GColorClear);
+  text_layer_set_text_color(tl_1, GColorWhite);
+  text_layer_set_font(tl_1, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  text_layer_set_text(tl_1, "1. Introduction");
+  layer_add_child(root, text_layer_get_layer(tl_1));
 
-  refresh();
+  TextLayer *tl_2 = text_layer_create(GRect(10, 66, 124, 50));
+  text_layer_set_background_color(tl_2, GColorClear);
+  text_layer_set_text_color(tl_2, GColorWhite);
+  text_layer_set_font(tl_2, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  text_layer_set_text(tl_2, "2. Getting Started");
+  layer_add_child(root, text_layer_get_layer(tl_2));
+
+  TextLayer *tl_3 = text_layer_create(GRect(10, 98, 124, 50));
+  text_layer_set_background_color(tl_3, GColorClear);
+  text_layer_set_text_color(tl_3, GColorWhite);
+  text_layer_set_font(tl_3, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  text_layer_set_text(tl_3, "3. Installation");
+  layer_add_child(root, text_layer_get_layer(tl_3));
+
+  TextLayer *tl_4 = text_layer_create(GRect(10, 130, 124, 50));
+  text_layer_set_background_color(tl_4, GColorClear);
+  text_layer_set_text_color(tl_4, GColorWhite);
+  text_layer_set_font(tl_4, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  text_layer_set_text(tl_4, "4. Configuration");
+  layer_add_child(root, text_layer_get_layer(tl_4));
+
+  TextLayer *tl_5 = text_layer_create(GRect(10, 162, 124, 50));
+  text_layer_set_background_color(tl_5, GColorClear);
+  text_layer_set_text_color(tl_5, GColorWhite);
+  text_layer_set_font(tl_5, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  text_layer_set_text(tl_5, "5. Components");
+  layer_add_child(root, text_layer_get_layer(tl_5));
+
+  TextLayer *tl_6 = text_layer_create(GRect(10, 194, 124, 50));
+  text_layer_set_background_color(tl_6, GColorClear);
+  text_layer_set_text_color(tl_6, GColorWhite);
+  text_layer_set_font(tl_6, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  text_layer_set_text(tl_6, "6. Hooks");
+  layer_add_child(root, text_layer_get_layer(tl_6));
+
+  TextLayer *tl_7 = text_layer_create(GRect(10, 226, 124, 50));
+  text_layer_set_background_color(tl_7, GColorClear);
+  text_layer_set_text_color(tl_7, GColorWhite);
+  text_layer_set_font(tl_7, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  text_layer_set_text(tl_7, "7. Animation");
+  layer_add_child(root, text_layer_get_layer(tl_7));
+
+  TextLayer *tl_8 = text_layer_create(GRect(10, 258, 124, 50));
+  text_layer_set_background_color(tl_8, GColorClear);
+  text_layer_set_text_color(tl_8, GColorWhite);
+  text_layer_set_font(tl_8, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  text_layer_set_text(tl_8, "8. Sensors");
+  layer_add_child(root, text_layer_get_layer(tl_8));
+
+  TextLayer *tl_9 = text_layer_create(GRect(10, 290, 124, 50));
+  text_layer_set_background_color(tl_9, GColorClear);
+  text_layer_set_text_color(tl_9, GColorWhite);
+  text_layer_set_font(tl_9, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  text_layer_set_text(tl_9, "9. Networking");
+  layer_add_child(root, text_layer_get_layer(tl_9));
+
+  TextLayer *tl_10 = text_layer_create(GRect(10, 322, 124, 50));
+  text_layer_set_background_color(tl_10, GColorClear);
+  text_layer_set_text_color(tl_10, GColorWhite);
+  text_layer_set_font(tl_10, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  text_layer_set_text(tl_10, "10. Storage");
+  layer_add_child(root, text_layer_get_layer(tl_10));
+
+  TextLayer *tl_11 = text_layer_create(GRect(10, 354, 124, 50));
+  text_layer_set_background_color(tl_11, GColorClear);
+  text_layer_set_text_color(tl_11, GColorWhite);
+  text_layer_set_font(tl_11, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  text_layer_set_text(tl_11, "11. Deployment");
+  layer_add_child(root, text_layer_get_layer(tl_11));
+
+  TextLayer *tl_12 = text_layer_create(GRect(10, 386, 124, 50));
+  text_layer_set_background_color(tl_12, GColorClear);
+  text_layer_set_text_color(tl_12, GColorWhite);
+  text_layer_set_font(tl_12, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+  text_layer_set_text(tl_12, "12. Troubleshooting");
+  layer_add_child(root, text_layer_get_layer(tl_12));
+
 }
 
 static void window_unload(Window *window) {
-  text_layer_destroy(s_tl0);
-  for (int i = 0; i < 4; i++) { text_layer_destroy(s_ls[i]); }
   layer_destroy(s_draw_layer);
 }
 
@@ -118,7 +151,6 @@ static void init(void) {
     .load = window_load,
     .unload = window_unload,
   });
-  window_set_click_config_provider(s_window, click_config);
   window_stack_push(s_window, true);
 }
 
