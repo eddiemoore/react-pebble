@@ -40,10 +40,10 @@ const WatchApp = Application.template(() => ({
         new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
         new Label(null, { top: 24, left: 0, width: 200, style: st0, horizontal: "center", string: "GPS Location" }),
         new Label(null, { top: 56, left: 0, width: 200, style: st1, horizontal: "center", name: "sl1", string: "Location acquired" }),
-        new Content(null, { left: 10, width: 180, top: 80, height: 50, skin: sk1 }),
+        new RoundRect(null, { left: 10, width: 180, top: 80, height: 50, radius: 6, skin: sk1 }),
         new Label(null, { top: 84, left: 18, width: 164, style: st2, string: "Latitude" }),
         new Label(null, { top: 100, left: 18, width: 164, style: st3, string: "--°" }),
-        new Content(null, { left: 10, width: 180, top: 138, height: 50, skin: sk1 }),
+        new RoundRect(null, { left: 10, width: 180, top: 138, height: 50, radius: 6, skin: sk1 }),
         new Label(null, { top: 142, left: 18, width: 164, style: st2, string: "Longitude" }),
         new Label(null, { top: 158, left: 18, width: 164, style: st3, string: "--°" }),
         new Label(null, { top: 200, left: 0, width: 200, style: st2, horizontal: "center", string: "Press SELECT to refresh" })

@@ -216,9 +216,27 @@ function emitIRNode(
         skinVar = ensureSkin(ctx, el.fill ?? '#000000');
       }
 
+      // Border radius: use piu RoundRect when any corner is rounded.
+      // Piu's RoundRect only supports a single uniform radius — use the max
+      // of all per-corner values (or the uniform borderRadius if set).
+      const br = el.borderRadius ?? 0;
+      const brTL = (el as unknown as Record<string, unknown>).borderRadiusTL as number | undefined;
+      const brTR = (el as unknown as Record<string, unknown>).borderRadiusTR as number | undefined;
+      const brBL = (el as unknown as Record<string, unknown>).borderRadiusBL as number | undefined;
+      const brBR = (el as unknown as Record<string, unknown>).borderRadiusBR as number | undefined;
+      const effectiveRadius = Math.max(br, brTL ?? 0, brTR ?? 0, brBL ?? 0, brBR ?? 0);
+
       const kids = (el.children ?? [])
         .map(c => emitIRNode(c, ctx, indent + '  ', ir, conditionalDepth))
         .filter(Boolean);
+
+      if (effectiveRadius > 0) {
+        // Emit RoundRect for rounded rects (same primitive as circles)
+        if (kids.length > 0) {
+          return `${indent}new Container(null, { ${sizeProps}, skin: ${skinVar}${nameProp}, contents: [\n${kids.join(',\n')}\n${indent}] })`;
+        }
+        return `${indent}new RoundRect(null, { ${sizeProps}, radius: ${effectiveRadius}, skin: ${skinVar}${nameProp} })`;
+      }
       if (kids.length > 0) {
         return `${indent}new Container(null, { ${sizeProps}, skin: ${skinVar}${nameProp}, contents: [\n${kids.join(',\n')}\n${indent}] })`;
       }

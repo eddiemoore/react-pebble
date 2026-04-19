@@ -47,13 +47,13 @@ const WatchApp = Application.template(() => ({
       new Container(null, { left: 0, right: 0, top: 0, bottom: 0, contents: [
         new Content(null, { left: 0, right: 0, top: 0, bottom: 0, skin: sk0 }),
         new Label(null, { top: 8, left: 0, width: 170, style: st0, horizontal: "center", string: "Settings" }),
-        new Content(null, { left: 10, width: 160, top: 44, height: 50, skin: sk1 }),
+        new RoundRect(null, { left: 10, width: 160, top: 44, height: 50, radius: 8, skin: sk1 }),
         new Label(null, { top: 48, left: 18, width: 144, style: st1, string: "Theme (SELECT to cycle)" }),
         new Label(null, { top: 66, left: 18, width: 144, style: st2, string: "dark" }),
-        new Content(null, { left: 10, width: 160, top: 102, height: 50, skin: sk1 }),
+        new RoundRect(null, { left: 10, width: 160, top: 102, height: 50, radius: 8, skin: sk1 }),
         new Label(null, { top: 106, left: 18, width: 144, style: st1, string: "Font Size (UP/DOWN)" }),
         new Label(null, { top: 124, left: 18, width: 144, style: st2, name: "sl4", string: "18px" }),
-        new Content(null, { left: 10, width: 160, top: 160, height: 50, skin: sk1 }),
+        new RoundRect(null, { left: 10, width: 160, top: 160, height: 50, radius: 8, skin: sk1 }),
         new Label(null, { top: 164, left: 18, width: 144, style: st1, string: "Preview" }),
         new Label(null, { top: 182, left: 18, width: 144, style: st3, string: "Hello Pebble!" })
       ] })

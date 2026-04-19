@@ -28,9 +28,9 @@ const WatchApp = Application.template(() => ({
           new Label(null, { top: 40, left: 0, width: 180, style: st1, string: "This content is" }),
           new Label(null, { top: 60, left: 0, width: 180, style: st1, string: "inset to avoid" }),
           new Label(null, { top: 80, left: 0, width: 180, style: st1, string: "round edges." }),
-          new Content(null, { left: 0, width: 180, top: 110, height: 36, skin: sk2 }),
+          new RoundRect(null, { left: 0, width: 180, top: 110, height: 36, radius: 6, skin: sk2 }),
           new Label(null, { top: 118, left: 4, width: 172, style: st2, string: "Display: 192x220 (rect)" }),
-          new Content(null, { left: 0, width: 180, top: 152, height: 36, skin: sk2 }),
+          new RoundRect(null, { left: 0, width: 180, top: 152, height: 36, radius: 6, skin: sk2 }),
           new Label(null, { top: 160, left: 4, width: 172, style: st2, string: "Offset: x=4 y=4" })
         ] })
       ] })

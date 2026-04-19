@@ -23,63 +23,63 @@ function RoundedCornersDemo() {
       </Text>
 
       <Column x={8} y={30} gap={8}>
-        {/* Tab bar — only top corners rounded */}
-        <Group h={36}>
+        {/* Tab bar — only top corners rounded (16px for visibility) */}
+        <Group h={40}>
           <Rect
-            x={0} y={0} w={88} h={36}
+            x={0} y={0} w={88} h={40}
             fill="blue"
-            borderRadiusTopLeft={8}
-            borderRadiusTopRight={8}
+            borderRadiusTopLeft={16}
+            borderRadiusTopRight={16}
             borderRadiusBottomLeft={0}
             borderRadiusBottomRight={0}
           />
-          <Text x={4} y={8} w={80} font="gothic14" color="white" align="center">
+          <Text x={4} y={12} w={80} font="gothic14" color="white" align="center">
             Active
           </Text>
           <Rect
-            x={92} y={0} w={88} h={36}
+            x={92} y={0} w={88} h={40}
             fill="darkGray"
-            borderRadiusTopLeft={8}
-            borderRadiusTopRight={8}
+            borderRadiusTopLeft={16}
+            borderRadiusTopRight={16}
             borderRadiusBottomLeft={0}
             borderRadiusBottomRight={0}
           />
-          <Text x={96} y={8} w={80} font="gothic14" color="lightGray" align="center">
+          <Text x={96} y={12} w={80} font="gothic14" color="lightGray" align="center">
             Inactive
           </Text>
         </Group>
 
-        {/* Speech bubble — bottom-left corner sharp */}
-        <Group h={44}>
+        {/* Speech bubble — bottom-left corner sharp (14px radius) */}
+        <Group h={50}>
           <Rect
-            x={20} y={0} w={160} h={36}
+            x={10} y={0} w={170} h={44}
             fill="white"
-            borderRadiusTopLeft={10}
-            borderRadiusTopRight={10}
+            borderRadiusTopLeft={14}
+            borderRadiusTopRight={14}
             borderRadiusBottomLeft={0}
-            borderRadiusBottomRight={10}
+            borderRadiusBottomRight={14}
           />
-          <Text x={28} y={8} w={144} font="gothic14" color="black">
+          <Text x={24} y={12} w={144} font="gothic14" color="black">
             Hello there!
           </Text>
         </Group>
 
-        {/* Pill button */}
-        <Group h={32}>
-          <Rect x={30} y={0} w={120} h={28} fill="green" borderRadius={14} />
-          <Text x={30} y={4} w={120} font="gothic14" color="white" align="center">
+        {/* Pill button (full half-height radius) */}
+        <Group h={36}>
+          <Rect x={20} y={0} w={144} h={32} fill="green" borderRadius={16} />
+          <Text x={20} y={6} w={144} font="gothic14" color="white" align="center">
             Pill Button
           </Text>
         </Group>
 
-        {/* Card with subtle rounding */}
-        <Group h={44}>
-          <Rect x={0} y={0} w={184} h={40} fill="darkGray" borderRadius={4} />
-          <Text x={8} y={4} w={168} font="gothic14" color="white">
+        {/* Card with visible rounding (10px) */}
+        <Group h={50}>
+          <Rect x={0} y={0} w={184} h={46} fill="darkGray" borderRadius={10} />
+          <Text x={12} y={6} w={160} font="gothic14" color="white">
             Card Title
           </Text>
-          <Text x={8} y={22} w={168} font="gothic14" color="lightGray">
-            Subtle 4px radius
+          <Text x={12} y={24} w={160} font="gothic14" color="lightGray">
+            10px radius
           </Text>
         </Group>
       </Column>
