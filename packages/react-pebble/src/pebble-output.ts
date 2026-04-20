@@ -428,6 +428,13 @@ export class PocoRenderer {
         const overflow = str(p, 'overflow') ?? 'wordWrap';
         const lineHeight = (font as unknown as { height: number }).height || 16;
 
+        // Fill background rect behind text when backgroundColor is set
+        const bgColor = str(p, 'backgroundColor');
+        if (bgColor) {
+          const bgH = boxH > 0 ? boxH : lineHeight;
+          this.poco.fillRectangle(this.getColor(bgColor), x, y, boxW, bgH);
+        }
+
         if (overflow === 'fill') {
           // Single line, no wrapping, no truncation — draw as-is
           let tx = x;

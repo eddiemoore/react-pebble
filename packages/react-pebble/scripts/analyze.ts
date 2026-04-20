@@ -261,6 +261,7 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       const labelIdx = ctx.labelIdx++;
       ctx.labelTexts.set(labelIdx, text);
 
+      const bgColor = str(p, 'backgroundColor');
       return {
         type: 'text',
         x, y, w, h: 0,
@@ -269,6 +270,7 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
         color: colorToHex(color),
         align,
         overflow: overflow || undefined,
+        backgroundColor: bgColor ? colorToHex(bgColor) : undefined,
         labelIndex: labelIdx,
       };
     }

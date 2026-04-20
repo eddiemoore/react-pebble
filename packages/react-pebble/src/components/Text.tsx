@@ -14,6 +14,8 @@ export interface TextProps extends PositionProps, SizeProps {
   color?: ColorName;
   align?: Alignment;
   overflow?: TextOverflow;
+  /** Background color drawn behind the text. */
+  backgroundColor?: ColorName;
   children?: ReactNode;
 }
 

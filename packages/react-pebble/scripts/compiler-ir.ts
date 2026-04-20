@@ -24,6 +24,7 @@ export interface IRElement {
   font?: string;        // internal font name, e.g. "gothic18Bold" (text)
   color?: string;       // hex color for text
   align?: string;       // text alignment: "left" | "center" | "right"
+  backgroundColor?: string; // hex color for text background
   radius?: number;      // circle radius
   borderRadius?: number;       // rect border radius (uniform)
   borderRadiusTL?: number;     // per-corner: top-left

@@ -1225,10 +1225,12 @@ export function emitC(ir: CompilerIR): string {
         ? 'GTextOverflowModeTrailingEllipsis'
         : 'GTextOverflowModeWordWrap';
 
+    const bgColorExpr = el.backgroundColor ? colorToGColor(el.backgroundColor) : 'GColorClear';
+
     if (te.isDynamic && te.dynamicVar) {
       const dv = te.dynamicVar;
       lines.push(`  ${dv.varName} = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
-      lines.push(`  text_layer_set_background_color(${dv.varName}, GColorClear);`);
+      lines.push(`  text_layer_set_background_color(${dv.varName}, ${bgColorExpr});`);
       lines.push(`  text_layer_set_text_color(${dv.varName}, ${color});`);
       lines.push(`  text_layer_set_font(${dv.varName}, ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
@@ -1242,7 +1244,7 @@ export function emitC(ir: CompilerIR): string {
       // Config mode: store in global array so prv_update_config can update colors/text
       const cfgIdx = _localTlIdx++;
       lines.push(`  s_cfg_tl[${cfgIdx}] = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
-      lines.push(`  text_layer_set_background_color(s_cfg_tl[${cfgIdx}], GColorClear);`);
+      lines.push(`  text_layer_set_background_color(s_cfg_tl[${cfgIdx}], ${bgColorExpr});`);
       lines.push(`  text_layer_set_text_color(s_cfg_tl[${cfgIdx}], ${color});`);
       lines.push(`  text_layer_set_font(s_cfg_tl[${cfgIdx}], ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
@@ -1256,7 +1258,7 @@ export function emitC(ir: CompilerIR): string {
     } else {
       const localVar = `tl_${_localTlIdx++}`;
       lines.push(`  TextLayer *${localVar} = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
-      lines.push(`  text_layer_set_background_color(${localVar}, GColorClear);`);
+      lines.push(`  text_layer_set_background_color(${localVar}, ${bgColorExpr});`);
       lines.push(`  text_layer_set_text_color(${localVar}, ${color});`);
       lines.push(`  text_layer_set_font(${localVar}, ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
