@@ -548,15 +548,16 @@ export class PocoRenderer {
         const bitmap = p.bitmap;
         if (bitmap) {
           // Horizontal alignment within bounding box
+          let imgX = x;
           const imgAlign = str(p, 'align');
           const boxW = num(p, 'w') || num(p, 'width');
           if (imgAlign && boxW > 0) {
             const bmp = bitmap as { width?: number };
             const imgW = bmp.width ?? boxW;
             if (imgAlign === 'center') {
-              x += Math.floor((boxW - imgW) / 2);
+              imgX += Math.floor((boxW - imgW) / 2);
             } else if (imgAlign === 'right') {
-              x += boxW - imgW;
+              imgX += boxW - imgW;
             }
           }
 
@@ -572,13 +573,13 @@ export class PocoRenderer {
               ) => void;
             };
             if (poco.drawBitmapWithTransform) {
-              poco.drawBitmapWithTransform(bmp, x, y, rotation, scale || 1);
+              poco.drawBitmapWithTransform(bmp, imgX, y, rotation, scale || 1);
             } else {
               // Fallback: draw without transform
-              this.poco.drawBitmap(bmp, x, y);
+              this.poco.drawBitmap(bmp, imgX, y);
             }
           } else {
-            this.poco.drawBitmap(bitmap as never, x, y);
+            this.poco.drawBitmap(bitmap as never, imgX, y);
           }
         }
         break;
