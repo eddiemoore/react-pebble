@@ -261,6 +261,7 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       const labelIdx = ctx.labelIdx++;
       ctx.labelTexts.set(labelIdx, text);
 
+      const bgColor = str(p, 'backgroundColor');
       return {
         type: 'text',
         x, y, w, h: 0,
@@ -269,6 +270,7 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
         color: colorToHex(color),
         align,
         overflow: overflow || undefined,
+        backgroundColor: bgColor ? colorToHex(bgColor) : undefined,
         labelIndex: labelIdx,
       };
     }
@@ -344,12 +346,14 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
         width: 0, height: 0, rotation,
       });
 
+      const closed = p.closed !== undefined ? Boolean(p.closed) : undefined;
       return {
         type: 'path',
         x: num(p, 'x'), y: num(p, 'y'), w: 0, h: 0,
         points: points.map(([px, py]) => [px, py] as [number, number]),
         rotation,
         fill: colorToHex(fill),
+        closed,
         elemIndex: elemIdx,
       };
     }
@@ -398,6 +402,7 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       const labelIdx = ctx.labelIdx++;
       ctx.labelTexts.set(labelIdx, text);
 
+      const paging = p.paging === true ? true : undefined;
       return {
         type: 'text' as const,
         x: num(p, 'x'), y: num(p, 'y'), w, h,
@@ -407,6 +412,7 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
         align,
         labelIndex: labelIdx,
         isWrapping: true,
+        paging,
       };
     }
 
@@ -425,10 +431,12 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       const animated = str(p, 'animated');
       const animLoop = p.animLoop;
       const animFps = num(p, 'animFps');
+      const imgAlign = str(p, 'align');
       return {
         type: 'image' as const,
         x, y, w, h,
         src,
+        align: imgAlign || undefined,
         elemIndex: elemIdx,
         ...(animated === 'apng' || animated === 'pdcs' ? {
           animated: animated as 'apng' | 'pdcs',

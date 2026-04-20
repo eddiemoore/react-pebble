@@ -42,7 +42,7 @@ void _activities;
 // UseHealthResult shape
 const _result: UseHealthResult = {
   data: _hd,
-  averaged: { daily: _hd, weekly: _hd },
+  averaged: { daily: _hd, weekly: _hd, min: _hd, max: _hd },
   currentActivities: [],
 };
 void _result;

@@ -11,6 +11,8 @@ export interface PathProps extends PositionProps {
   rotation?: number;
   /** Translation offset [dx, dy] applied after rotation. */
   offset?: [number, number];
+  /** Whether the path is closed (connects last point back to first). Default: true. */
+  closed?: boolean;
 }
 
 export function Path(props: PathProps) {

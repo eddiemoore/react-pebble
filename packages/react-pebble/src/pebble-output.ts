@@ -428,6 +428,13 @@ export class PocoRenderer {
         const overflow = str(p, 'overflow') ?? 'wordWrap';
         const lineHeight = (font as unknown as { height: number }).height || 16;
 
+        // Fill background rect behind text when backgroundColor is set
+        const bgColor = str(p, 'backgroundColor');
+        if (bgColor) {
+          const bgH = boxH > 0 ? boxH : lineHeight;
+          this.poco.fillRectangle(this.getColor(bgColor), x, y, boxW, bgH);
+        }
+
         if (overflow === 'fill') {
           // Single line, no wrapping, no truncation — draw as-is
           let tx = x;
@@ -540,6 +547,20 @@ export class PocoRenderer {
       case 'pbl-image': {
         const bitmap = p.bitmap;
         if (bitmap) {
+          // Horizontal alignment within bounding box
+          let imgX = x;
+          const imgAlign = str(p, 'align');
+          const boxW = num(p, 'w') || num(p, 'width');
+          if (imgAlign && boxW > 0) {
+            const bmp = bitmap as { width?: number };
+            const imgW = bmp.width ?? boxW;
+            if (imgAlign === 'center') {
+              imgX += Math.floor((boxW - imgW) / 2);
+            } else if (imgAlign === 'right') {
+              imgX += boxW - imgW;
+            }
+          }
+
           const rotation = num(p, 'rotation');
           const scale = num(p, 'scale');
           if (rotation || (scale && scale !== 1)) {
@@ -552,13 +573,13 @@ export class PocoRenderer {
               ) => void;
             };
             if (poco.drawBitmapWithTransform) {
-              poco.drawBitmapWithTransform(bmp, x, y, rotation, scale || 1);
+              poco.drawBitmapWithTransform(bmp, imgX, y, rotation, scale || 1);
             } else {
               // Fallback: draw without transform
-              this.poco.drawBitmap(bmp, x, y);
+              this.poco.drawBitmap(bmp, imgX, y);
             }
           } else {
-            this.poco.drawBitmap(bitmap as never, x, y);
+            this.poco.drawBitmap(bitmap as never, imgX, y);
           }
         }
         break;
@@ -655,7 +676,9 @@ export class PocoRenderer {
         }
         if (stroke) {
           const c = this.getColor(stroke);
-          for (let i = 0; i < pts.length; i++) {
+          const closed = p.closed !== false;
+          const segCount = closed ? pts.length : pts.length - 1;
+          for (let i = 0; i < segCount; i++) {
             const a = pts[i]!;
             const b = pts[(i + 1) % pts.length]!;
             this.drawDiagonalLine(c, a[0], a[1], b[0], b[1], sw);
@@ -790,6 +813,9 @@ export class PocoRenderer {
             },
             drawRoundRect: (rx: number, ry: number, rw: number, rh: number, color: string, radius: number) => {
               renderer.fillRoundRect(renderer.getColor(color), x + rx, y + ry, rw, rh, radius);
+            },
+            fillRadial: (color: string, cx: number, cy: number, innerR: number, outerR: number, startAngle: number, endAngle: number) => {
+              renderer.fillArc(renderer.getColor(color), x + cx, y + cy, outerR, innerR, startAngle, endAngle);
             },
             getTextWidth: (text: string, font: string) => {
               return renderer.poco.getTextWidth(text, renderer.getFont(font));

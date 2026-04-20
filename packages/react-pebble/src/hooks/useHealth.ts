@@ -19,8 +19,8 @@ export type HealthActivity = 'sleep' | 'restfulSleep' | 'walk' | 'run' | 'openWo
 export interface UseHealthResult {
   /** Current health metrics. */
   data: HealthData;
-  /** Averaged metrics (daily/weekly). Null when health service is unavailable. */
-  averaged: { daily: HealthData; weekly: HealthData } | null;
+  /** Averaged metrics (daily/weekly/min/max). Null when health service is unavailable. */
+  averaged: { daily: HealthData; weekly: HealthData; min: HealthData; max: HealthData } | null;
   /** Currently active health activities. */
   currentActivities: HealthActivity[];
 }
@@ -33,6 +33,17 @@ const MOCK_HEALTH: HealthData = {
   heartRate: 72,
   sleepSeconds: 25200,
 };
+
+function scaleHealth(base: HealthData, factor: number): HealthData {
+  return {
+    steps: Math.round(base.steps * factor),
+    distance: Math.round(base.distance * factor),
+    activeSeconds: Math.round(base.activeSeconds * factor),
+    calories: Math.round(base.calories * factor),
+    heartRate: base.heartRate != null ? Math.round(base.heartRate * factor) : null,
+    sleepSeconds: Math.round(base.sleepSeconds * factor),
+  };
+}
 
 /**
  * Read health/fitness data from the Pebble Health service.
@@ -47,6 +58,8 @@ export function useHealth(pollInterval = 60000): UseHealthResult {
   const [averaged, setAveraged] = useState<UseHealthResult['averaged']>({
     daily: MOCK_HEALTH,
     weekly: MOCK_HEALTH,
+    min: scaleHealth(MOCK_HEALTH, 0.5),
+    max: scaleHealth(MOCK_HEALTH, 1.5),
   });
   const [currentActivities, setCurrentActivities] = useState<HealthActivity[]>([]);
 
@@ -60,7 +73,7 @@ export function useHealth(pollInterval = 60000): UseHealthResult {
         calories?: number;
         heartRate?: number | null;
         sleepSeconds?: number;
-        getAveraged?: () => { daily: HealthData; weekly: HealthData } | null;
+        getAveraged?: () => { daily: HealthData; weekly: HealthData; min?: HealthData; max?: HealthData } | null;
         getCurrentActivities?: () => HealthActivity[];
       } | undefined;
 
@@ -77,9 +90,24 @@ export function useHealth(pollInterval = 60000): UseHealthResult {
 
         // Averaged metrics: use runtime method if available, otherwise mirror base.
         if (typeof health.getAveraged === 'function') {
-          setAveraged(health.getAveraged());
+          const avg = health.getAveraged();
+          if (avg) {
+            setAveraged({
+              daily: avg.daily,
+              weekly: avg.weekly,
+              min: avg.min ?? scaleHealth(base, 0.5),
+              max: avg.max ?? scaleHealth(base, 1.5),
+            });
+          } else {
+            setAveraged(null);
+          }
         } else {
-          setAveraged({ daily: base, weekly: base });
+          setAveraged({
+            daily: base,
+            weekly: base,
+            min: scaleHealth(base, 0.5),
+            max: scaleHealth(base, 1.5),
+          });
         }
 
         // Current activities: use runtime method if available, otherwise empty.

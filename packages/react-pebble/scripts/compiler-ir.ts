@@ -24,6 +24,7 @@ export interface IRElement {
   font?: string;        // internal font name, e.g. "gothic18Bold" (text)
   color?: string;       // hex color for text
   align?: string;       // text alignment: "left" | "center" | "right"
+  backgroundColor?: string; // hex color for text background
   radius?: number;      // circle radius
   borderRadius?: number;       // rect border radius (uniform)
   borderRadiusTL?: number;     // per-corner: top-left
@@ -39,10 +40,12 @@ export interface IRElement {
   stroke?: string;      // arc stroke color
   points?: Array<[number, number]>; // path polygon vertices (relative to x,y origin)
   rotation?: number;    // path rotation in degrees
+  closed?: boolean;     // path closed flag (default true)
   pivotX?: number;      // rotation pivot (image) — defaults to w/2
   pivotY?: number;      // rotation pivot (image) — defaults to h/2
   overflow?: string;    // text overflow mode: "wordWrap" | "trailingEllipsis" | "fill"
   isWrapping?: boolean; // textflow: multi-line wrapping text
+  paging?: boolean;     // textflow: page-at-a-time scrolling on round displays
   src?: string;         // image/svg source file path
   /** When set, this image references an animated-sequence resource. */
   animated?: 'apng' | 'pdcs';

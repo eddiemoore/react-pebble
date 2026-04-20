@@ -1225,10 +1225,12 @@ export function emitC(ir: CompilerIR): string {
         ? 'GTextOverflowModeTrailingEllipsis'
         : 'GTextOverflowModeWordWrap';
 
+    const bgColorExpr = el.backgroundColor ? colorToGColor(el.backgroundColor) : 'GColorClear';
+
     if (te.isDynamic && te.dynamicVar) {
       const dv = te.dynamicVar;
       lines.push(`  ${dv.varName} = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
-      lines.push(`  text_layer_set_background_color(${dv.varName}, GColorClear);`);
+      lines.push(`  text_layer_set_background_color(${dv.varName}, ${bgColorExpr});`);
       lines.push(`  text_layer_set_text_color(${dv.varName}, ${color});`);
       lines.push(`  text_layer_set_font(${dv.varName}, ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
@@ -1238,11 +1240,14 @@ export function emitC(ir: CompilerIR): string {
         lines.push(`  text_layer_set_overflow_mode(${dv.varName}, ${overflowMode});`);
       }
       lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(${dv.varName}));`);
+      if (el.paging && el.isWrapping) {
+        lines.push(`  text_layer_enable_screen_text_flow_and_paging(${dv.varName}, 8);`);
+      }
     } else if (hasConfig) {
       // Config mode: store in global array so prv_update_config can update colors/text
       const cfgIdx = _localTlIdx++;
       lines.push(`  s_cfg_tl[${cfgIdx}] = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
-      lines.push(`  text_layer_set_background_color(s_cfg_tl[${cfgIdx}], GColorClear);`);
+      lines.push(`  text_layer_set_background_color(s_cfg_tl[${cfgIdx}], ${bgColorExpr});`);
       lines.push(`  text_layer_set_text_color(s_cfg_tl[${cfgIdx}], ${color});`);
       lines.push(`  text_layer_set_font(s_cfg_tl[${cfgIdx}], ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
@@ -1253,10 +1258,13 @@ export function emitC(ir: CompilerIR): string {
       }
       lines.push(`  text_layer_set_text(s_cfg_tl[${cfgIdx}], "${text}");`);
       lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(s_cfg_tl[${cfgIdx}]));`);
+      if (el.paging && el.isWrapping) {
+        lines.push(`  text_layer_enable_screen_text_flow_and_paging(s_cfg_tl[${cfgIdx}], 8);`);
+      }
     } else {
       const localVar = `tl_${_localTlIdx++}`;
       lines.push(`  TextLayer *${localVar} = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
-      lines.push(`  text_layer_set_background_color(${localVar}, GColorClear);`);
+      lines.push(`  text_layer_set_background_color(${localVar}, ${bgColorExpr});`);
       lines.push(`  text_layer_set_text_color(${localVar}, ${color});`);
       lines.push(`  text_layer_set_font(${localVar}, ${fontExpr});`);
       if (align !== 'GTextAlignmentLeft') {
@@ -1267,6 +1275,9 @@ export function emitC(ir: CompilerIR): string {
       }
       lines.push(`  text_layer_set_text(${localVar}, "${text}");`);
       lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(${localVar}));`);
+      if (el.paging && el.isWrapping) {
+        lines.push(`  text_layer_enable_screen_text_flow_and_paging(${localVar}, 8);`);
+      }
     }
     lines.push('');
   }
@@ -1588,6 +1599,11 @@ function emitGraphicsDrawCall(
           lines.push(`${indent}gpath_rotate_to(s_path${pathIdx}, DEG_TO_TRIGANGLE(${el.rotation}));`);
         }
         lines.push(`${indent}gpath_draw_filled(ctx, s_path${pathIdx});`);
+        if (el.closed === false) {
+          const stroke = el.stroke ?? el.fill ?? '#ffffff';
+          lines.push(`${indent}graphics_context_set_stroke_color(ctx, ${colorToGColor(stroke)});`);
+          lines.push(`${indent}gpath_draw_outline_open(ctx, s_path${pathIdx});`);
+        }
       }
       break;
     }
@@ -1596,6 +1612,12 @@ function emitGraphicsDrawCall(
       const src = el.src ?? '';
       const resName = src.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toUpperCase();
       const lower = resName.toLowerCase();
+      // Image alignment: emit GAlign mapping as a comment for BitmapLayer usage
+      if (el.align === 'center') {
+        lines.push(`${indent}// bitmap_layer_set_alignment: GAlignCenter`);
+      } else if (el.align === 'right') {
+        lines.push(`${indent}// bitmap_layer_set_alignment: GAlignRight`);
+      }
       if (el.animated === 'apng') {
         // Native APNG playback — draws the current frame of the sequence.
         lines.push(`${indent}if (s_seqframe_${lower}) {`);

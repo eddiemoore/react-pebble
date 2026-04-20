@@ -20,6 +20,8 @@ export interface ImageProps extends PositionProps, SizeProps {
   pivotX?: number;
   /** Y pivot point for rotation (default: center of image). */
   pivotY?: number;
+  /** Horizontal alignment within the bounding box. */
+  align?: 'left' | 'center' | 'right';
 }
 
 export function Image(props: ImageProps) {

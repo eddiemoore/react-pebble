@@ -13,6 +13,8 @@ export interface TextFlowProps extends PositionProps, SizeProps {
   align?: Alignment;
   /** Enable flow around round display edges (default: true) */
   flowAroundDisplay?: boolean;
+  /** Enable page-at-a-time scrolling on round displays. */
+  paging?: boolean;
   children?: ReactNode;
 }
 

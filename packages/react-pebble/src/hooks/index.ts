@@ -269,3 +269,16 @@ export {
   useWorkerSender,
   type UseWorkerSenderResult,
 } from './useWorkerSender.js';
+export {
+  useWindowFocus,
+  type WindowFocusCallbacks,
+} from './useWindowFocus.js';
+export {
+  getTextContentSize,
+  type TextContentSize,
+} from './getTextContentSize.js';
+export {
+  usePropertyAnimation,
+  type UsePropertyAnimationOptions,
+  type UsePropertyAnimationResult,
+} from './usePropertyAnimation.js';

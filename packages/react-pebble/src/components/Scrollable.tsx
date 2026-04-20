@@ -11,6 +11,8 @@ export interface ScrollableProps extends PositionProps, SizeProps {
   showIndicators?: boolean;
   /** When true, scroll by viewport height instead of scrollStep. */
   paging?: boolean;
+  /** When true, scroll offset changes animate smoothly (~200ms lerp). */
+  animated?: boolean;
   children?: ReactNode;
 }
 
@@ -25,6 +27,7 @@ export function Scrollable({
   scrollStep = 20,
   showIndicators = true,
   paging = false,
+  animated = false,
   children,
 }: ScrollableProps) {
   const viewW = w ?? width ?? 200;
@@ -50,7 +53,7 @@ export function Scrollable({
     // Scrollable viewport with clip
     React.createElement(
       'pbl-scrollable',
-      { x: 0, y: 0, w: viewW, h: viewH, scrollOffset },
+      { x: 0, y: 0, w: viewW, h: viewH, scrollOffset, animated },
       children,
     ),
     // Scroll indicators
