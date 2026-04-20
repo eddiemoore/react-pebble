@@ -39,6 +39,7 @@ export interface IRElement {
   stroke?: string;      // arc stroke color
   points?: Array<[number, number]>; // path polygon vertices (relative to x,y origin)
   rotation?: number;    // path rotation in degrees
+  closed?: boolean;     // path closed flag (default true)
   pivotX?: number;      // rotation pivot (image) — defaults to w/2
   pivotY?: number;      // rotation pivot (image) — defaults to h/2
   overflow?: string;    // text overflow mode: "wordWrap" | "trailingEllipsis" | "fill"

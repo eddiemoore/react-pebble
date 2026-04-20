@@ -344,12 +344,14 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
         width: 0, height: 0, rotation,
       });
 
+      const closed = p.closed !== undefined ? Boolean(p.closed) : undefined;
       return {
         type: 'path',
         x: num(p, 'x'), y: num(p, 'y'), w: 0, h: 0,
         points: points.map(([px, py]) => [px, py] as [number, number]),
         rotation,
         fill: colorToHex(fill),
+        closed,
         elemIndex: elemIdx,
       };
     }

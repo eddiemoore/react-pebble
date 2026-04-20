@@ -1588,6 +1588,11 @@ function emitGraphicsDrawCall(
           lines.push(`${indent}gpath_rotate_to(s_path${pathIdx}, DEG_TO_TRIGANGLE(${el.rotation}));`);
         }
         lines.push(`${indent}gpath_draw_filled(ctx, s_path${pathIdx});`);
+        if (el.closed === false) {
+          const stroke = el.stroke ?? el.fill ?? '#ffffff';
+          lines.push(`${indent}graphics_context_set_stroke_color(ctx, ${colorToGColor(stroke)});`);
+          lines.push(`${indent}gpath_draw_outline_open(ctx, s_path${pathIdx});`);
+        }
       }
       break;
     }

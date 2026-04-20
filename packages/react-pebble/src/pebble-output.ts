@@ -655,7 +655,9 @@ export class PocoRenderer {
         }
         if (stroke) {
           const c = this.getColor(stroke);
-          for (let i = 0; i < pts.length; i++) {
+          const closed = p.closed !== false;
+          const segCount = closed ? pts.length : pts.length - 1;
+          for (let i = 0; i < segCount; i++) {
             const a = pts[i]!;
             const b = pts[(i + 1) % pts.length]!;
             this.drawDiagonalLine(c, a[0], a[1], b[0], b[1], sw);
