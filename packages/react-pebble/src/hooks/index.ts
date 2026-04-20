@@ -269,3 +269,7 @@ export {
   useWorkerSender,
   type UseWorkerSenderResult,
 } from './useWorkerSender.js';
+export {
+  useWindowFocus,
+  type WindowFocusCallbacks,
+} from './useWindowFocus.js';
