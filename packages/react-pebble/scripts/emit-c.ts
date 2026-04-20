@@ -1612,6 +1612,12 @@ function emitGraphicsDrawCall(
       const src = el.src ?? '';
       const resName = src.replace(/^.*\//, '').replace(/\.[^.]+$/, '').toUpperCase();
       const lower = resName.toLowerCase();
+      // Image alignment: emit GAlign mapping as a comment for BitmapLayer usage
+      if (el.align === 'center') {
+        lines.push(`${indent}// bitmap_layer_set_alignment: GAlignCenter`);
+      } else if (el.align === 'right') {
+        lines.push(`${indent}// bitmap_layer_set_alignment: GAlignRight`);
+      }
       if (el.animated === 'apng') {
         // Native APNG playback — draws the current frame of the sequence.
         lines.push(`${indent}if (s_seqframe_${lower}) {`);

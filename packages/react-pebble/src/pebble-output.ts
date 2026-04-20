@@ -547,6 +547,19 @@ export class PocoRenderer {
       case 'pbl-image': {
         const bitmap = p.bitmap;
         if (bitmap) {
+          // Horizontal alignment within bounding box
+          const imgAlign = str(p, 'align');
+          const boxW = num(p, 'w') || num(p, 'width');
+          if (imgAlign && boxW > 0) {
+            const bmp = bitmap as { width?: number };
+            const imgW = bmp.width ?? boxW;
+            if (imgAlign === 'center') {
+              x += Math.floor((boxW - imgW) / 2);
+            } else if (imgAlign === 'right') {
+              x += boxW - imgW;
+            }
+          }
+
           const rotation = num(p, 'rotation');
           const scale = num(p, 'scale');
           if (rotation || (scale && scale !== 1)) {

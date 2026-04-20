@@ -431,10 +431,12 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       const animated = str(p, 'animated');
       const animLoop = p.animLoop;
       const animFps = num(p, 'animFps');
+      const imgAlign = str(p, 'align');
       return {
         type: 'image' as const,
         x, y, w, h,
         src,
+        align: imgAlign || undefined,
         elemIndex: elemIdx,
         ...(animated === 'apng' || animated === 'pdcs' ? {
           animated: animated as 'apng' | 'pdcs',
