@@ -800,6 +800,9 @@ export class PocoRenderer {
             drawRoundRect: (rx: number, ry: number, rw: number, rh: number, color: string, radius: number) => {
               renderer.fillRoundRect(renderer.getColor(color), x + rx, y + ry, rw, rh, radius);
             },
+            fillRadial: (color: string, cx: number, cy: number, innerR: number, outerR: number, startAngle: number, endAngle: number) => {
+              renderer.fillArc(renderer.getColor(color), x + cx, y + cy, outerR, innerR, startAngle, endAngle);
+            },
             getTextWidth: (text: string, font: string) => {
               return renderer.poco.getTextWidth(text, renderer.getFont(font));
             },

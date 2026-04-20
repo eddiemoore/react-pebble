@@ -12,6 +12,8 @@ export interface CanvasDrawContext {
   drawCircle: (color: string, cx: number, cy: number, radius: number) => void;
   /** Draw a rounded rectangle. */
   drawRoundRect: (x: number, y: number, w: number, h: number, color: string, radius: number) => void;
+  /** Fill a radial (donut/ring) segment. Angles in degrees, 0° = north, clockwise. */
+  fillRadial: (color: string, cx: number, cy: number, innerR: number, outerR: number, startAngle: number, endAngle: number) => void;
   /** Measure the width of text in a given font. */
   getTextWidth: (text: string, font: string) => number;
   /** Canvas width in pixels. */
