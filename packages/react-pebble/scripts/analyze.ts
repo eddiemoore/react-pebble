@@ -402,6 +402,7 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       const labelIdx = ctx.labelIdx++;
       ctx.labelTexts.set(labelIdx, text);
 
+      const paging = p.paging === true ? true : undefined;
       return {
         type: 'text' as const,
         x: num(p, 'x'), y: num(p, 'y'), w, h,
@@ -411,6 +412,7 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
         align,
         labelIndex: labelIdx,
         isWrapping: true,
+        paging,
       };
     }
 

@@ -45,6 +45,7 @@ export interface IRElement {
   pivotY?: number;      // rotation pivot (image) — defaults to h/2
   overflow?: string;    // text overflow mode: "wordWrap" | "trailingEllipsis" | "fill"
   isWrapping?: boolean; // textflow: multi-line wrapping text
+  paging?: boolean;     // textflow: page-at-a-time scrolling on round displays
   src?: string;         // image/svg source file path
   /** When set, this image references an animated-sequence resource. */
   animated?: 'apng' | 'pdcs';

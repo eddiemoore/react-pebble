@@ -1240,6 +1240,9 @@ export function emitC(ir: CompilerIR): string {
         lines.push(`  text_layer_set_overflow_mode(${dv.varName}, ${overflowMode});`);
       }
       lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(${dv.varName}));`);
+      if (el.paging && el.isWrapping) {
+        lines.push(`  text_layer_enable_screen_text_flow_and_paging(${dv.varName}, 8);`);
+      }
     } else if (hasConfig) {
       // Config mode: store in global array so prv_update_config can update colors/text
       const cfgIdx = _localTlIdx++;
@@ -1255,6 +1258,9 @@ export function emitC(ir: CompilerIR): string {
       }
       lines.push(`  text_layer_set_text(s_cfg_tl[${cfgIdx}], "${text}");`);
       lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(s_cfg_tl[${cfgIdx}]));`);
+      if (el.paging && el.isWrapping) {
+        lines.push(`  text_layer_enable_screen_text_flow_and_paging(s_cfg_tl[${cfgIdx}], 8);`);
+      }
     } else {
       const localVar = `tl_${_localTlIdx++}`;
       lines.push(`  TextLayer *${localVar} = text_layer_create(GRect(${ax}, ${ay}, ${w}, ${h}));`);
@@ -1269,6 +1275,9 @@ export function emitC(ir: CompilerIR): string {
       }
       lines.push(`  text_layer_set_text(${localVar}, "${text}");`);
       lines.push(`  layer_add_child(${parentVar}, text_layer_get_layer(${localVar}));`);
+      if (el.paging && el.isWrapping) {
+        lines.push(`  text_layer_enable_screen_text_flow_and_paging(${localVar}, 8);`);
+      }
     }
     lines.push('');
   }
