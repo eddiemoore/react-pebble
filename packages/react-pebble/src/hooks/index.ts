@@ -273,3 +273,7 @@ export {
   useWindowFocus,
   type WindowFocusCallbacks,
 } from './useWindowFocus.js';
+export {
+  getTextContentSize,
+  type TextContentSize,
+} from './getTextContentSize.js';
