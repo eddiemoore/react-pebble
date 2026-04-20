@@ -277,3 +277,8 @@ export {
   getTextContentSize,
   type TextContentSize,
 } from './getTextContentSize.js';
+export {
+  usePropertyAnimation,
+  type UsePropertyAnimationOptions,
+  type UsePropertyAnimationResult,
+} from './usePropertyAnimation.js';
