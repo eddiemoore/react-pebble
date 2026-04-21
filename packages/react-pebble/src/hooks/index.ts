@@ -259,6 +259,11 @@ export {
   type SmartstrapResult,
 } from './useSmartstrap.js';
 export {
+  useSniffInterval,
+  type SniffInterval,
+  type UseSniffIntervalResult,
+} from './useSniffInterval.js';
+export {
   useWorkerLaunch,
   type UseWorkerLaunchResult,
   type WorkerMessage,

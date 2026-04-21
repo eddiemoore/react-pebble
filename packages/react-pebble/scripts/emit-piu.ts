@@ -387,6 +387,7 @@ function emitIRNode(
       }
       if (el.pivotX != null) extraProps.push(`anchor: { x: ${el.pivotX}, y: ${el.pivotY ?? (el.h / 2)} }`);
       else if (el.pivotY != null) extraProps.push(`anchor: { x: ${el.w / 2}, y: ${el.pivotY} }`);
+      if (el.cornerClipColor) extraProps.push(`cornerClipColor: "${el.cornerClipColor}"`);
       const extraStr = extraProps.length > 0 ? `, ${extraProps.join(', ')}` : '';
 
       return `${indent}new Content(null, { ${sizeProps}, skin: ${skinVar}${nameProp}${extraStr} })`;

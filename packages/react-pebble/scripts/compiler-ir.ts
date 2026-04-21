@@ -43,6 +43,7 @@ export interface IRElement {
   closed?: boolean;     // path closed flag (default true)
   pivotX?: number;      // rotation pivot (image) — defaults to w/2
   pivotY?: number;      // rotation pivot (image) — defaults to h/2
+  cornerClipColor?: string; // fill color for corners outside a rotated image
   overflow?: string;    // text overflow mode: "wordWrap" | "trailingEllipsis" | "fill"
   isWrapping?: boolean; // textflow: multi-line wrapping text
   paging?: boolean;     // textflow: page-at-a-time scrolling on round displays

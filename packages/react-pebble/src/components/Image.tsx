@@ -22,6 +22,8 @@ export interface ImageProps extends PositionProps, SizeProps {
   pivotY?: number;
   /** Horizontal alignment within the bounding box. */
   align?: 'left' | 'center' | 'right';
+  /** Fill color for corners outside a rotated image (RotBitmapLayer). */
+  cornerClipColor?: string;
 }
 
 export function Image(props: ImageProps) {

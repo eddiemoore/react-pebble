@@ -2,6 +2,13 @@ import { React, type ReactNode } from './internal/preact-compat.js';
 import { useState, useButton } from '../hooks/index.js';
 import type { PositionProps, SizeProps } from './internal/shared-types.js';
 
+export interface ScrollIndicatorColors {
+  /** Color of the "more content above" indicator (default: 'white'). */
+  up?: string;
+  /** Color of the "more content below" indicator (default: 'white'). */
+  down?: string;
+}
+
 export interface ScrollableProps extends PositionProps, SizeProps {
   /** Total content height (scrollable area). */
   contentHeight: number;
@@ -13,7 +20,36 @@ export interface ScrollableProps extends PositionProps, SizeProps {
   paging?: boolean;
   /** When true, scroll offset changes animate smoothly (~200ms lerp). */
   animated?: boolean;
+  /** Indicator style: 'bar' (default) or 'arrow'. */
+  indicatorStyle?: 'bar' | 'arrow';
+  /** Indicator colors for up/down directions. */
+  indicatorColors?: ScrollIndicatorColors;
   children?: ReactNode;
+}
+
+function BarIndicator({ x, w, h, color, direction }: {
+  x: number; y: number; w: number; h: number; color: string; direction: 'up' | 'down';
+}) {
+  const iy = direction === 'up' ? 1 : h - 4;
+  return React.createElement('pbl-rect', { x: x + w / 2 - 10, y: iy, w: 20, h: 3, fill: color });
+}
+
+function ArrowIndicator({ x, w, h, color, direction }: {
+  x: number; y: number; w: number; h: number; color: string; direction: 'up' | 'down';
+}) {
+  const cx = x + Math.floor(w / 2);
+  if (direction === 'up') {
+    // Upward-pointing chevron: two short lines meeting at a point
+    return React.createElement('pbl-group', { x: 0, y: 0 },
+      React.createElement('pbl-line', { x1: cx - 6, y1: 6, x2: cx, y2: 2, stroke: color }),
+      React.createElement('pbl-line', { x1: cx, y1: 2, x2: cx + 6, y2: 6, stroke: color }),
+    );
+  }
+  // Downward-pointing chevron
+  return React.createElement('pbl-group', { x: 0, y: 0 },
+    React.createElement('pbl-line', { x1: cx - 6, y1: h - 6, x2: cx, y2: h - 2, stroke: color }),
+    React.createElement('pbl-line', { x1: cx, y1: h - 2, x2: cx + 6, y2: h - 6, stroke: color }),
+  );
 }
 
 export function Scrollable({
@@ -28,6 +64,8 @@ export function Scrollable({
   showIndicators = true,
   paging = false,
   animated = false,
+  indicatorStyle = 'bar',
+  indicatorColors,
   children,
 }: ScrollableProps) {
   const viewW = w ?? width ?? 200;
@@ -46,6 +84,10 @@ export function Scrollable({
 
   const canScrollUp = scrollOffset > 0;
   const canScrollDown = scrollOffset < maxOffset;
+  const upColor = indicatorColors?.up ?? 'white';
+  const downColor = indicatorColors?.down ?? 'white';
+
+  const Indicator = indicatorStyle === 'arrow' ? ArrowIndicator : BarIndicator;
 
   return React.createElement(
     'pbl-group',
@@ -58,10 +100,10 @@ export function Scrollable({
     ),
     // Scroll indicators
     showIndicators && canScrollUp
-      ? React.createElement('pbl-rect', { x: viewW / 2 - 10, y: 1, w: 20, h: 3, fill: 'white' })
+      ? React.createElement(Indicator, { x: 0, y: 0, w: viewW, h: viewH, color: upColor, direction: 'up' as const })
       : null,
     showIndicators && canScrollDown
-      ? React.createElement('pbl-rect', { x: viewW / 2 - 10, y: viewH - 4, w: 20, h: 3, fill: 'white' })
+      ? React.createElement(Indicator, { x: 0, y: 0, w: viewW, h: viewH, color: downColor, direction: 'down' as const })
       : null,
   );
 }

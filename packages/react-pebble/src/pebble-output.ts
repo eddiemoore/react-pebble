@@ -790,15 +790,24 @@ export class PocoRenderer {
           this.poco.clip(x, y, canvasW, canvasH);
 
           const renderer = this;
+          let ctxStrokeWidth = 1;
           const ctx = {
             fillRect: (color: string, rx: number, ry: number, rw: number, rh: number) => {
               renderer.poco.fillRectangle(renderer.getColor(color), x + rx, y + ry, rw, rh);
+            },
+            strokeRect: (color: string, rx: number, ry: number, rw: number, rh: number) => {
+              const c = renderer.getColor(color);
+              const sw = ctxStrokeWidth;
+              renderer.poco.fillRectangle(c, x + rx, y + ry, rw, sw);                  // top
+              renderer.poco.fillRectangle(c, x + rx, y + ry + rh - sw, rw, sw);         // bottom
+              renderer.poco.fillRectangle(c, x + rx, y + ry + sw, sw, rh - 2 * sw);     // left
+              renderer.poco.fillRectangle(c, x + rx + rw - sw, y + ry + sw, sw, rh - 2 * sw); // right
             },
             drawText: (text: string, font: string, color: string, tx: number, ty: number) => {
               renderer.poco.drawText(text, renderer.getFont(font), renderer.getColor(color), x + tx, y + ty);
             },
             drawLine: (color: string, x1: number, y1: number, x2: number, y2: number, thickness?: number) => {
-              const sw = thickness ?? 1;
+              const sw = thickness ?? ctxStrokeWidth;
               const c = renderer.getColor(color);
               if (y1 === y2) {
                 renderer.poco.fillRectangle(c, x + Math.min(x1, x2), y + y1, Math.abs(x2 - x1) || 1, sw);
@@ -811,11 +820,40 @@ export class PocoRenderer {
             drawCircle: (color: string, cx: number, cy: number, radius: number) => {
               renderer.fillCircle(renderer.getColor(color), x + cx, y + cy, radius);
             },
+            strokeCircle: (color: string, cx: number, cy: number, radius: number) => {
+              renderer.strokeCircle(renderer.getColor(color), x + cx, y + cy, radius, ctxStrokeWidth);
+            },
             drawRoundRect: (rx: number, ry: number, rw: number, rh: number, color: string, radius: number) => {
               renderer.fillRoundRect(renderer.getColor(color), x + rx, y + ry, rw, rh, radius);
             },
             fillRadial: (color: string, cx: number, cy: number, innerR: number, outerR: number, startAngle: number, endAngle: number) => {
               renderer.fillArc(renderer.getColor(color), x + cx, y + cy, outerR, innerR, startAngle, endAngle);
+            },
+            drawPixel: (color: string, px: number, py: number) => {
+              renderer.poco.fillRectangle(renderer.getColor(color), x + px, y + py, 1, 1);
+            },
+            drawArc: (color: string, cx: number, cy: number, radius: number, startAngle: number, endAngle: number) => {
+              renderer.strokeArc(renderer.getColor(color), x + cx, y + cy, radius, startAngle, endAngle, ctxStrokeWidth);
+            },
+            setStrokeWidth: (width: number) => {
+              ctxStrokeWidth = width | 1; // ensure odd (Pebble SDK requirement)
+            },
+            setAntialiased: (_enabled: boolean) => {
+              // Poco renderer doesn't have an AA toggle — ignored in mock mode.
+              // On real hardware, maps to graphics_context_set_antialiased().
+            },
+            drawPath: (points: Array<{ x: number; y: number }>, color: string, closed = true) => {
+              const c = renderer.getColor(color);
+              const segCount = closed ? points.length : points.length - 1;
+              for (let i = 0; i < segCount; i++) {
+                const a = points[i]!;
+                const b = points[(i + 1) % points.length]!;
+                renderer.drawDiagonalLine(c, x + a.x, y + a.y, x + b.x, y + b.y, ctxStrokeWidth);
+              }
+            },
+            fillPath: (points: Array<{ x: number; y: number }>, color: string) => {
+              const pts: Array<[number, number]> = points.map((pt) => [x + pt.x, y + pt.y]);
+              renderer.fillPolygon(renderer.getColor(color), pts);
             },
             getTextWidth: (text: string, font: string) => {
               return renderer.poco.getTextWidth(text, renderer.getFont(font));

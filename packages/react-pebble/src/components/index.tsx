@@ -40,7 +40,7 @@ export { Canvas, type CanvasProps, type CanvasDrawContext } from './Canvas.js';
 export { Group, type GroupProps } from './Group.js';
 
 // Flow layout containers
-export { Column, type ColumnProps } from './Column.js';
+export { Column, type ColumnProps, type EdgeInsets } from './Column.js';
 export { Row, type RowProps } from './Row.js';
 
 // Bars
@@ -51,7 +51,7 @@ export { ActionBar, type ActionBarProps } from './ActionBar.js';
 export { Card, type CardProps } from './Card.js';
 export { Badge, type BadgeProps } from './Badge.js';
 export { Path, type PathProps } from './Path.js';
-export { Scrollable, type ScrollableProps } from './Scrollable.js';
+export { Scrollable, type ScrollableProps, type ScrollIndicatorColors } from './Scrollable.js';
 export {
   MenuLayer,
   type MenuItem,

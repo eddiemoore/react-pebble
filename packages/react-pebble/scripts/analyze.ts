@@ -432,12 +432,20 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
       const animLoop = p.animLoop;
       const animFps = num(p, 'animFps');
       const imgAlign = str(p, 'align');
+      const rotation = num(p, 'rotation');
+      const pivotX = num(p, 'pivotX');
+      const pivotY = num(p, 'pivotY');
+      const cornerClipColor = str(p, 'cornerClipColor');
       return {
         type: 'image' as const,
         x, y, w, h,
         src,
         align: imgAlign || undefined,
         elemIndex: elemIdx,
+        ...(rotation ? { rotation } : {}),
+        ...(pivotX ? { pivotX } : {}),
+        ...(pivotY ? { pivotY } : {}),
+        ...(cornerClipColor ? { cornerClipColor: colorToHex(cornerClipColor) } : {}),
         ...(animated === 'apng' || animated === 'pdcs' ? {
           animated: animated as 'apng' | 'pdcs',
           animLoop: animLoop !== false,

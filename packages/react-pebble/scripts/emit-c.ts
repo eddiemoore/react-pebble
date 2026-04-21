@@ -1645,6 +1645,10 @@ function emitGraphicsDrawCall(
         const pivotY = typeof el.pivotY === 'number' ? el.pivotY : Math.floor(el.h / 2);
         const centerX = ax + Math.floor(el.w / 2);
         const centerY = ay + Math.floor(el.h / 2);
+        if (el.cornerClipColor) {
+          lines.push(`${indent}  // corner clip color for rotated bitmap`);
+          lines.push(`${indent}  graphics_context_set_compositing_mode(ctx, GCompOpSet);`);
+        }
         lines.push(`${indent}  // rotated bitmap: ${rotation}° around (${pivotX},${pivotY}) in source`);
         lines.push(`${indent}  graphics_draw_rotated_bitmap(ctx, ${varName}, GPoint(${pivotX}, ${pivotY}), DEG_TO_TRIGANGLE(${rotation}), GPoint(${centerX}, ${centerY}));`);
       } else {
