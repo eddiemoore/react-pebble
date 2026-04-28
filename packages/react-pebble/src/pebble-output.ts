@@ -163,6 +163,21 @@ export function nearestColorName(color: RGB): string {
   return bestName;
 }
 
+/**
+ * Return a legible text color ('white' or 'black') for a given background.
+ * Matches the Pebble C SDK's `gcolor_legible_over()`.
+ */
+export function legibleOver(backgroundColor: string): 'white' | 'black' {
+  let rgb: RGB;
+  if (backgroundColor.startsWith('#')) {
+    rgb = colorFromHex(backgroundColor);
+  } else {
+    rgb = COLOR_PALETTE[backgroundColor] ?? { r: 0, g: 0, b: 0 };
+  }
+  const luminance = 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
+  return luminance < 128 ? 'white' : 'black';
+}
+
 // ---------------------------------------------------------------------------
 // Named font shortcuts — mapped to (family, size) pairs.
 //
@@ -745,6 +760,8 @@ export class PocoRenderer {
       case 'pbl-svg': {
         // SVG / PDC vector image. On real Poco, uses drawDCI with transforms.
         // In mock mode, render a placeholder rectangle with the resource name.
+        if (p.hidden) break; // hidden SVG — skip rendering entirely
+
         const src = str(p, 'src') ?? '';
         const w = num(p, 'w') || num(p, 'width') || 40;
         const h = num(p, 'h') || num(p, 'height') || 40;
@@ -757,16 +774,19 @@ export class PocoRenderer {
 
         if (poco.drawDCI && p._pdcData) {
           // Clone and transform the PDC data before drawing
-          let pdc = p._pdcData as { clone?: () => unknown; rotate?: (a: number, px: number, py: number) => void; scale?: (f: number) => void };
-          if ((rotation || scale !== 1) && pdc.clone) {
+          let pdc = p._pdcData as { clone?: () => unknown; rotate?: (a: number, px: number, py: number) => void; scale?: (f: number) => void; setFillColor?: (c: unknown) => void; setStrokeColor?: (c: unknown) => void };
+          if ((rotation || scale !== 1 || p.fillOverride || p.strokeOverride) && pdc.clone) {
             pdc = pdc.clone() as typeof pdc;
             if (scale !== 1 && pdc.scale) pdc.scale(scale);
             if (rotation && pdc.rotate) pdc.rotate(rotation, w / 2, h / 2);
+            if (p.fillOverride && pdc.setFillColor) pdc.setFillColor(this.getColor(str(p, 'fillOverride')));
+            if (p.strokeOverride && pdc.setStrokeColor) pdc.setStrokeColor(this.getColor(str(p, 'strokeOverride')));
           }
           poco.drawDCI(pdc, x, y);
         } else {
-          // Mock mode: draw a placeholder
-          const placeholderColor = this.getColor(str(p, 'color') ?? 'lightGray');
+          // Mock mode: draw a placeholder using override colors if set
+          const fillColor = str(p, 'fillOverride') ?? str(p, 'color') ?? 'lightGray';
+          const placeholderColor = this.getColor(fillColor);
           this.poco.fillRectangle(placeholderColor, x, y, w, h);
           if (src) {
             const label = src.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
@@ -857,6 +877,30 @@ export class PocoRenderer {
             },
             getTextWidth: (text: string, font: string) => {
               return renderer.poco.getTextWidth(text, renderer.getFont(font));
+            },
+            getImageData: (ix: number, iy: number, iw: number, ih: number) => {
+              // In mock mode, return a zeroed buffer. On real hardware,
+              // this maps to graphics_capture_frame_buffer() pixel reads.
+              return { width: iw, height: ih, data: new Uint8Array(iw * ih * 4) };
+            },
+            putImageData: (data: { width: number; height: number; data: Uint8Array }, dx: number, dy: number) => {
+              // In mock mode, render each pixel. On real hardware,
+              // writes directly to the captured framebuffer.
+              for (let py = 0; py < data.height; py++) {
+                for (let px = 0; px < data.width; px++) {
+                  const i = (py * data.width + px) * 4;
+                  const r = data.data[i]!;
+                  const g = data.data[i + 1]!;
+                  const b = data.data[i + 2]!;
+                  const a = data.data[i + 3]!;
+                  if (a > 0) {
+                    renderer.poco.fillRectangle(
+                      renderer.poco.makeColor(r, g, b),
+                      x + dx + px, y + dy + py, 1, 1,
+                    );
+                  }
+                }
+              }
             },
             width: canvasW,
             height: canvasH,

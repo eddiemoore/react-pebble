@@ -36,7 +36,7 @@ export { Text, type TextProps, type TextOverflow } from './Text.js';
 export { Line, type LineProps } from './Line.js';
 export { Image, type ImageProps } from './Image.js';
 export { SVGImage, type SVGImageProps } from './SVGImage.js';
-export { Canvas, type CanvasProps, type CanvasDrawContext } from './Canvas.js';
+export { Canvas, type CanvasProps, type CanvasDrawContext, type CanvasImageData } from './Canvas.js';
 export { Group, type GroupProps } from './Group.js';
 
 // Flow layout containers

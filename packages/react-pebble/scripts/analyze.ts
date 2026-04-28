@@ -477,6 +477,9 @@ function collectTree(node: AnyNode, ctx: CollectContext): IRElement | null {
         svgTranslateX: num(p, 'translateX'),
         svgTranslateY: num(p, 'translateY'),
         svgColor: str(p, 'color'),
+        svgFillOverride: str(p, 'fillOverride') || undefined,
+        svgStrokeOverride: str(p, 'strokeOverride') || undefined,
+        svgHidden: p.hidden === true ? true : undefined,
         elemIndex: elemIdx,
       };
     }

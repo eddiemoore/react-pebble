@@ -60,6 +60,9 @@ export interface IRElement {
   svgTranslateX?: number; // svg horizontal translation
   svgTranslateY?: number; // svg vertical translation
   svgColor?: string;    // svg tint color
+  svgFillOverride?: string;   // runtime fill color override for PDC commands
+  svgStrokeOverride?: string; // runtime stroke color override for PDC commands
+  svgHidden?: boolean;        // hide the SVG image
   texture?: string;     // rect texture resource path
   variant?: number;     // rect texture variant index
   borders?: { left: number; right: number; top: number; bottom: number }; // nine-patch borders

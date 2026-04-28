@@ -32,10 +32,22 @@ export interface CanvasDrawContext {
   fillPath: (points: Array<{ x: number; y: number }>, color: string) => void;
   /** Measure the width of text in a given font. */
   getTextWidth: (text: string, font: string) => number;
+  /** Read pixel data from the canvas (RGBA, 4 bytes per pixel). */
+  getImageData: (x: number, y: number, w: number, h: number) => CanvasImageData;
+  /** Write pixel data to the canvas. */
+  putImageData: (data: CanvasImageData, x: number, y: number) => void;
   /** Canvas width in pixels. */
   width: number;
   /** Canvas height in pixels. */
   height: number;
+}
+
+/** Pixel data buffer for getImageData/putImageData. */
+export interface CanvasImageData {
+  width: number;
+  height: number;
+  /** RGBA pixel data, 4 bytes per pixel. */
+  data: Uint8Array;
 }
 
 export interface CanvasProps extends PositionProps, SizeProps {

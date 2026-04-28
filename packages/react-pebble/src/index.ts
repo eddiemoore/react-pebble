@@ -110,6 +110,7 @@ export type {
   SVGImageProps,
   CanvasProps,
   CanvasDrawContext,
+  CanvasImageData,
   BorderInsets,
 } from './components/index.js';
 
@@ -166,6 +167,7 @@ export {
   useRawResource,
   useSmartstrap,
   useSniffInterval,
+  useTimezone,
   useQuietTime,
   useAppFocus,
   useContentSize,
@@ -269,6 +271,7 @@ export type {
   SmartstrapResult,
   SniffInterval,
   UseSniffIntervalResult,
+  TimezoneInfo,
   AppFocusOptions,
   AppFocusResult,
   ContentSize,
@@ -336,6 +339,7 @@ export {
   colorFromHex,
   colorDistance,
   nearestColorName,
+  legibleOver,
   registerFont,
   lookupFontSpec,
   getTextWidth,
@@ -345,6 +349,24 @@ export type {
   FontSpec,
   RenderOptions as PocoRenderOptions,
 } from './pebble-output.js';
+
+// Bitmap utilities
+export { createBitmapFromPNG } from './bitmap.js';
+export type { PebbleBitmap } from './bitmap.js';
+
+// Geometry utilities
+export {
+  rectContainsPoint,
+  rectCenter,
+  rectCrop,
+  rectInset,
+  rectAlign,
+} from './geometry.js';
+export type {
+  GPoint,
+  GRect,
+  GAlignment,
+} from './geometry.js';
 
 // Configuration page builder
 export {

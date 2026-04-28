@@ -22,6 +22,12 @@ export interface SVGImageProps extends PositionProps, SizeProps {
   translateY?: number;
   /** Tint color for monochrome PDC images. */
   color?: ColorName;
+  /** Override all fill colors in the PDC commands at runtime. */
+  fillOverride?: ColorName;
+  /** Override all stroke colors in the PDC commands at runtime. */
+  strokeOverride?: ColorName;
+  /** Hide the SVG image (render nothing). */
+  hidden?: boolean;
 }
 
 /**

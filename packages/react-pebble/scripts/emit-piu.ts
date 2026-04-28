@@ -410,10 +410,15 @@ function emitIRNode(
       if (el.svgTranslateY) svgOpts.push(`ty: ${el.svgTranslateY}`);
       if (el.w) svgOpts.push(`width: ${el.w}`);
       if (el.h) svgOpts.push(`height: ${el.h}`);
+      if (el.svgFillOverride) svgOpts.push(`fillOverride: "${el.svgFillOverride}"`);
+      if (el.svgStrokeOverride) svgOpts.push(`strokeOverride: "${el.svgStrokeOverride}"`);
 
       const optsStr = svgOpts.length > 0 ? `, { ${svgOpts.join(', ')} }` : '';
       ctx.declarations.push(`import ${resourceName}_pdc from "./${resourceName}-image";`);
 
+      if (el.svgHidden) {
+        return `${indent}/* SVGImage hidden: ${resourceName} */`;
+      }
       return `${indent}new SVGImage(${resourceName}_pdc${optsStr}, { ${sizeProps}${nameProp} })`;
     }
 

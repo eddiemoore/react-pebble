@@ -264,6 +264,10 @@ export {
   type UseSniffIntervalResult,
 } from './useSniffInterval.js';
 export {
+  useTimezone,
+  type TimezoneInfo,
+} from './useTimezone.js';
+export {
   useWorkerLaunch,
   type UseWorkerLaunchResult,
   type WorkerMessage,
