@@ -1011,6 +1011,14 @@ export function emitC(ir: CompilerIR): string {
     lines.push('  }');
     lines.push('}');
     lines.push('');
+    lines.push('static void inbox_dropped(AppMessageResult reason, void *ctx) {');
+    lines.push('  APP_LOG(APP_LOG_LEVEL_WARNING, "Message dropped: %d", (int)reason);');
+    lines.push('}');
+    lines.push('');
+    lines.push('static void outbox_failed(DictionaryIterator *iter, AppMessageResult reason, void *ctx) {');
+    lines.push('  APP_LOG(APP_LOG_LEVEL_WARNING, "Outbox send failed: %d", (int)reason);');
+    lines.push('}');
+    lines.push('');
   }
 
   // =========================================================================
@@ -1433,6 +1441,8 @@ export function emitC(ir: CompilerIR): string {
   }
   if (ir.messageInfo) {
     lines.push('  app_message_register_inbox_received(inbox_received);');
+    lines.push('  app_message_register_inbox_dropped(inbox_dropped);');
+    lines.push('  app_message_register_outbox_failed(outbox_failed);');
     const inArg = Number.isFinite(ir.appMessageSizes?.inboxSize)
       ? String(ir.appMessageSizes!.inboxSize)
       : 'app_message_inbox_size_maximum()';

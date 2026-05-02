@@ -19,6 +19,7 @@ class AppBehavior extends Behavior {
     const c = app.first;
     this.s0 = null;
     this.s1 = true;
+    this.s2 = null;
     this._ls = [];
     const _g0 = c.content("lg0");
     this._ls.push([_g0.content("ls0_0"), _g0.content("ls0_1")]);
