@@ -85,5 +85,12 @@ export {
 // Platform
 export { PlatformSwitch, type PlatformSwitchProps } from './PlatformSwitch.js';
 
+// Content indicators
+export {
+  ContentIndicator,
+  type ContentIndicatorProps,
+  type ContentIndicatorColors,
+} from './ContentIndicator.js';
+
 // Animation
 export { AnimatedImage, type AnimatedImageProps } from './AnimatedImage.js';

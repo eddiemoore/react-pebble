@@ -18,6 +18,7 @@ import type { DOMElement } from './pebble-dom.js';
 import { PocoRenderer } from './pebble-output.js';
 import type { PebbleButton, PebbleButtonHandler } from './hooks/index.js';
 import { ButtonRegistry } from './hooks/index.js';
+import { TouchRegistry, type TouchEventType } from './hooks/internal/touch-registry.js';
 import type { PebbleContainer } from './pebble-reconciler.js';
 import {
   createContainer,
@@ -212,6 +213,38 @@ function wireWatchButtons(): () => void {
 }
 
 // ---------------------------------------------------------------------------
+// Touch wiring — see moddable.d.ts for touch event names.
+// ---------------------------------------------------------------------------
+
+function wireWatchTouch(): () => void {
+  if (typeof watch === 'undefined' || !watch) return () => undefined;
+
+  const normalizeType = (raw: unknown): TouchEventType | undefined => {
+    if (typeof raw !== 'string') return undefined;
+    const low = raw.toLowerCase();
+    if (low === 'touchdown' || low === 'touch_down') return 'touchdown';
+    if (low === 'position' || low === 'positionupdate' || low === 'position_update') return 'position';
+    if (low === 'liftoff' || low === 'lift_off') return 'liftoff';
+    return undefined;
+  };
+
+  const onTouch = (payload?: { type?: unknown; x?: unknown; y?: unknown }) => {
+    const t = normalizeType(payload?.type);
+    if (!t) return;
+    const x = typeof payload?.x === 'number' ? payload.x : 0;
+    const y = typeof payload?.y === 'number' ? payload.y : 0;
+    TouchRegistry.emit({ type: t, x, y });
+  };
+
+  watch.addEventListener('touch', onTouch);
+
+  return () => {
+    if (typeof watch === 'undefined' || !watch) return;
+    watch.removeEventListener('touch', onTouch);
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Redraw scheduling
 //
 // Preact renders are synchronous; when any component calls setState, Preact
@@ -288,6 +321,7 @@ export function render(element: ComponentChild, options: RenderOptionsExt = {}):
 
   // Subscribe to watch events on-device.
   const unwireButtons = wireWatchButtons();
+  const unwireTouch = wireWatchTouch();
 
   return {
     update(newElement) {
@@ -300,6 +334,7 @@ export function render(element: ComponentChild, options: RenderOptionsExt = {}):
       opts._commit = prevCommit;
       opts.__c = prevCommit;
       unwireButtons();
+      unwireTouch();
     },
     setExitReason(reason) {
       if (typeof globalThis !== 'undefined' && (globalThis as Record<string, unknown>).AppExit) {

@@ -1,5 +1,5 @@
 import { React } from './internal/preact-compat.js';
-import type { PositionProps, SizeProps } from './internal/shared-types.js';
+import type { CompositeOp, PositionProps, SizeProps } from './internal/shared-types.js';
 
 export interface CanvasDrawContext {
   /** Fill a rectangle. */
@@ -26,6 +26,8 @@ export interface CanvasDrawContext {
   setStrokeWidth: (width: number) => void;
   /** Enable or disable anti-aliasing for subsequent operations (default: true). */
   setAntialiased: (enabled: boolean) => void;
+  /** Set the compositing mode for subsequent bitmap/drawing operations. */
+  setCompositingMode: (mode: CompositeOp) => void;
   /** Draw a path outline from an array of points. */
   drawPath: (points: Array<{ x: number; y: number }>, color: string, closed?: boolean) => void;
   /** Fill a polygon from an array of points. */

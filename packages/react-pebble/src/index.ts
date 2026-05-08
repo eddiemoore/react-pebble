@@ -67,6 +67,7 @@ export {
   AnimatedImage,
   SVGImage,
   Canvas,
+  ContentIndicator,
 } from './components/index.js';
 export type {
   WindowProps,
@@ -112,6 +113,8 @@ export type {
   CanvasDrawContext,
   CanvasImageData,
   BorderInsets,
+  ContentIndicatorProps,
+  ContentIndicatorColors,
 } from './components/index.js';
 
 // Hooks
@@ -191,6 +194,9 @@ export {
   useWorkerLaunch,
   useWorkerMessage,
   useWorkerSender,
+  useSpeaker,
+  useTouch,
+  TouchRegistry,
   Easing,
   lerp,
   polarPoint,
@@ -305,6 +311,17 @@ export type {
   WorkerResult,
   UseWorkerLaunchResult,
   UseWorkerSenderResult,
+  MidiNote,
+  PCMFormat,
+  SpeakerStatus,
+  SpeakerTrack,
+  UseSpeakerResult,
+  Waveform,
+  TouchEvent,
+  TouchEventType,
+  TouchHandler,
+  UseTouchOptions,
+  UseTouchResult,
 } from './hooks/index.js';
 
 // Low-level access (for advanced usage / custom renderers / tests)
@@ -361,11 +378,13 @@ export {
   rectCrop,
   rectInset,
   rectAlign,
+  rectCenteredFromPolar,
 } from './geometry.js';
 export type {
   GPoint,
   GRect,
   GAlignment,
+  GOvalScaleMode,
 } from './geometry.js';
 
 // Configuration page builder

@@ -291,3 +291,23 @@ export {
   type UsePropertyAnimationOptions,
   type UsePropertyAnimationResult,
 } from './usePropertyAnimation.js';
+export {
+  useSpeaker,
+  type MidiNote,
+  type PCMFormat,
+  type SpeakerStatus,
+  type SpeakerTrack,
+  type UseSpeakerResult,
+  type Waveform,
+} from './useSpeaker.js';
+export {
+  useTouch,
+  type TouchEvent,
+  type TouchEventType,
+  type UseTouchOptions,
+  type UseTouchResult,
+} from './useTouch.js';
+export {
+  TouchRegistry,
+  type TouchHandler,
+} from './internal/touch-registry.js';

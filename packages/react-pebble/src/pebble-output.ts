@@ -862,6 +862,10 @@ export class PocoRenderer {
               // Poco renderer doesn't have an AA toggle — ignored in mock mode.
               // On real hardware, maps to graphics_context_set_antialiased().
             },
+            setCompositingMode: (_mode: string) => {
+              // Poco renderer doesn't support compositing modes in mock mode.
+              // On real hardware, maps to graphics_context_set_compositing_mode().
+            },
             drawPath: (points: Array<{ x: number; y: number }>, color: string, closed = true) => {
               const c = renderer.getColor(color);
               const segCount = closed ? points.length : points.length - 1;

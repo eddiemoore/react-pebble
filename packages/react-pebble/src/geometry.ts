@@ -3,8 +3,10 @@
  *
  * Mirrors the Pebble C SDK's GRect/GPoint helpers:
  *   grect_contains_point, grect_center_point, grect_crop,
- *   grect_inset, grect_align.
+ *   grect_inset, grect_align, grect_centered_from_polar.
  */
+
+import { degreesToRadians } from './hooks/internal/math.js';
 
 export interface GPoint {
   x: number;
@@ -98,4 +100,46 @@ export function rectAlign(inner: GRect, outer: GRect, alignment: GAlignment): GR
   }
 
   return { x, y, w: inner.w, h: inner.h };
+}
+
+/**
+ * Oval scale mode for polar calculations.
+ * - `'fill'`: use the larger axis (max of width/2, height/2) as radius.
+ * - `'fit'`: use the smaller axis (min of width/2, height/2) as radius.
+ */
+export type GOvalScaleMode = 'fill' | 'fit';
+
+/**
+ * Position a rectangle of `size` on the perimeter of the ellipse inscribed
+ * in `rect`, at the given angle.
+ *
+ * Mirrors `grect_centered_from_polar()` from the Pebble C SDK.
+ * Useful for placing hour markers, complications, or labels around a dial.
+ *
+ * Angle is in degrees, 0° = 12 o'clock (north), clockwise.
+ */
+export function rectCenteredFromPolar(
+  rect: GRect,
+  scaleMode: GOvalScaleMode,
+  angleDeg: number,
+  size: { w: number; h: number },
+): GRect {
+  const cx = rect.x + Math.floor(rect.w / 2);
+  const cy = rect.y + Math.floor(rect.h / 2);
+
+  const rx = rect.w / 2;
+  const ry = rect.h / 2;
+  const radius = scaleMode === 'fill' ? Math.max(rx, ry) : Math.min(rx, ry);
+
+  // 0° = north (12 o'clock), clockwise — same convention as polarPoint()
+  const rad = degreesToRadians(angleDeg - 90);
+  const px = Math.round(cx + radius * Math.cos(rad));
+  const py = Math.round(cy + radius * Math.sin(rad));
+
+  return {
+    x: px - Math.floor(size.w / 2),
+    y: py - Math.floor(size.h / 2),
+    w: size.w,
+    h: size.h,
+  };
 }

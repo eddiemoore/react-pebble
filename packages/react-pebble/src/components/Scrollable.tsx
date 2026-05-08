@@ -1,13 +1,9 @@
 import { React, type ReactNode } from './internal/preact-compat.js';
 import { useState, useButton } from '../hooks/index.js';
 import type { PositionProps, SizeProps } from './internal/shared-types.js';
+import { BarIndicator, ArrowIndicator, type ContentIndicatorColors } from './ContentIndicator.js';
 
-export interface ScrollIndicatorColors {
-  /** Color of the "more content above" indicator (default: 'white'). */
-  up?: string;
-  /** Color of the "more content below" indicator (default: 'white'). */
-  down?: string;
-}
+export type ScrollIndicatorColors = ContentIndicatorColors;
 
 export interface ScrollableProps extends PositionProps, SizeProps {
   /** Total content height (scrollable area). */
@@ -25,31 +21,6 @@ export interface ScrollableProps extends PositionProps, SizeProps {
   /** Indicator colors for up/down directions. */
   indicatorColors?: ScrollIndicatorColors;
   children?: ReactNode;
-}
-
-function BarIndicator({ x, w, h, color, direction }: {
-  x: number; y: number; w: number; h: number; color: string; direction: 'up' | 'down';
-}) {
-  const iy = direction === 'up' ? 1 : h - 4;
-  return React.createElement('pbl-rect', { x: x + w / 2 - 10, y: iy, w: 20, h: 3, fill: color });
-}
-
-function ArrowIndicator({ x, w, h, color, direction }: {
-  x: number; y: number; w: number; h: number; color: string; direction: 'up' | 'down';
-}) {
-  const cx = x + Math.floor(w / 2);
-  if (direction === 'up') {
-    // Upward-pointing chevron: two short lines meeting at a point
-    return React.createElement('pbl-group', { x: 0, y: 0 },
-      React.createElement('pbl-line', { x1: cx - 6, y1: 6, x2: cx, y2: 2, stroke: color }),
-      React.createElement('pbl-line', { x1: cx, y1: 2, x2: cx + 6, y2: 6, stroke: color }),
-    );
-  }
-  // Downward-pointing chevron
-  return React.createElement('pbl-group', { x: 0, y: 0 },
-    React.createElement('pbl-line', { x1: cx - 6, y1: h - 6, x2: cx, y2: h - 2, stroke: color }),
-    React.createElement('pbl-line', { x1: cx, y1: h - 2, x2: cx + 6, y2: h - 6, stroke: color }),
-  );
 }
 
 export function Scrollable({
