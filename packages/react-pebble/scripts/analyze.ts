@@ -19,7 +19,53 @@ import type {
   CompilerIR, IRElement, IRStateSlot, IRButtonAction,
   IRStateDep, IRSkinDep, IRBranch, IRConditionalChild,
   IRListInfo, IRAnimatedElement, IRTimeReactiveGraphic, IRMessageInfo, IRConfigInfo, TimeFormat, TimeGranularity,
+  HookUsage,
 } from './compiler-ir.js';
+
+/**
+ * Walk a parsed entry SourceFile and return every call site of a binding
+ * imported from `react-pebble` or `react-pebble/hooks`. See
+ * docs/adr/0003-hook-detection-in-analyzer.md for semantics.
+ */
+export const DEFAULT_HOOK_MODULE_SPECIFIERS: readonly string[] = [
+  'react-pebble',
+  'react-pebble/hooks',
+];
+
+export function detectHookUsages(
+  sf: ts.SourceFile,
+  specifiers: readonly string[] = DEFAULT_HOOK_MODULE_SPECIFIERS,
+): HookUsage[] {
+  const allowed = new Set(specifiers);
+  const localToCanonical = new Map<string, string>();
+  sf.forEachChild((node) => {
+    if (!ts.isImportDeclaration(node)) return;
+    const spec = node.moduleSpecifier;
+    if (!ts.isStringLiteral(spec)) return;
+    if (!allowed.has(spec.text)) return;
+    const named = node.importClause?.namedBindings;
+    if (!named || !ts.isNamedImports(named)) return;
+    for (const element of named.elements) {
+      const canonical = (element.propertyName ?? element.name).text;
+      const local = element.name.text;
+      localToCanonical.set(local, canonical);
+    }
+  });
+
+  const usages: HookUsage[] = [];
+  function visit(node: ts.Node): void {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      const canonical = localToCanonical.get(node.expression.text);
+      if (canonical !== undefined) {
+        const { line, character } = sf.getLineAndCharacterOfPosition(node.expression.getStart(sf));
+        usages.push({ name: canonical, line: line + 1, col: character + 1 });
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(sf);
+  return usages;
+}
 
 function detectGranularity(
   timeDeps: Map<number, TimeFormat>,
@@ -1194,6 +1240,13 @@ export interface AnalyzeOptions {
   entryPath: string;
   platform: string;
   settleMs: number;
+  /**
+   * Module specifiers treated as the react-pebble hooks module by
+   * detectHookUsages. Defaults to the canonical strings; the in-repo
+   * orchestrator extends this so internal examples that import from
+   * relative paths (`../src/hooks/index.js`) are recognised too.
+   */
+  hookModuleSpecifiers?: readonly string[];
 }
 
 export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
@@ -2061,5 +2114,11 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
     hasAnimatedElements,
     hasImages: ctxFinal.imageResources.length > 0,
     imageResources: ctxFinal.imageResources,
+    hooksUsed: (() => {
+      const sf = parseExampleSource(entryPath);
+      return sf
+        ? detectHookUsages(sf, options.hookModuleSpecifiers ?? DEFAULT_HOOK_MODULE_SPECIFIERS)
+        : [];
+    })(),
   };
 }

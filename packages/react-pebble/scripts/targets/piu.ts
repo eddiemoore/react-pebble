@@ -13,15 +13,15 @@ import { needsPKJS, buildPKJS } from './pkjs.js';
 export const piuTarget: Target = {
   name: 'alloy',
 
-  validate(_ir: CompilerIR, _hooksUsed: string[]): Diagnostic[] {
+  validate(_ir: CompilerIR): Diagnostic[] {
     return [];
   },
 
   emit(ir: CompilerIR, ctx: TargetContext): TargetResult {
     const code = emitPiu(ir, ctx.appName);
     const result: TargetResult = { code, diagnostics: [] };
-    if (needsPKJS(ir, ctx.hooksUsed)) {
-      result.pkjsCode = buildPKJS({ ir, hooksUsed: ctx.hooksUsed, target: 'alloy' });
+    if (needsPKJS(ir)) {
+      result.pkjsCode = buildPKJS({ ir, target: 'alloy' });
     }
     return result;
   },

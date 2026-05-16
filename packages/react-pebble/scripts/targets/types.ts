@@ -17,8 +17,6 @@ export type TargetName = 'alloy' | 'rocky' | 'c';
 export interface TargetContext {
   /** App / window class name (used by piu for window class identifier). */
   appName: string;
-  /** react-pebble hook names referenced in the entry source. */
-  hooksUsed: string[];
 }
 
 export interface Diagnostic {
@@ -43,7 +41,7 @@ export interface Target {
    * orchestrator can fail fast without running the full code generator.
    * Rocky uses this to block hooks that require hardware Rocky.js can't expose.
    */
-  validate(ir: CompilerIR, hooksUsed: string[]): Diagnostic[];
+  validate(ir: CompilerIR): Diagnostic[];
   /** Emit watch-side code (and optional PKJS sub-output) from the IR. */
   emit(ir: CompilerIR, ctx: TargetContext): TargetResult;
 }

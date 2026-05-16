@@ -13,8 +13,7 @@
 
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
-import { analyze } from './analyze.js';
+import { analyze, DEFAULT_HOOK_MODULE_SPECIFIERS } from './analyze.js';
 import { getTarget } from './targets/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -42,7 +41,16 @@ if (exampleInput.includes('/') || exampleInput.includes('\\')) {
 // Analyze
 // ---------------------------------------------------------------------------
 
-const ir = await analyze({ entryPath, platform, settleMs });
+// In-repo examples import hooks via relative paths rather than the published
+// `react-pebble` specifier. Extend the detector's accepted specifier list so
+// the Analyzer recognises both forms.
+const hookModuleSpecifiers = [
+  ...DEFAULT_HOOK_MODULE_SPECIFIERS,
+  '../src/hooks/index.js',
+  '../src/index.js',
+];
+
+const ir = await analyze({ entryPath, platform, settleMs, hookModuleSpecifiers });
 
 // AppMessage buffer-size override (C target only; no-op otherwise).
 const inboxEnv = process.env.APPMSG_INBOX_SIZE;
@@ -67,23 +75,11 @@ if (ir.configInfo && ir.configInfo.keys.length > 0) {
   process.stderr.write('configKeys=' + JSON.stringify(exported) + '\n');
 }
 
-// Scan the entry source for hook names that imply Pebble app capabilities.
-// This lets the plugin auto-set `pebble.capabilities` in package.json.
-let hooksUsedList: string[] = [];
-try {
-  const entrySrc = readFileSync(entryPath, 'utf-8');
-  const hookRe = /\b(use\w+)\b/g;
-  const hooksUsed = new Set<string>();
-  let m: RegExpExecArray | null;
-  while ((m = hookRe.exec(entrySrc)) !== null) {
-    hooksUsed.add(m[1]!);
-  }
-  hooksUsedList = [...hooksUsed];
-  if (hooksUsed.size > 0) {
-    process.stderr.write('hooksUsed=' + JSON.stringify(hooksUsedList) + '\n');
-  }
-} catch {
-  // entry unreadable — skip
+// Project CompilerIR.hooksUsed (HookUsage[]) down to a name list for the
+// plugin's capability-inference + legacy public CompileResult shape.
+const hooksUsedList: string[] = [...new Set(ir.hooksUsed.map((u) => u.name))];
+if (hooksUsedList.length > 0) {
+  process.stderr.write('hooksUsed=' + JSON.stringify(hooksUsedList) + '\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +88,7 @@ try {
 
 const target = getTarget(targetName);
 
-const validationDiagnostics = target.validate(ir, hooksUsedList);
+const validationDiagnostics = target.validate(ir);
 const errors = validationDiagnostics.filter((d) => d.severity === 'error');
 if (errors.length > 0) {
   for (const d of errors) {
@@ -101,7 +97,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-const result = target.emit(ir, { appName: exampleName, hooksUsed: hooksUsedList });
+const result = target.emit(ir, { appName: exampleName });
 
 process.stdout.write(result.code);
 

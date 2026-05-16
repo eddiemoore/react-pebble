@@ -232,6 +232,20 @@ export interface IRConfigInfo {
 // Top-level IR
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// HookUsage — declared call site of a react-pebble hook in the entry source.
+// See docs/adr/0003-hook-detection-in-analyzer.md.
+// ---------------------------------------------------------------------------
+
+export interface HookUsage {
+  /** Canonical react-pebble hook name (the imported symbol, not the local alias). */
+  name: string;
+  /** 1-indexed source line of the call site. */
+  line: number;
+  /** 1-indexed source column of the call site. */
+  col: number;
+}
+
 export interface CompilerIR {
   /** Target platform info */
   platform: {
@@ -301,6 +315,16 @@ export interface CompilerIR {
 
   /** Image resource paths found in the tree */
   imageResources: string[];
+
+  /**
+   * Every call site of a react-pebble hook in the entry source. Produced
+   * by the Analyzer's AST scan, not by perturbation. Consumed by
+   * Target.validate (e.g. Rocky's blocked-hook gate), PKJS need-detection,
+   * and plugin capability inference.
+   *
+   * See docs/adr/0003-hook-detection-in-analyzer.md.
+   */
+  hooksUsed: HookUsage[];
 
   /**
    * Optional AppMessage inbox/outbox sizes. When omitted, C emitter uses the

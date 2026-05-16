@@ -30,11 +30,11 @@ const PKJS_REQUIRING_HOOKS = new Set([
   'useTimelineSubscriptions',
 ]);
 
-/** Does this IR + hook-usage combination require a PKJS sub-output? */
-export function needsPKJS(ir: CompilerIR, hooksUsed: string[]): boolean {
+/** Does this IR require a PKJS sub-output? */
+export function needsPKJS(ir: CompilerIR): boolean {
   if (ir.messageInfo) return true;
   if (ir.configInfo) return true;
-  return hooksUsed.some((h) => PKJS_REQUIRING_HOOKS.has(h));
+  return ir.hooksUsed.some((u) => PKJS_REQUIRING_HOOKS.has(u.name));
 }
 
 /**
@@ -45,11 +45,11 @@ export function needsPKJS(ir: CompilerIR, hooksUsed: string[]): boolean {
  */
 export function buildPKJS(args: {
   ir: CompilerIR;
-  hooksUsed: string[];
   target: TargetName;
 }): string {
-  const { ir, hooksUsed, target } = args;
+  const { ir, target } = args;
   const configUrl = ir.configInfo?.url ? renderConfigDataUri(ir) : undefined;
+  const hooksUsed = [...new Set(ir.hooksUsed.map((u) => u.name))];
   return emitPKJS({ ir, configUrl, hooksUsed, target });
 }
 

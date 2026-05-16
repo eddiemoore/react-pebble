@@ -32,26 +32,26 @@ const ROCKY_BLOCKED_HOOKS: Record<string, string> = {
 export const rockyTarget: Target = {
   name: 'rocky',
 
-  validate(_ir: CompilerIR, hooksUsed: string[]): Diagnostic[] {
+  validate(ir: CompilerIR): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
-    for (const hook of hooksUsed) {
-      const reason = ROCKY_BLOCKED_HOOKS[hook];
+    for (const usage of ir.hooksUsed) {
+      const reason = ROCKY_BLOCKED_HOOKS[usage.name];
       if (reason) {
         diagnostics.push({
           severity: 'error',
-          hookName: hook,
-          message: `${hook} is not supported on the Rocky.js target (no ${reason}).`,
+          hookName: usage.name,
+          message: `${usage.name} is not supported on the Rocky.js target (no ${reason}).`,
         });
       }
     }
     return diagnostics;
   },
 
-  emit(ir: CompilerIR, ctx: TargetContext): TargetResult {
+  emit(ir: CompilerIR, _ctx: TargetContext): TargetResult {
     const code = emitRocky(ir);
     const result: TargetResult = { code, diagnostics: [] };
-    if (needsPKJS(ir, ctx.hooksUsed)) {
-      result.pkjsCode = buildPKJS({ ir, hooksUsed: ctx.hooksUsed, target: 'rocky' });
+    if (needsPKJS(ir)) {
+      result.pkjsCode = buildPKJS({ ir, target: 'rocky' });
     }
     return result;
   },
