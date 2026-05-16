@@ -7,6 +7,7 @@ static Window *s_window;
 
 static int s0 = 0;
 static bool s1 = true;
+static int s2 = 0;
 
 static TextLayer *s_ls[6];
 static char s_ls_buf[6][32];
@@ -23,6 +24,14 @@ static void inbox_received(DictionaryIterator *iter, void *ctx) {
     // TODO: parse _msg_buf JSON and populate data
     refresh();
   }
+}
+
+static void inbox_dropped(AppMessageResult reason, void *ctx) {
+  APP_LOG(APP_LOG_LEVEL_WARNING, "Message dropped: %d", (int)reason);
+}
+
+static void outbox_failed(DictionaryIterator *iter, AppMessageResult reason, void *ctx) {
+  APP_LOG(APP_LOG_LEVEL_WARNING, "Outbox send failed: %d", (int)reason);
 }
 
 static void window_load(Window *window) {
@@ -76,6 +85,8 @@ static void init(void) {
     .unload = window_unload,
   });
   app_message_register_inbox_received(inbox_received);
+  app_message_register_inbox_dropped(inbox_dropped);
+  app_message_register_outbox_failed(outbox_failed);
   app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
   window_stack_push(s_window, true);
 }

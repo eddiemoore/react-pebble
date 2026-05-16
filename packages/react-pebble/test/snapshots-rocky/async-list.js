@@ -6,6 +6,7 @@ var rocky = require('rocky');
 
 var s0 = null;
 var s1 = true;
+var s2 = null;
 
 var _data = [];
 
