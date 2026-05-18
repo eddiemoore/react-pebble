@@ -7,7 +7,6 @@
 
 import ts from 'typescript';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { render } from '../src/index.js';
 import type { DOMElement, AnyNode } from '../src/pebble-dom.js';
 import { getTextContent } from '../src/pebble-dom.js';
@@ -23,49 +22,13 @@ import type {
 } from './compiler-ir.js';
 
 /**
- * Walk a parsed entry SourceFile and return every call site of a binding
- * imported from `react-pebble` or `react-pebble/hooks`. See
- * docs/adr/0003-hook-detection-in-analyzer.md for semantics.
+ * Hook detection: see `scripts/analyzer/passes/hooks.ts`. Re-exported here so
+ * existing callers (snapshot tests, compile-to-piu) keep working unchanged.
+ * See docs/adr/0003-hook-detection-in-analyzer.md for semantics.
  */
-export const DEFAULT_HOOK_MODULE_SPECIFIERS: readonly string[] = [
-  'react-pebble',
-  'react-pebble/hooks',
-];
-
-export function detectHookUsages(
-  sf: ts.SourceFile,
-  specifiers: readonly string[] = DEFAULT_HOOK_MODULE_SPECIFIERS,
-): HookUsage[] {
-  const allowed = new Set(specifiers);
-  const localToCanonical = new Map<string, string>();
-  sf.forEachChild((node) => {
-    if (!ts.isImportDeclaration(node)) return;
-    const spec = node.moduleSpecifier;
-    if (!ts.isStringLiteral(spec)) return;
-    if (!allowed.has(spec.text)) return;
-    const named = node.importClause?.namedBindings;
-    if (!named || !ts.isNamedImports(named)) return;
-    for (const element of named.elements) {
-      const canonical = (element.propertyName ?? element.name).text;
-      const local = element.name.text;
-      localToCanonical.set(local, canonical);
-    }
-  });
-
-  const usages: HookUsage[] = [];
-  function visit(node: ts.Node): void {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      const canonical = localToCanonical.get(node.expression.text);
-      if (canonical !== undefined) {
-        const { line, character } = sf.getLineAndCharacterOfPosition(node.expression.getStart(sf));
-        usages.push({ name: canonical, line: line + 1, col: character + 1 });
-      }
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(sf);
-  return usages;
-}
+import { detectHookUsages } from './analyzer/passes/hooks.js';
+import { HOOK_MODULE_SPECIFIERS as DEFAULT_HOOK_MODULE_SPECIFIERS } from './analyzer/passes/types.js';
+export { detectHookUsages, DEFAULT_HOOK_MODULE_SPECIFIERS };
 
 function detectGranularity(
   timeDeps: Map<number, TimeFormat>,
@@ -131,34 +94,6 @@ function pad2(n: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// AST helpers
-// ---------------------------------------------------------------------------
-
-function parseExampleSource(exName: string): ts.SourceFile | null {
-  if (exName.startsWith('/')) {
-    try {
-      const source = readFileSync(exName, 'utf-8');
-      return ts.createSourceFile(exName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    } catch { /* fall through */ }
-  }
-  for (const ext of ['.tsx', '.ts', '.jsx', '']) {
-    const srcPath = exName.startsWith('/')
-      ? `${exName}${ext}`
-      : resolve('examples', `${exName}${ext}`);
-    try {
-      const source = readFileSync(srcPath, 'utf-8');
-      return ts.createSourceFile(srcPath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    } catch { continue; }
-  }
-  return null;
-}
-
-function walkAST(node: ts.Node, visitor: (node: ts.Node) => void): void {
-  visitor(node);
-  ts.forEachChild(node, child => walkAST(child, visitor));
-}
-
-// ---------------------------------------------------------------------------
 // useState interception
 // ---------------------------------------------------------------------------
 
@@ -169,10 +104,8 @@ interface StateSlot {
   currentValue: unknown;
 }
 
-interface ButtonBinding {
-  button: string;
-  handlerSource: string;
-}
+import type { ButtonBinding } from './analyzer/passes/buttons.js';
+import { parseEntry, scanEntry } from './analyzer/index.js';
 
 interface HandlerAction {
   type: 'increment' | 'decrement' | 'reset' | 'toggle' | 'set_string';
@@ -586,60 +519,6 @@ function inferTimeFormat(textAtT1: string, t1: Date): TimeFormat | null {
 // Button handler analysis
 // ---------------------------------------------------------------------------
 
-function extractButtonBindingsFromSource(
-  exName: string,
-  buttonBindings: ButtonBinding[],
-): void {
-  const sf = parseExampleSource(exName);
-  if (!sf) return;
-
-  walkAST(sf, (node) => {
-    if (!ts.isCallExpression(node)) return;
-    if (!ts.isIdentifier(node.expression) || node.expression.text !== 'useButton') return;
-    if (node.arguments.length < 2) return;
-    const firstArg = node.arguments[0]!;
-    if (!ts.isStringLiteral(firstArg)) return;
-    const button = firstArg.text;
-    const handlerNode = node.arguments[1]!;
-    const handlerSource = handlerNode.getText(sf);
-    if (!buttonBindings.some((b) => b.button === button)) {
-      buttonBindings.push({ button, handlerSource });
-    }
-  });
-}
-
-function buildSetterInfo(exName: string): { name: string; initValue: unknown }[] {
-  const result: { name: string; initValue: unknown }[] = [];
-  const sf = parseExampleSource(exName);
-  if (!sf) return result;
-
-  walkAST(sf, (node) => {
-    if (!ts.isVariableDeclaration(node)) return;
-    if (!node.initializer || !ts.isCallExpression(node.initializer)) return;
-    const callee = node.initializer.expression;
-    if (!ts.isIdentifier(callee) || callee.text !== 'useState') return;
-    if (!ts.isArrayBindingPattern(node.name)) return;
-    const elements = node.name.elements;
-    if (elements.length < 2) return;
-    const setterElement = elements[1]!;
-    if (ts.isOmittedExpression(setterElement)) return;
-    const setterName = setterElement.name;
-    if (!ts.isIdentifier(setterName)) return;
-
-    let initValue: unknown = undefined;
-    const arg = node.initializer.arguments[0];
-    if (arg) {
-      if (ts.isNumericLiteral(arg)) initValue = Number(arg.text);
-      else if (ts.isStringLiteral(arg)) initValue = arg.text;
-      else if (arg.kind === ts.SyntaxKind.TrueKeyword) initValue = true;
-      else if (arg.kind === ts.SyntaxKind.FalseKeyword) initValue = false;
-    }
-
-    result.push({ name: setterName.text, initValue });
-  });
-
-  return result;
-}
 
 function analyzeButtonHandler(
   source: string,
@@ -743,451 +622,6 @@ function analyzeSetterCall(
 }
 
 // ---------------------------------------------------------------------------
-// List detection
-// ---------------------------------------------------------------------------
-
-interface ListInfoRaw {
-  dataArrayName: string;
-  dataArrayValues: string[] | null;
-  dataArrayObjects: Record<string, string>[] | null;
-  propertyOrder: string[] | null;
-  visibleCount: number;
-  scrollSetterName: string | null;
-  labelsPerItem: number;
-}
-
-function detectListPatterns(exName: string): ListInfoRaw | null {
-  const sf = parseExampleSource(exName);
-  if (!sf) return null;
-
-  let mapCallFound = false;
-  let dataArrayName: string | null = null;
-  let visibleCount = 3;
-  let scrollSetterName: string | null = null;
-  let labelsPerItem = 1;
-  let dataArrayValues: string[] | null = null;
-  let dataArrayObjects: Record<string, string>[] | null = null;
-
-  const arrayLiterals = new Map<string, string[]>();
-  const objectArrayLiterals = new Map<string, Record<string, string>[]>();
-  walkAST(sf, (node) => {
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.initializer &&
-      ts.isArrayLiteralExpression(node.initializer)
-    ) {
-      const strValues: string[] = [];
-      let allStrings = true;
-      for (const el of node.initializer.elements) {
-        if (ts.isStringLiteral(el)) strValues.push(el.text);
-        else { allStrings = false; break; }
-      }
-      if (allStrings && strValues.length > 0) {
-        arrayLiterals.set(node.name.text, strValues);
-        return;
-      }
-
-      const objValues: Record<string, string>[] = [];
-      let allObjects = true;
-      for (const el of node.initializer.elements) {
-        if (ts.isObjectLiteralExpression(el)) {
-          const obj: Record<string, string> = {};
-          for (const prop of el.properties) {
-            if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name) && ts.isStringLiteral(prop.initializer)) {
-              obj[prop.name.text] = prop.initializer.text;
-            }
-          }
-          if (Object.keys(obj).length > 0) objValues.push(obj);
-          else { allObjects = false; break; }
-        } else {
-          allObjects = false;
-          break;
-        }
-      }
-      if (allObjects && objValues.length > 0) {
-        objectArrayLiterals.set(node.name.text, objValues);
-      }
-    }
-  });
-
-  // Collect numeric constants (const FOO = 3, const BAR = Math.floor(...), etc.)
-  const numericConsts = new Map<string, number>();
-  function tryEvalNumeric(expr: any): number | undefined {
-    if (ts.isNumericLiteral(expr)) return Number(expr.text);
-    if (ts.isIdentifier(expr)) return numericConsts.get(expr.text);
-    if (ts.isParenthesizedExpression(expr)) return tryEvalNumeric(expr.expression);
-    if (ts.isBinaryExpression(expr)) {
-      const l = tryEvalNumeric(expr.left);
-      const r = tryEvalNumeric(expr.right);
-      if (l !== undefined && r !== undefined) {
-        switch (expr.operatorToken.kind) {
-          case ts.SyntaxKind.PlusToken: return l + r;
-          case ts.SyntaxKind.MinusToken: return l - r;
-          case ts.SyntaxKind.AsteriskToken: return l * r;
-          case ts.SyntaxKind.SlashToken: return r !== 0 ? l / r : undefined;
-          case ts.SyntaxKind.PercentToken: return r !== 0 ? l % r : undefined;
-        }
-      }
-    }
-    if (ts.isCallExpression(expr) && ts.isPropertyAccessExpression(expr.expression)) {
-      const obj = expr.expression.expression;
-      const method = expr.expression.name.text;
-      if (ts.isIdentifier(obj) && obj.text === 'Math' && expr.arguments.length >= 1) {
-        const args = expr.arguments.map(a => tryEvalNumeric(a));
-        if (args.every(a => a !== undefined)) {
-          const nums = args as number[];
-          switch (method) {
-            case 'floor': return Math.floor(nums[0]!);
-            case 'ceil': return Math.ceil(nums[0]!);
-            case 'round': return Math.round(nums[0]!);
-            case 'min': return Math.min(...nums);
-            case 'max': return Math.max(...nums);
-            case 'abs': return Math.abs(nums[0]!);
-          }
-        }
-      }
-    }
-    // Property access on arrays: ITEMS.length
-    if (ts.isPropertyAccessExpression(expr) && expr.name.text === 'length' && ts.isIdentifier(expr.expression)) {
-      const arr = arrayLiterals.get(expr.expression.text);
-      if (arr) return arr.length;
-      const objArr = objectArrayLiterals.get(expr.expression.text);
-      if (objArr) return objArr.length;
-    }
-    return undefined;
-  }
-  // Two-pass: first collect simple literals, then resolve computed expressions
-  walkAST(sf, (node) => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
-      const val = tryEvalNumeric(node.initializer);
-      if (val !== undefined) numericConsts.set(node.name.text, val);
-    }
-  });
-  // Second pass to resolve forward references
-  walkAST(sf, (node) => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
-      if (!numericConsts.has(node.name.text)) {
-        const val = tryEvalNumeric(node.initializer);
-        if (val !== undefined) numericConsts.set(node.name.text, val);
-      }
-    }
-  });
-
-  walkAST(sf, (node) => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === 'map'
-    ) {
-      mapCallFound = true;
-      const obj = node.expression.expression;
-      if (ts.isIdentifier(obj) && !dataArrayName) {
-        dataArrayName = obj.text;
-        dataArrayValues = arrayLiterals.get(obj.text) ?? null;
-        dataArrayObjects = objectArrayLiterals.get(obj.text) ?? null;
-      }
-      if (node.arguments.length > 0) {
-        let textCount = 0;
-        walkAST(node.arguments[0]!, (n) => {
-          if (ts.isJsxSelfClosingElement(n) && ts.isIdentifier(n.tagName) && n.tagName.text === 'Text') textCount++;
-          if (ts.isJsxElement(n) && ts.isIdentifier(n.openingElement.tagName) && n.openingElement.tagName.text === 'Text') textCount++;
-        });
-        if (textCount > 0) labelsPerItem = textCount;
-      }
-    }
-
-    if (
-      ts.isVariableDeclaration(node) &&
-      node.initializer &&
-      ts.isCallExpression(node.initializer) &&
-      ts.isPropertyAccessExpression(node.initializer.expression) &&
-      node.initializer.expression.name.text === 'slice'
-    ) {
-      const sliceArgs = node.initializer.arguments;
-      if (sliceArgs.length >= 2) {
-        const secondArg = sliceArgs[1]!;
-        if (
-          ts.isBinaryExpression(secondArg) &&
-          secondArg.operatorToken.kind === ts.SyntaxKind.PlusToken
-        ) {
-          if (ts.isNumericLiteral(secondArg.right)) {
-            visibleCount = Number(secondArg.right.text);
-          } else if (ts.isIdentifier(secondArg.right)) {
-            const resolved = numericConsts.get(secondArg.right.text);
-            if (resolved !== undefined) visibleCount = resolved;
-          }
-        }
-        const firstArg = sliceArgs[0]!;
-        if (ts.isIdentifier(firstArg)) {
-          const indexVarName = firstArg.text;
-          walkAST(sf, (n) => {
-            if (
-              ts.isVariableDeclaration(n) &&
-              ts.isArrayBindingPattern(n.name) &&
-              n.name.elements.length >= 2
-            ) {
-              const first = n.name.elements[0]!;
-              if (
-                !ts.isOmittedExpression(first) &&
-                ts.isIdentifier(first.name) &&
-                first.name.text === indexVarName
-              ) {
-                const setter = n.name.elements[1]!;
-                if (!ts.isOmittedExpression(setter) && ts.isIdentifier(setter.name)) {
-                  scrollSetterName = setter.name.text;
-                }
-              }
-            }
-          });
-        }
-      }
-
-      const sliceObj = node.initializer.expression.expression;
-      if (ts.isIdentifier(sliceObj)) {
-        dataArrayName = sliceObj.text;
-        dataArrayValues = arrayLiterals.get(sliceObj.text) ?? null;
-        dataArrayObjects = objectArrayLiterals.get(sliceObj.text) ?? null;
-      }
-    }
-  });
-
-  if (!mapCallFound || !dataArrayName) return null;
-
-  let propertyOrder: string[] | null = null;
-  const objs = dataArrayObjects as Record<string, string>[] | null;
-  if (objs && objs.length > 0 && labelsPerItem > 1) {
-    propertyOrder = Object.keys(objs[0]!).slice(0, labelsPerItem);
-  }
-
-  return { dataArrayName, dataArrayValues, dataArrayObjects, propertyOrder, visibleCount, scrollSetterName, labelsPerItem };
-}
-
-// ---------------------------------------------------------------------------
-// useMessage detection
-// ---------------------------------------------------------------------------
-
-interface MessageInfoRaw {
-  key: string;
-  mockDataArrayName: string | null;
-}
-
-function detectUseMessage(exName: string): MessageInfoRaw | null {
-  const sf = parseExampleSource(exName);
-  if (!sf) return null;
-
-  let key: string | null = null;
-  let mockDataArrayName: string | null = null;
-
-  walkAST(sf, (node) => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'useMessage' &&
-      node.arguments.length > 0 &&
-      ts.isObjectLiteralExpression(node.arguments[0]!)
-    ) {
-      const objLit = node.arguments[0]!;
-      for (const prop of (objLit as ts.ObjectLiteralExpression).properties) {
-        if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) continue;
-        if (prop.name.text === 'key' && ts.isStringLiteral(prop.initializer)) {
-          key = prop.initializer.text;
-        }
-        if (prop.name.text === 'mockData' && ts.isIdentifier(prop.initializer)) {
-          mockDataArrayName = prop.initializer.text;
-        }
-      }
-    }
-  });
-
-  if (!key) return null;
-  return { key, mockDataArrayName };
-}
-
-function extractMockDataSource(exName: string, mockDataArrayName: string): string | null {
-  const sf = parseExampleSource(exName);
-  if (!sf) return null;
-
-  let result: string | null = null;
-  walkAST(sf, (node) => {
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.name.text === mockDataArrayName &&
-      node.initializer
-    ) {
-      result = node.initializer.getText(sf);
-    }
-  });
-  return result;
-}
-
-// ---------------------------------------------------------------------------
-// useConfiguration detection
-// ---------------------------------------------------------------------------
-
-interface ConfigInfoRaw {
-  keys: Array<{
-    key: string;
-    label: string;
-    type: 'color' | 'boolean' | 'string' | 'checkboxgroup';
-    default: string | boolean | string[];
-    options?: string[];
-  }>;
-  url: string | null;
-  appName: string | null;
-  sectionTitles: string[];
-}
-
-function detectUseConfiguration(exName: string): ConfigInfoRaw | null {
-  const sf = parseExampleSource(exName);
-  if (!sf) return null;
-
-  const keys: ConfigInfoRaw['keys'] = [];
-  let urlValue: string | null = null;
-
-  walkAST(sf, (node) => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'useConfiguration' &&
-      node.arguments.length > 0 &&
-      ts.isObjectLiteralExpression(node.arguments[0]!)
-    ) {
-      const objLit = node.arguments[0] as ts.ObjectLiteralExpression;
-      for (const prop of objLit.properties) {
-        if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) continue;
-
-        // Extract url
-        if (prop.name.text === 'url') {
-          if (ts.isStringLiteral(prop.initializer)) {
-            urlValue = prop.initializer.text;
-          } else {
-            // Could be a variable reference — capture the text
-            urlValue = prop.initializer.getText(sf);
-          }
-        }
-
-        // Extract defaults object
-        if (prop.name.text === 'defaults' && ts.isObjectLiteralExpression(prop.initializer)) {
-          const defaults = prop.initializer as ts.ObjectLiteralExpression;
-          for (const dp of defaults.properties) {
-            if (!ts.isPropertyAssignment(dp) || !ts.isIdentifier(dp.name)) continue;
-            const key = dp.name.text;
-            const init = dp.initializer;
-
-            // Default label from camelCase key name
-            const defaultLabel = key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-
-            if (init.kind === ts.SyntaxKind.TrueKeyword || init.kind === ts.SyntaxKind.FalseKeyword) {
-              keys.push({ key, label: defaultLabel, type: 'boolean', default: init.kind === ts.SyntaxKind.TrueKeyword });
-            } else if (ts.isStringLiteral(init)) {
-              // Heuristic: 6-char hex strings are colors
-              const val = init.text;
-              const isColor = /^[0-9a-fA-F]{6}$/.test(val);
-              keys.push({ key, label: defaultLabel, type: isColor ? 'color' : 'string', default: val });
-            } else if (ts.isNumericLiteral(init)) {
-              keys.push({ key, label: defaultLabel, type: 'string', default: init.text });
-            } else if (ts.isArrayLiteralExpression(init)) {
-              // Array default → ConfigCheckboxGroup. Capture string-literal
-              // selected values; non-literals are skipped.
-              const defaults: string[] = [];
-              for (const el of init.elements) {
-                if (ts.isStringLiteral(el)) defaults.push(el.text);
-              }
-              keys.push({ key, label: defaultLabel, type: 'checkboxgroup', default: defaults });
-            }
-          }
-        }
-      }
-    }
-  });
-
-  if (keys.length === 0) return null;
-
-  // Second pass: scan for ConfigColor/ConfigToggle/ConfigText/ConfigSelect/
-  // ConfigCheckboxGroup calls to extract human-readable labels (and, for
-  // checkboxgroup, the declared options array). Also ConfigPage/ConfigSection
-  // for titles.
-  const labelMap = new Map<string, string>();
-  const optionsMap = new Map<string, string[]>();
-  let appName: string | null = null;
-  const sectionTitles: string[] = [];
-
-  walkAST(sf, (node) => {
-    if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)) return;
-
-    const fnName = node.expression.text;
-
-    // Config item labels
-    if (['ConfigColor', 'ConfigToggle', 'ConfigText', 'ConfigSelect', 'ConfigCheckboxGroup'].includes(fnName) &&
-        node.arguments.length >= 2) {
-      const keyArg = node.arguments[0];
-      const labelArg = node.arguments[1];
-      if (keyArg && ts.isStringLiteral(keyArg) && labelArg && ts.isStringLiteral(labelArg)) {
-        labelMap.set(keyArg.text, labelArg.text);
-      }
-    }
-
-    // ConfigCheckboxGroup options array (3rd arg).
-    // Signature: ConfigCheckboxGroup(key, label, options, default).
-    if (fnName === 'ConfigCheckboxGroup' && node.arguments.length >= 3) {
-      const keyArg = node.arguments[0];
-      const optsArg = node.arguments[2];
-      if (keyArg && ts.isStringLiteral(keyArg) && optsArg && ts.isArrayLiteralExpression(optsArg)) {
-        const optValues: string[] = [];
-        for (const el of optsArg.elements) {
-          if (ts.isObjectLiteralExpression(el)) {
-            for (const prop of el.properties) {
-              if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name) &&
-                  prop.name.text === 'value' && ts.isStringLiteral(prop.initializer)) {
-                optValues.push(prop.initializer.text);
-              }
-            }
-          }
-        }
-        if (optValues.length > 0) optionsMap.set(keyArg.text, optValues);
-      }
-    }
-
-    // ConfigSection title
-    if (fnName === 'ConfigSection' && node.arguments.length >= 1) {
-      const titleArg = node.arguments[0];
-      if (titleArg && ts.isStringLiteral(titleArg)) {
-        sectionTitles.push(titleArg.text);
-      }
-    }
-
-    // ConfigPage appName from options object
-    if (fnName === 'ConfigPage' && node.arguments.length >= 2) {
-      const optsArg = node.arguments[1];
-      if (optsArg && ts.isObjectLiteralExpression(optsArg)) {
-        for (const prop of optsArg.properties) {
-          if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name) &&
-              prop.name.text === 'appName' && ts.isStringLiteral(prop.initializer)) {
-            appName = prop.initializer.text;
-          }
-        }
-      }
-    }
-  });
-
-  // Apply labels to keys + options to checkboxgroups
-  for (const k of keys) {
-    const label = labelMap.get(k.key);
-    if (label) {
-      k.label = label;
-    }
-    if (k.type === 'checkboxgroup') {
-      const opts = optionsMap.get(k.key);
-      if (opts) k.options = opts;
-    }
-  }
-
-  return { keys, url: urlValue, appName, sectionTitles };
-}
-
-// ---------------------------------------------------------------------------
 // Tree diff for per-subtree conditionals
 // ---------------------------------------------------------------------------
 
@@ -1278,6 +712,13 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
   const exampleMain: (...args: unknown[]) => ReturnType<typeof render> =
     exampleMod.main ?? exampleMod.default;
 
+  // --- SourceScan: parse the entry source once and run every Pass in a
+  //     single AST traversal. Each downstream consumer reads from `scan`.
+  const entrySource = parseEntry(entryPath);
+  const scan = entrySource
+    ? scanEntry(entrySource, options.hookModuleSpecifiers)
+    : { hooks: [], buttons: [], setters: [], list: null, message: null, config: null };
+
   // --- State tracking ---
   const stateSlots: StateSlot[] = [];
   const forcedStateValues: Map<number, unknown> = new Map();
@@ -1315,11 +756,10 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
   });
 
   // --- Button bindings ---
-  const buttonBindings: ButtonBinding[] = [];
-  extractButtonBindingsFromSource(entryPath, buttonBindings);
+  const buttonBindings: ButtonBinding[] = scan.buttons.slice();
 
   // --- Setter info ---
-  const _setterInfo = buildSetterInfo(entryPath);
+  const _setterInfo = scan.setters;
   let setterSlotMap = new Map<string, number>();
 
   function resolveSetterSlotMap(): void {
@@ -1344,25 +784,25 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
   }
 
   // --- List detection ---
-  const listInfoRaw = detectListPatterns(entryPath);
+  const listInfoRaw = scan.list;
   if (listInfoRaw) {
     process.stderr.write(`List detected: array="${listInfoRaw.dataArrayName}" visible=${listInfoRaw.visibleCount} labelsPerItem=${listInfoRaw.labelsPerItem}\n`);
     if (listInfoRaw.scrollSetterName) process.stderr.write(`  scroll setter: ${listInfoRaw.scrollSetterName}\n`);
   }
 
   // --- Message detection ---
-  const messageInfoRaw = detectUseMessage(entryPath);
+  const messageInfoRaw = scan.message;
   let mockDataSource: string | null = null;
   if (messageInfoRaw) {
     process.stderr.write(`useMessage detected: key="${messageInfoRaw.key}"${messageInfoRaw.mockDataArrayName ? ` mockData=${messageInfoRaw.mockDataArrayName}` : ''}\n`);
     if (messageInfoRaw.mockDataArrayName) {
-      mockDataSource = extractMockDataSource(entryPath, messageInfoRaw.mockDataArrayName);
+      mockDataSource = messageInfoRaw.mockDataSource;
       if (mockDataSource) process.stderr.write(`mockDataValue=${mockDataSource}\n`);
     }
   }
 
   // --- Configuration detection ---
-  const configInfoRaw = detectUseConfiguration(entryPath);
+  const configInfoRaw = scan.config;
   if (configInfoRaw) {
     process.stderr.write(`useConfiguration detected: ${configInfoRaw.keys.length} keys [${configInfoRaw.keys.map(k => k.key).join(', ')}]\n`);
   }
@@ -2114,11 +1554,6 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
     hasAnimatedElements,
     hasImages: ctxFinal.imageResources.length > 0,
     imageResources: ctxFinal.imageResources,
-    hooksUsed: (() => {
-      const sf = parseExampleSource(entryPath);
-      return sf
-        ? detectHookUsages(sf, options.hookModuleSpecifiers ?? DEFAULT_HOOK_MODULE_SPECIFIERS)
-        : [];
-    })(),
+    hooksUsed: scan.hooks,
   };
 }

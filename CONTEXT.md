@@ -36,14 +36,23 @@ _Avoid_: subscription, signal, effect
 A detected call to a react-pebble hook in the entry source, identified by its canonical name and source location. The Analyzer scans imports from `react-pebble` / `react-pebble/hooks` and records every call site of an imported binding (declared truth, not perturbation-fired truth). Lives on the CompilerIR as `hooksUsed: HookUsage[]`.
 _Avoid_: hook name, hook reference, hook list, used hooks
 
+**SourceScan**:
+The single AST traversal of the entry source produced by the Analyzer before any perturbation render. Runs a fixed list of Passes in one walk and returns a typed `ScanResult` consumed during IR assembly. Distinct from the perturbation-render passes (which mutate state and diff VDOM); SourceScan is purely static analysis of the entry module source. Lives in `scripts/analyzer/source-scan.ts`.
+_Avoid_: scan, pre-pass, static pass, AST sweep
+
+**Pass**:
+A static-analysis Adapter at the SourceScan Seam. Has a `name`, an `enter(node)` visitor, and a `finalize(): T` that produces its contribution to the `ScanResult`. Six exist today (`hooks`, `buttons`, `setters`, `list`, `message`, `config`), each living in `scripts/analyzer/passes/`.
+_Avoid_: detector, visitor, scanner, AST walker
+
 ## Relationships
 
 - An **Analyzer** run produces one **CompilerIR**.
+- An **Analyzer** run performs one **SourceScan** before any perturbation render; each **Pass** contributes one field to the **CompilerIR** during IR assembly.
 - A **CompilerIR** feeds one or more **Targets** (each independently).
 - A **Target** emits watch-side code and optionally a **PKJS** sub-output.
 - A **Target** emits code for one or more **Platforms**, configured by the plugin.
 - **Reactive bindings** live inside the **CompilerIR**; each **Target** lowers them differently (piu Behaviors, Rocky.js redraw, C update_proc).
-- **HookUsage** records live inside the **CompilerIR**; **Targets** read them for `validate` (e.g. Rocky's blocked-hook gate), PKJS need-detection, and richer per-call-site diagnostics.
+- **HookUsage** records live inside the **CompilerIR**; **Targets** read them for `validate` (e.g. Rocky's blocked-hook gate), PKJS need-detection, and richer per-call-site diagnostics. They originate as a single **Pass** (`HooksPass`) on the **SourceScan**.
 
 ## Example dialogue
 
@@ -52,6 +61,9 @@ _Avoid_: hook name, hook reference, hook list, used hooks
 
 > **Dev:** "Can a hook be blocked on Rocky?"
 > **Maintainer:** "Yes — `rockyTarget.validate(ir)` returns Diagnostics for hooks Rocky.js can't support. It walks `ir.hooksUsed` (the **HookUsage** records the Analyzer produced) and looks each one up in Rocky's blocked-hook table. Per-Target Locality: the rule lives with the Adapter, not the orchestrator."
+
+> **Dev:** "How do I detect a new compile-time pattern in the entry source?"
+> **Maintainer:** "Write a **Pass** under `scripts/analyzer/passes/`. It implements `enter(node)` (called for every AST node) and `finalize()` (returns the typed contribution). Add it to the **SourceScan** Pass list in `source-scan.ts`. Its output lands on the **ScanResult**, which `analyze()` consumes during **CompilerIR** assembly. One AST is built per Analyzer run — every Pass shares it."
 
 ## Flagged ambiguities
 
