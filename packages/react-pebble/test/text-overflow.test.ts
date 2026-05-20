@@ -7,8 +7,12 @@
  * Usage: npx tsx test/text-overflow.test.ts
  */
 
-import { emitC } from '../scripts/emit-c.js';
+import { cTarget } from '../scripts/targets/c.js';
 import type { CompilerIR } from '../scripts/compiler-ir.js';
+
+function emitC(ir: CompilerIR): string {
+  return cTarget.emit(ir, { appName: 'fixture' }).code;
+}
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) {
@@ -42,6 +46,7 @@ function makeIR(overrides: Partial<CompilerIR> = {}): CompilerIR {
     hasList: false,
     hasAnimatedElements: false,
     hasImages: false,
+    hooksUsed: [],
     imageResources: [],
     ...overrides,
   } as unknown as CompilerIR;

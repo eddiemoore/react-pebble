@@ -8,7 +8,7 @@
  * Usage: npx tsx test/pkjs-appglance.test.ts
  */
 
-import { emitPKJS } from '../scripts/emit-pkjs.js';
+import { emitPKJS } from '../scripts/targets/pkjs.js';
 import type { CompilerIR } from '../scripts/compiler-ir.js';
 
 function assert(cond: boolean, msg: string): void {

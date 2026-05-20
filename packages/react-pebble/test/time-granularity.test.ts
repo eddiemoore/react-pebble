@@ -11,10 +11,22 @@
  */
 
 import { resolveGranularity } from '../src/hooks/useTime.js';
-import { emitPiu } from '../scripts/emit-piu.js';
-import { emitRocky } from '../scripts/emit-rocky.js';
-import { emitC } from '../scripts/emit-c.js';
+import { piuTarget } from '../scripts/targets/piu.js';
+import { rockyTarget } from '../scripts/targets/rocky.js';
+import { cTarget } from '../scripts/targets/c.js';
 import type { CompilerIR, TimeGranularity } from '../scripts/compiler-ir.js';
+
+function emitC(ir: CompilerIR): string {
+  return cTarget.emit(ir, { appName: 'fixture' }).code;
+}
+
+function emitPiu(ir: CompilerIR, appName: string): string {
+  return piuTarget.emit(ir, { appName }).code;
+}
+
+function emitRocky(ir: CompilerIR): string {
+  return rockyTarget.emit(ir, { appName: 'fixture' }).code;
+}
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) {
@@ -78,6 +90,7 @@ function makeIR(granularity: TimeGranularity): CompilerIR {
     hasAnimatedElements: false,
     hasImages: false,
     imageResources: [],
+    hooksUsed: [],
     timeGranularity: granularity,
   } as unknown as CompilerIR;
 }
@@ -169,6 +182,7 @@ assert(emitC(makeIR('day')).includes('tick_timer_service_subscribe(DAY_UNIT'), '
     hasAnimatedElements: false,
     hasImages: true,
     imageResources: [{ src: 'logo.png', width: 40, height: 40 }],
+    hooksUsed: [],
     timeGranularity: 'minute',
   } as unknown as CompilerIR;
 

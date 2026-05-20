@@ -9,9 +9,13 @@
  * Usage: npx tsx test/config-checkboxgroup.test.ts
  */
 
-import { emitC } from '../scripts/emit-c.js';
-import { emitPKJS } from '../scripts/emit-pkjs.js';
+import { cTarget } from '../scripts/targets/c.js';
+import { emitPKJS } from '../scripts/targets/pkjs.js';
 import type { CompilerIR, IRConfigKey } from '../scripts/compiler-ir.js';
+
+function emitC(ir: CompilerIR): string {
+  return cTarget.emit(ir, { appName: 'fixture' }).code;
+}
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) {
@@ -57,6 +61,7 @@ function makeIR(overrides: Partial<CompilerIR> = {}): CompilerIR {
     hasList: false,
     hasAnimatedElements: false,
     hasImages: false,
+    hooksUsed: [],
     imageResources: [],
     timeGranularity: null,
     ...overrides,
