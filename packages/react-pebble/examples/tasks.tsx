@@ -10,14 +10,12 @@
  * items so the compiler can handle everything statically.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
 type View = 'list' | 'detail';
 
-function TaskApp() {
+export default function TaskApp() {
   const [view, setView] = useState<View>('list');
   const [selected, setSelected] = useState(0);
 
@@ -96,16 +94,3 @@ function TaskApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<TaskApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('tasks example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

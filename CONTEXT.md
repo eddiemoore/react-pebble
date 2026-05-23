@@ -16,6 +16,10 @@ _Avoid_: AST, tree, model, intermediate
 The compile-time pipeline that renders the component, perturbs state, diffs VDOM, walks the AST, and produces a CompilerIR. Lives in `scripts/analyze.ts`.
 _Avoid_: parser, compiler, frontend
 
+**Mock Renderer**:
+The compile-time renderer the Analyzer drives during perturbation. Bridges Preact (via the pebble-dom shim) to a recording `MockPoco` that captures draw calls into an in-memory log. Has no on-watch runtime role — emitted Target code never calls it. Lives in `scripts/analyzer/mock-renderer.ts`.
+_Avoid_: Poco renderer, runtime renderer, Alloy renderer, real renderer
+
 **Adapter**:
 A concrete Target implementation (`piuTarget`, `rockyTarget`, `cTarget`) satisfying the Target Interface.
 _Avoid_: emitter (now reserved for the per-Target `emit` function), implementation, plugin
@@ -44,6 +48,10 @@ _Avoid_: scan, pre-pass, static pass, AST sweep
 A static-analysis Adapter at the SourceScan Seam. Has a `name`, an `enter(node)` visitor, and a `finalize(): T` that produces its contribution to the `ScanResult`. Six exist today (`hooks`, `buttons`, `setters`, `list`, `message`, `config`), each living in `scripts/analyzer/passes/`.
 _Avoid_: detector, visitor, scanner, AST walker
 
+**Palette**:
+The shared compile-time spec naming Pebble's 64-color GColor set (`COLOR_PALETTE`) and canonical font catalog (`FONT_PALETTE`). Pure data plus tiny resolvers (`lookupFontSpec`, `colorFromHex`). Three callers — the Analyzer (name → hex resolution for IR fields), the Mock Renderer (Poco color/font construction), and the `getTextContentSize` hook (font metric lookup). Lives in `src/palette.ts`. Not re-exported from the public entry; importers reach it directly.
+_Avoid_: theme, swatch, color table, font table (the latter is reserved for per-Adapter `Record<FontKey, string>` maps per ADR 0001)
+
 ## Relationships
 
 - An **Analyzer** run produces one **CompilerIR**.
@@ -53,6 +61,8 @@ _Avoid_: detector, visitor, scanner, AST walker
 - A **Target** emits code for one or more **Platforms**, configured by the plugin.
 - **Reactive bindings** live inside the **CompilerIR**; each **Target** lowers them differently (piu Behaviors, Rocky.js redraw, C update_proc).
 - **HookUsage** records live inside the **CompilerIR**; **Targets** read them for `validate` (e.g. Rocky's blocked-hook gate), PKJS need-detection, and richer per-call-site diagnostics. They originate as a single **Pass** (`HooksPass`) on the **SourceScan**.
+- The **Mock Renderer** is invoked by the **Analyzer** for every perturbation render; it consumes the **Palette** for Poco color/font construction and writes draw calls into a log the Analyzer harvests during IR assembly.
+- The **Palette** is read by the **Analyzer** (name → hex on IR fields), the **Mock Renderer** (Poco resolution), and one hook (`getTextContentSize`, for text-metric layout calculations baked into the IR).
 
 ## Example dialogue
 

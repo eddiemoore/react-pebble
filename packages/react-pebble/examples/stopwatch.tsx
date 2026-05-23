@@ -10,12 +10,10 @@
  * since the compiler can't track persistent state between ticks.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Circle, Group } from '../src/components/index.js';
 import { useButton, useState, useTime } from '../src/hooks/index.js';
 
-function Stopwatch() {
+export default function Stopwatch() {
   const [running, setRunning] = useState(false);
   const [frozenTime, setFrozenTime] = useState('00:00');
   const time = useTime(1000);
@@ -53,13 +51,3 @@ function Stopwatch() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<Stopwatch />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('stopwatch (mock)', app.drawLog.length, 'draw calls');
-  }
-  return app;
-}
-
-export default main;

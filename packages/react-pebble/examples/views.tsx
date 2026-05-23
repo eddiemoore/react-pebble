@@ -7,12 +7,10 @@
  * tree shape changes.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
-function Views() {
+export default function Views() {
   const [detail, setDetail] = useState(false);
 
   useButton('select', () => setDetail((v: boolean) => !v));
@@ -55,16 +53,3 @@ function Views() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<Views />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('views example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

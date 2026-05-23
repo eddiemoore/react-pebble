@@ -1,13 +1,13 @@
 /**
- * react-pebble — A React renderer for Pebble Alloy (Moddable XS / Poco).
+ * react-pebble — JSX-to-Pebble compiler. Component authors write Preact
+ * functional components and default-export them; the compiler (see
+ * scripts/analyze.ts) drives the perturbation render and emits Target-
+ * specific watch-side code (piu / Rocky.js / native C).
  *
- * Usage on Alloy:
- *   import Poco from 'commodetto/Poco';
- *   import React from 'react';
- *   import { render, Group, Rect, Text } from 'react-pebble';
+ *   import { Group, Rect, Text } from 'react-pebble';
  *   import { useTime } from 'react-pebble/hooks';
  *
- *   function WatchFace() {
+ *   export default function WatchFace() {
  *     const time = useTime();
  *     return (
  *       <Group>
@@ -18,25 +18,12 @@
  *       </Group>
  *     );
  *   }
- *
- *   render(<WatchFace />, { poco: Poco });
  */
 
 // Platform catalog (static shape metadata). Runtime code should read
 // screen dimensions via `useScreen()` / `getScreen()` from hooks.
 export { PLATFORMS } from './platform.js';
 export type { PebblePlatform } from './platform.js';
-
-// Core render API
-export { render } from './pebble-render.js';
-export type {
-  PebbleApp,
-  PebblePlatformInfo,
-  RenderOptions,
-  RenderOptionsExt,
-  DrawCall,
-  AppExitReason,
-} from './pebble-render.js';
 
 // Component wrappers
 export {
@@ -119,7 +106,6 @@ export type {
 
 // Hooks
 export {
-  useApp,
   useButton,
   useLongButton,
   useTime,
@@ -211,7 +197,6 @@ export {
   atan2Lookup,
   TRIG_MAX_ANGLE,
   ButtonRegistry,
-  PebbleAppContext,
 } from './hooks/index.js';
 export type {
   PebbleButton,
@@ -324,8 +309,7 @@ export type {
   UseTouchResult,
 } from './hooks/index.js';
 
-// Low-level access (for advanced usage / custom renderers / tests)
-export { default as reconciler } from './pebble-reconciler.js';
+// Low-level pebble-dom access (component wrappers produce these shapes).
 export {
   ELEMENT_TYPES,
   appendChildNode,
@@ -347,25 +331,6 @@ export type {
   TextNode,
   Visitor,
 } from './pebble-dom.js';
-export {
-  PocoRenderer,
-  COLOR_PALETTE,
-  FONT_PALETTE,
-  resolveColorName,
-  resolveFontName,
-  colorFromHex,
-  colorDistance,
-  nearestColorName,
-  legibleOver,
-  registerFont,
-  lookupFontSpec,
-  getTextWidth,
-} from './pebble-output.js';
-export type {
-  RGB,
-  FontSpec,
-  RenderOptions as PocoRenderOptions,
-} from './pebble-output.js';
 
 // Bitmap utilities
 export { createBitmapFromPNG } from './bitmap.js';

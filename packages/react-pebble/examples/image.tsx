@@ -5,11 +5,10 @@
  * image path at build time and includes it in the Pebble resource bundle.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Rect, Image, Text } from '../src/index.js';
+import { Rect, Image, Text } from '../src/index.js';
 import { useScreen } from '../src/hooks/index.js';
 
-function ImageDemo() {
+export default function ImageDemo() {
   const { width, height } = useScreen();
   return (
     <>
@@ -20,8 +19,4 @@ function ImageDemo() {
       </Text>
     </>
   );
-}
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<ImageDemo />, { poco: PocoCtor });
 }

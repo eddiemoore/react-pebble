@@ -6,8 +6,6 @@
  * to "open" (logs the selected item).
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
@@ -19,7 +17,7 @@ const ITEMS = [
   { title: 'Refactor auth', tag: 'MED' },
 ];
 
-function SelectedList() {
+export default function SelectedList() {
   const [sel, setSel] = useState(0);
 
   useButton('up', () => setSel((s: number) => s - 1));
@@ -52,13 +50,3 @@ function SelectedList() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<SelectedList />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('selected-list (mock)', app.drawLog.length, 'draw calls');
-  }
-  return app;
-}
-
-export default main;

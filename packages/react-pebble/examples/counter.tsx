@@ -9,12 +9,10 @@
  * - Rect for backgrounds
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
-function Counter() {
+export default function Counter() {
   const [count, setCount] = useState(0);
 
   useButton('up', () => setCount(c => c + 1));
@@ -46,18 +44,3 @@ function Counter() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<Counter />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('react-pebble counter example (mock mode)');
-    console.log('Platform:', app.platform);
-    const log = app.drawLog;
-    console.log('Draw calls:', log.length);
-  }
-
-  return app;
-}
-
-export default main;

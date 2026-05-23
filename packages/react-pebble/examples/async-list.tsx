@@ -7,8 +7,6 @@
  * Deploy: SETTLE_MS=200 ./scripts/deploy.sh async-list
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useMessage, useState } from '../src/hooks/index.js';
 
@@ -24,7 +22,7 @@ const MOCK_ISSUES: Issue[] = [
   { title: 'Fix auth bug', status: 'HIGH' },
 ];
 
-function AsyncList() {
+export default function AsyncList() {
   const { data, loading } = useMessage<Issue[]>({
     key: 'items',
     mockData: MOCK_ISSUES,
@@ -64,13 +62,3 @@ function AsyncList() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<AsyncList />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('async-list (mock)', app.drawLog.length, 'draw calls');
-  }
-  return app;
-}
-
-export default main;

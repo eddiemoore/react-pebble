@@ -7,8 +7,7 @@
  *   - useRawClick(): independent press/release events for gesture timing.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, Window } from '../src/index.js';
+import { Group, Rect, Text, Window } from '../src/index.js';
 import {
   useState,
   useAccelerometerRaw,
@@ -16,7 +15,7 @@ import {
   useRawClick,
 } from '../src/hooks/index.js';
 
-function AccelAdvanced() {
+export default function AccelAdvanced() {
   const [lastTap, setLastTap] = useState('none');
   const [pressing, setPressing] = useState(false);
 
@@ -59,9 +58,3 @@ function AccelAdvanced() {
     </Window>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<AccelAdvanced />, { poco: PocoCtor });
-}
-
-export default main;

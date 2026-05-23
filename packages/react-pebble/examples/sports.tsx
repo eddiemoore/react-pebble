@@ -7,12 +7,11 @@
  * keys. The watch shows play/pause state driven by the Sports watchapp.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, Window } from '../src/index.js';
+import { Group, Rect, Text, Window } from '../src/index.js';
 import { useEffect } from 'preact/hooks';
 import { useState, useSports } from '../src/hooks/index.js';
 
-function SportsTracker() {
+export default function SportsTracker() {
   const [elapsed, setElapsed] = useState(0);
   const { update, state } = useSports({
     units: 'metric',
@@ -64,9 +63,3 @@ function SportsTracker() {
     </Window>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<SportsTracker />, { poco: PocoCtor });
-}
-
-export default main;

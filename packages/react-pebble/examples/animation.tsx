@@ -12,11 +12,10 @@
  * for animated positions/sizes, and updates them via onTimeChanged.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Circle, Text } from '../src/index.js';
+import { Group, Rect, Circle, Text } from '../src/index.js';
 import { useAnimation, useTime, Easing, lerp } from '../src/hooks/index.js';
 
-function AnimationDemo() {
+export default function AnimationDemo() {
   const time = useTime(1000);
   const bounce = useAnimation({
     duration: 60000,
@@ -61,16 +60,3 @@ function AnimationDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<AnimationDemo />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('animation example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

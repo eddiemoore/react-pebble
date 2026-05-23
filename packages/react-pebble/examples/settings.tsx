@@ -12,11 +12,10 @@
  * useLocalStorage works at Preact runtime but not in compiled piu mode.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, ActionBar } from '../src/index.js';
+import { Group, Rect, Text, ActionBar } from '../src/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
-function Settings() {
+export default function Settings() {
   const [themeIdx, setThemeIdx] = useState(0);
   const [fontSize, setFontSize] = useState(18);
 
@@ -84,16 +83,3 @@ function Settings() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<Settings />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('settings example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

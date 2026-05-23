@@ -6,12 +6,10 @@
  *   - Button-triggered haptic patterns
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useVibration, useState } from '../src/hooks/index.js';
 
-function VibrationApp() {
+export default function VibrationApp() {
   const vib = useVibration();
   const [lastPulse, setLastPulse] = useState('none');
 
@@ -53,16 +51,3 @@ function VibrationApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<VibrationApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('vibration example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

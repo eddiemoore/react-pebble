@@ -5,14 +5,12 @@
  * Tests multi-branch conditional rendering beyond boolean true/false.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
 type View = 'home' | 'settings' | 'about';
 
-function MultiView() {
+export default function MultiView() {
   const [view, setView] = useState<View>('home');
 
   useButton('up', () => setView('settings'));
@@ -69,16 +67,3 @@ function MultiView() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<MultiView />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('multiview example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

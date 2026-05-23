@@ -8,11 +8,10 @@
  *   - StatusBar
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, StatusBar } from '../src/index.js';
+import { Group, Rect, Text, StatusBar } from '../src/index.js';
 import { useLocation, useButton } from '../src/hooks/index.js';
 
-function GPSApp() {
+export default function GPSApp() {
   const { location, loading, error, refresh } = useLocation({
     enableHighAccuracy: true,
     timeout: 15000,
@@ -64,16 +63,3 @@ function GPSApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<GPSApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('gps example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

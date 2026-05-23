@@ -9,11 +9,10 @@
  * 64 kB basalt/chalk).
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text } from '../src/index.js';
+import { Group, Rect, Text } from '../src/index.js';
 import { useState, useMemoryStats, useMemoryPressure } from '../src/hooks/index.js';
 
-function MemoryMonitor() {
+export default function MemoryMonitor() {
   const { used, free, largestFree } = useMemoryStats(500);
   const [lastPressure, setLastPressure] = useState<string>('none');
 
@@ -46,9 +45,3 @@ function MemoryMonitor() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<MemoryMonitor />, { poco: PocoCtor });
-}
-
-export default main;

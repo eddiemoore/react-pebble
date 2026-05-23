@@ -8,8 +8,6 @@
  *   - Multiple screens with different content
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group, Window, WindowStack, useNavigation } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
@@ -126,19 +124,6 @@ function ConfirmScreen() {
   );
 }
 
-function App() {
+export default function App() {
   return <WindowStack initial={<HomeScreen />} />;
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<App />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('window-stack example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

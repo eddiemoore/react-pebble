@@ -10,11 +10,10 @@
  *   - useNotification() — push a phone-side simple notification.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, Window } from '../src/index.js';
+import { Group, Rect, Text, Window } from '../src/index.js';
 import { useLaunchInfo, useExitReason, useNotification } from '../src/hooks/index.js';
 
-function LifecycleApp() {
+export default function LifecycleApp() {
   const { reason, args } = useLaunchInfo();
   const { setReason } = useExitReason();
   const { show } = useNotification();
@@ -45,9 +44,3 @@ function LifecycleApp() {
     </Window>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<LifecycleApp />, { poco: PocoCtor });
-}
-
-export default main;

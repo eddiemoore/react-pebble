@@ -9,11 +9,10 @@
  *   - StatusBar
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Circle, Text, Line, StatusBar } from '../src/index.js';
+import { Group, Rect, Circle, Text, Line, StatusBar } from '../src/index.js';
 import { useCompass, useAccelerometer } from '../src/hooks/index.js';
 
-function CompassApp() {
+export default function CompassApp() {
   const { heading } = useCompass();
   const accel = useAccelerometer({ sampleRate: 200 });
 
@@ -58,16 +57,3 @@ function CompassApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<CompassApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('compass example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

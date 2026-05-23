@@ -10,8 +10,6 @@
  * composite, so the piu compiler can detect button bindings.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
@@ -19,7 +17,7 @@ const MIN = 1;
 const MAX = 60;
 const STEP = 5;
 
-function NumberWindowApp() {
+export default function NumberWindowApp() {
   const [value, setValue] = useState(15);
   const [confirmed, setConfirmed] = useState(false);
 
@@ -66,16 +64,3 @@ function NumberWindowApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<NumberWindowApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('number-window example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

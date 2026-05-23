@@ -6,11 +6,9 @@
  *   - Centered full-screen message layout
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Dialog } from '../src/components/index.js';
 
-function DialogDemo() {
+export default function DialogDemo() {
   return (
     <Dialog
       title="Confirm"
@@ -20,16 +18,3 @@ function DialogDemo() {
     />
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<DialogDemo />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('dialog example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

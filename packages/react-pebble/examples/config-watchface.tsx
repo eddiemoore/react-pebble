@@ -18,8 +18,7 @@
  *   });
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, StatusBar } from '../src/index.js';
+import { Group, Rect, Text, StatusBar } from '../src/index.js';
 import { useTime, useConfiguration } from '../src/hooks/index.js';
 import {
   ConfigPage,
@@ -66,7 +65,7 @@ type WatchfaceSettings = Record<string, unknown> & {
   greeting: string;
 };
 
-function ConfigurableWatchface() {
+export default function ConfigurableWatchface() {
   const time = useTime();
 
   const { settings } = useConfiguration<WatchfaceSettings>({
@@ -124,17 +123,3 @@ function ConfigurableWatchface() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<ConfigurableWatchface />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('config-watchface example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-    console.log('Config URL length:', configUrl.length, 'bytes');
-  }
-
-  return app;
-}
-
-export default main;

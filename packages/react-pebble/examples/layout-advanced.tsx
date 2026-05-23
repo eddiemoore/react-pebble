@@ -7,10 +7,9 @@
  *   - Scrollable with arrow indicators and custom colors
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, Column, Row, Scrollable } from '../src/index.js';
+import { Group, Rect, Text, Column, Row, Scrollable } from '../src/index.js';
 
-function LayoutAdvancedApp() {
+export default function LayoutAdvancedApp() {
   return (
     <Group>
       <Rect x={0} y={0} w={200} h={228} fill="black" />
@@ -55,16 +54,3 @@ function LayoutAdvancedApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<LayoutAdvancedApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('layout-advanced example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

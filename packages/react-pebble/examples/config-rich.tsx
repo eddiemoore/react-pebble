@@ -11,8 +11,7 @@
  * is a self-contained data URI opened by the phone on gear-tap.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text } from '../src/index.js';
+import { Group, Rect, Text } from '../src/index.js';
 import { useConfiguration } from '../src/hooks/index.js';
 import {
   ConfigPage,
@@ -77,7 +76,7 @@ interface RichSettings extends Record<string, unknown> {
   metrics: string[];
 }
 
-function RichConfigWatchface() {
+export default function RichConfigWatchface() {
   const { settings } = useConfiguration<RichSettings>({
     url: configUrl,
     defaults: {
@@ -102,14 +101,3 @@ function RichConfigWatchface() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<RichConfigWatchface />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('config-rich example (mock mode)');
-    console.log('Config URL length:', configUrl.length, 'bytes');
-  }
-  return app;
-}
-
-export default main;

@@ -10,11 +10,10 @@
  *     render()'s built-in mock path.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Text, Rect, Group } from '../src/index.js';
+import { Text, Rect, Group } from '../src/index.js';
 import { useTime } from '../src/hooks/index.js';
 
-function WatchFace() {
+export default function WatchFace() {
   const time = useTime();
 
   const hours = time.getHours().toString().padStart(2, '0');
@@ -55,21 +54,5 @@ function WatchFace() {
  * Entry function. Called by the Alloy-side main.js with the imported Poco
  * constructor, or without arguments in Node mock mode.
  */
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<WatchFace />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('react-pebble watchface example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-    for (const call of app.drawLog) {
-      if (call.op === 'drawText') {
-        console.log(`  drawText("${String(call.text)}", x=${String(call.x)}, y=${String(call.y)})`);
-      }
-    }
-  }
-
-  return app;
-}
 
 // Default export so the Alloy entry can import as either named or default.
-export default main;

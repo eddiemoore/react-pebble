@@ -7,11 +7,9 @@
  *   - Works on both round and rectangular displays
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group, TextFlow } from '../src/components/index.js';
 
-function TextFlowApp() {
+export default function TextFlowApp() {
   const longText =
     'The Pebble smartwatch was a groundbreaking device that proved ' +
     'wearable technology could be both functional and stylish. With its ' +
@@ -38,16 +36,3 @@ function TextFlowApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<TextFlowApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('text-flow example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

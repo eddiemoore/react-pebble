@@ -8,8 +8,6 @@
  *   - useState for page navigation
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
@@ -52,7 +50,7 @@ const SH = 28; // swatch height
 const PAD = 4;
 const ROWS_PER_PAGE = 6;
 
-function ColorPaletteApp() {
+export default function ColorPaletteApp() {
   const [page, setPage] = useState(0);
   const totalPages = Math.ceil(COLORS.length / (COLS * ROWS_PER_PAGE));
 
@@ -93,16 +91,3 @@ function ColorPaletteApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<ColorPaletteApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('color-palette example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

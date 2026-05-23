@@ -21,7 +21,7 @@
  * undom (which would push the bundle back up).
  */
 
-import type { AnyNode, DOMElement, ElementType, TextNode } from './pebble-dom.js';
+import type { AnyNode, DOMElement, ElementType, TextNode } from '../../../src/pebble-dom.js';
 import {
   ELEMENT_TYPES,
   appendChildNode,
@@ -31,7 +31,7 @@ import {
   removeChildNode,
   setAttribute,
   setTextNodeValue,
-} from './pebble-dom.js';
+} from '../../../src/pebble-dom.js';
 
 // ---------------------------------------------------------------------------
 // DOM node interfaces the shim exposes to Preact

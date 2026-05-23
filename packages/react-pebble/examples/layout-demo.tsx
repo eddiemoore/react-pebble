@@ -9,10 +9,9 @@
  *   - Circle (filled + stroked)
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, Circle, Line, Row, Column } from '../src/index.js';
+import { Group, Rect, Text, Circle, Line, Row, Column } from '../src/index.js';
 
-function LayoutDemo() {
+export default function LayoutDemo() {
   return (
     <Group>
       <Rect x={0} y={0} w={200} h={228} fill="black" />
@@ -64,16 +63,3 @@ function LayoutDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<LayoutDemo />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('layout-demo example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

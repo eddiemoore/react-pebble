@@ -92,10 +92,10 @@ cd .pebble-build && pebble build && pebble install --emulator emery --logs
 Components use standard Preact JSX with Pebble-specific primitives:
 
 ```tsx
-import { render, Text, Rect, Circle, Group, Column } from 'react-pebble';
+import { Text, Rect, Circle, Group, Column } from 'react-pebble';
 import { useTime, useButton, useState, useBattery } from 'react-pebble/hooks';
 
-function WatchFace() {
+export default function WatchFace() {
   const time = useTime();
   const battery = useBattery();
   const hours = time.getHours().toString().padStart(2, '0');
@@ -111,11 +111,10 @@ function WatchFace() {
     </Group>
   );
 }
-
-export function main() {
-  return render(<WatchFace />);
-}
 ```
+
+Components default-export the JSX entry. The compiler wraps it in its mock
+render at build time — there is no `render()` call in user code.
 
 ### Components
 
@@ -618,20 +617,28 @@ packages/
       components/index.tsx   — 26 JSX component wrappers (primitives, layout, composites, navigation)
       hooks/index.ts         — 65+ hooks (time, input, sensors, storage, networking, animation, workers, lifecycle, i18n, system)
       config/index.ts        — Declarative config page builder with full Clay element parity
-      pebble-dom.ts          — Virtual DOM
-      pebble-dom-shim.ts     — DOM adapter for Preact
-      pebble-output.ts       — Poco renderer (circles, lines, rounded rects, text wrapping)
-      pebble-render.ts       — Mock renderer entry point
+      pebble-dom.ts          — Virtual DOM (consumed by components, Analyzer, Mock Renderer)
+      palette.ts             — Shared color/font spec (Pebble 64-color GColor set + font catalog)
       platform.ts            — Pebble platform catalog (used by useScreen + compiler)
       types/moddable.d.ts    — Alloy runtime type declarations (Poco, Battery, Watch)
       index.ts               — Public API
     scripts/
-      compile-to-piu.ts      — The compiler: JSX → pebble-dom → piu/rocky/C output
-      analyzer.ts            — AST analysis and reactivity pattern detection
-      emit-piu.ts            — piu scene-graph code generation
-      emit-rocky.ts          — Rocky.js code generation
-      emit-c.ts              — C SDK code generation
-      emit-pkjs.ts           — PebbleKit companion JS generation
+      compile-to-piu.ts      — Compiler CLI entry: JSX → CompilerIR → Target output
+      analyze.ts             — Analyzer: perturbation render + AST passes → CompilerIR
+      compiler-ir.ts         — CompilerIR type definitions
+      analyzer/
+        source-scan.ts       — Single AST walk that runs every Pass
+        passes/              — hooks, buttons, setters, list, message, configuration
+        mock/                — Mock Renderer (compile-time only — see ADR 0005)
+          render.ts          — render() entry the Analyzer wraps each default export in
+          poco.ts            — PocoRenderer (draw helpers, MockPoco-backed)
+          dom-shim.ts        — DOM-shaped facade for Preact
+          reconciler.ts      — Preact bridge into pebble-dom
+      targets/
+        types.ts             — Target Interface (validate, emit)
+        piu.ts rocky.ts c.ts — Adapters (one per backend) — see ADR 0001, ADR 0004
+        pkjs.ts              — Shared PKJS sub-output helper — see ADR 0002
+        fonts.ts             — FontKey union (lockstep coverage across Adapters)
       deploy.sh              — One-command deploy to emulator
       test-emulator.sh       — Full emulator test suite with button verification
     examples/                — 53 working examples

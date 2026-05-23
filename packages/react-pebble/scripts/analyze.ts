@@ -7,10 +7,12 @@
 
 import ts from 'typescript';
 import { readFileSync } from 'node:fs';
-import { render } from '../src/index.js';
+import { h } from 'preact';
+import type { ComponentType } from 'preact';
+import { render } from './analyzer/mock/render.js';
 import type { DOMElement, AnyNode } from '../src/pebble-dom.js';
 import { getTextContent } from '../src/pebble-dom.js';
-import { COLOR_PALETTE } from '../src/pebble-output.js';
+import { COLOR_PALETTE } from '../src/palette.js';
 import { _setUseStateImpl, _restoreUseState } from '../src/hooks/index.js';
 import { useState as realUseState } from 'preact/hooks';
 import { PLATFORMS } from '../src/platform.js';
@@ -707,10 +709,15 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
   const { _resetScreenCache } = await import('../src/hooks/useScreen.js');
   _resetScreenCache();
 
-  // Import the example module
+  // Import the example module. The default export is a Preact component;
+  // the Analyzer owns the render() wrap — see ADR 0005.
   const exampleMod = await import(entryPath);
+  const ExampleComponent = exampleMod.default as ComponentType<Record<string, never>> | undefined;
+  if (!ExampleComponent) {
+    throw new Error(`Example ${entryPath} must export a default Preact component`);
+  }
   const exampleMain: (...args: unknown[]) => ReturnType<typeof render> =
-    exampleMod.main ?? exampleMod.default;
+    () => render(h(ExampleComponent, null));
 
   // --- SourceScan: parse the entry source once and run every Pass in a
   //     single AST traversal. Each downstream consumer reads from `scan`.

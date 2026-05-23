@@ -5,14 +5,12 @@
  * UP/DOWN buttons scroll through the list.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
 const ITEMS = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'];
 
-function SimpleList() {
+export default function SimpleList() {
   const [index, setIndex] = useState(0);
 
   useButton('up', () => setIndex((i: number) => Math.max(0, i - 1)));
@@ -34,13 +32,3 @@ function SimpleList() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<SimpleList />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('simple-list (mock)', app.drawLog.length, 'draw calls');
-  }
-  return app;
-}
-
-export default main;

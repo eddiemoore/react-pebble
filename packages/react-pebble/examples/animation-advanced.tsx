@@ -8,12 +8,10 @@
  *   - lerp() for interpolating animated values
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Rect, Group, Text } from '../src/components/index.js';
 import { useAnimation, Easing, lerp } from '../src/hooks/index.js';
 
-function AnimationAdvancedDemo() {
+export default function AnimationAdvancedDemo() {
   // Ping-pong bounce that plays 3 full cycles then stops
   const bounce = useAnimation({
     duration: 4000,
@@ -76,16 +74,3 @@ function AnimationAdvancedDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<AnimationAdvancedDemo />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('animation-advanced example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

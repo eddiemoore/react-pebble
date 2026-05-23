@@ -8,12 +8,10 @@
  *   - Circle, Line, Path for clock elements
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group, Circle, Line, Path } from '../src/components/index.js';
 import { useTime, polarPoint, useScreen } from '../src/hooks/index.js';
 
-function PolarClock() {
+export default function PolarClock() {
   const time = useTime(1000);
   const hours = time.getHours() % 12;
   const minutes = time.getMinutes();
@@ -98,16 +96,3 @@ function PolarClock() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<PolarClock />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('polar-clock example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

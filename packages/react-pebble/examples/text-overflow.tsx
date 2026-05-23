@@ -7,13 +7,11 @@
  *   - 'fill': clips text without any indicator
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Group, Rect, Column } from '../src/components/index.js';
 
 const LONG_TEXT = 'The quick brown fox jumps over the lazy dog repeatedly until it runs out of screen space';
 
-function TextOverflowDemo() {
+export default function TextOverflowDemo() {
   return (
     <Group>
       <Rect x={0} y={0} w={200} h={228} fill="black" />
@@ -60,16 +58,3 @@ function TextOverflowDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<TextOverflowDemo />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('text-overflow example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

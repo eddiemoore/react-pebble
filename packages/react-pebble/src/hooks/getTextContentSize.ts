@@ -6,7 +6,7 @@
  * In mock mode, we estimate from font metrics.
  */
 
-import { FONT_PALETTE, lookupFontSpec } from '../pebble-output.js';
+import { FONT_PALETTE, lookupFontSpec } from '../palette.js';
 
 export interface TextContentSize {
   width: number;

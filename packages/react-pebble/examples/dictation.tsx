@@ -7,12 +7,10 @@
  *   - Displaying transcript and status
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Group, Rect } from '../src/components/index.js';
 import { useDictation, useButton, useState } from '../src/hooks/index.js';
 
-function DictationDemo() {
+export default function DictationDemo() {
   const { text, status, start, error } = useDictation();
   const [lastTranscript, setLastTranscript] = useState<string>('(none)');
 
@@ -66,16 +64,3 @@ function DictationDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<DictationDemo />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('dictation example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;
