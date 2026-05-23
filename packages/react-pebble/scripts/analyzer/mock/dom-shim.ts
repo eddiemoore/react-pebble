@@ -174,12 +174,24 @@ export function createShimElement(tag: string): ShimElement {
       return this.attributes[name];
     },
 
-    addEventListener(name, handler) {
-      // Event handlers are stored in props (on* style) so the button wiring
-      // in pebble-render.ts can find them the same way React props do.
+    addEventListener(name, _handler) {
+      // Preact's setProperty handles on* props by setting `_listeners[name+capture]`
+      // to the user handler, then calling addEventListener with an internal
+      // eventProxy. Storing the eventProxy here is wrong — it crashes when
+      // PocoRenderer invokes it plain (`this._listeners` is undefined).
+      // Instead store a dispatcher that resolves the current handler at call
+      // time. Bonus: re-renders update `_listeners` without re-attaching, so
+      // closures (e.g. `<Canvas onDraw={fn captures state}>`) stay current.
       const key = `on${name[0]?.toUpperCase()}${name.slice(1)}`;
-      this.attributes[key] = handler;
-      setAttribute(pbl, key, handler);
+      const node = this as unknown as {
+        _listeners?: Record<string, ((...a: unknown[]) => unknown) | undefined>;
+      };
+      const dispatcher = (...args: unknown[]): unknown => {
+        const fn = node._listeners?.[name + 'false'] ?? node._listeners?.[name + 'true'];
+        return typeof fn === 'function' ? fn(...args) : undefined;
+      };
+      this.attributes[key] = dispatcher;
+      setAttribute(pbl, key, dispatcher);
     },
 
     removeEventListener(name, _handler) {
