@@ -13,8 +13,12 @@ The intermediate representation produced by the Analyzer and consumed by every T
 _Avoid_: AST, tree, model, intermediate
 
 **Analyzer**:
-The compile-time pipeline that renders the component, perturbs state, diffs VDOM, walks the AST, and produces a CompilerIR. Lives in `scripts/analyze.ts`.
+The compile-time pipeline that renders the component, perturbs state, diffs VDOM, walks the AST, and hands its observations to IR Assembly which returns a CompilerIR. Lives in `scripts/analyze.ts`. Owns mutable harness state (hook patches, mock clock, console silencing, perturbation passes); IR Assembly is pure.
 _Avoid_: parser, compiler, frontend
+
+**IR Assembly**:
+The pure synthesis step that maps the Analyzer's perturbation observations plus the SourceScan result into a typed CompilerIR. No file I/O, no globals, no Preact, no Date mocking — the only Seam between "what was observed" and "what lands on the IR." Reifies per-element reactivity flags (`isStateDynamic`, `isTimeDynamic`, `isSkinDynamic`, `isAnimated`, `isListSlot`) and convenience flags (`hasX`) during construction, not via a second mutating walk. Lives in `scripts/analyzer/ir-assembly.ts` and consumes a typed `IRAssemblyInput`.
+_Avoid_: IR builder, assembler, finalizer, post-pass
 
 **Mock Renderer**:
 The compile-time renderer the Analyzer drives during perturbation. Bridges Preact (via the pebble-dom shim) to a recording `MockPoco` that captures draw calls into an in-memory log. Has no on-watch runtime role — emitted Target code never calls it. Lives in `scripts/analyzer/mock-renderer.ts`.
@@ -54,7 +58,8 @@ _Avoid_: theme, swatch, color table, font table (the latter is reserved for per-
 
 ## Relationships
 
-- An **Analyzer** run produces one **CompilerIR**.
+- An **Analyzer** run produces one **CompilerIR** by handing its observations to **IR Assembly**.
+- **IR Assembly** is the only producer of **CompilerIR**; every field on the IR is set there (including reactivity flags reified during element traversal).
 - An **Analyzer** run performs one **SourceScan** before any perturbation render; each **Pass** contributes one field to the **CompilerIR** during IR assembly.
 - A **CompilerIR** feeds one or more **Targets** (each independently).
 - A **Target** emits watch-side code and optionally a **PKJS** sub-output.
