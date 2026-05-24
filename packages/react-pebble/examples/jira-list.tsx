@@ -3,7 +3,6 @@
  */
 
 import { useState, useEffect } from 'preact/hooks';
-import { render } from '../src/index.js';
 import { Text, Rect, Group, StatusBar } from '../src/components/index.js';
 import type { ColorName } from '../src/components/index.js';
 import { useButton, useListNavigation } from '../src/hooks/index.js';
@@ -118,7 +117,7 @@ function IssueDetail({ issue, onBack }: IssueDetailProps) {
 
 type View = 'list' | 'detail';
 
-function JiraApp() {
+export default function JiraApp() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [view, setView] = useState<View>('list');
   const [loading, setLoading] = useState(true);
@@ -178,18 +177,3 @@ function JiraApp() {
     </Group>
   );
 }
-
-import type Poco from 'commodetto/Poco';
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<JiraApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('jira-list example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

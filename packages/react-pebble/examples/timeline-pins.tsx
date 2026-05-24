@@ -7,12 +7,11 @@
  * timeline token (the `timeline` capability is auto-inferred).
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text } from '../src/index.js';
+import { Group, Rect, Text } from '../src/index.js';
 import { useTimeline, TimelineAction, useButton } from '../src/hooks/index.js';
 import type { TimelinePin } from '../src/hooks/index.js';
 
-function TimelinePinsDemo() {
+export default function TimelinePinsDemo() {
   const { pushPin, removePin } = useTimeline();
 
   const demoPin: TimelinePin = {
@@ -66,9 +65,3 @@ function TimelinePinsDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<TimelinePinsDemo />, { poco: PocoCtor });
-}
-
-export default main;

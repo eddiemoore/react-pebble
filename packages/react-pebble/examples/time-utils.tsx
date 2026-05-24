@@ -8,8 +8,7 @@
  *   - clockToTimestamp() — Date → Unix seconds
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text } from '../src/index.js';
+import { Group, Rect, Text } from '../src/index.js';
 import {
   useFormattedTime,
   clockIs24HourStyle,
@@ -17,7 +16,7 @@ import {
   clockToTimestamp,
 } from '../src/hooks/index.js';
 
-function TimeUtilsDemo() {
+export default function TimeUtilsDemo() {
   // Re-renders with the tick service
   const auto = useFormattedTime('auto');
   const hhmm = useFormattedTime('HH:mm');
@@ -49,9 +48,3 @@ function TimeUtilsDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<TimeUtilsDemo />, { poco: PocoCtor });
-}
-
-export default main;

@@ -7,11 +7,10 @@
  *   - drawPath, fillPath
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, Canvas } from '../src/index.js';
+import { Group, Rect, Text, Canvas } from '../src/index.js';
 import type { CanvasDrawContext } from '../src/components/index.js';
 
-function CanvasAdvancedApp() {
+export default function CanvasAdvancedApp() {
   const drawDemo = (ctx: CanvasDrawContext) => {
     // 1. Draw pixel grid pattern
     for (let px = 5; px < 30; px += 3) {
@@ -76,16 +75,3 @@ function CanvasAdvancedApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<CanvasAdvancedApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('canvas-advanced example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

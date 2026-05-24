@@ -8,12 +8,10 @@
  *   - useState to rotate interactively
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group, Circle, Path } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
-function PathApp() {
+export default function PathApp() {
   const [angle, setAngle] = useState(0);
 
   useButton('up', () => setAngle(a => (a + 15) % 360));
@@ -82,16 +80,3 @@ function PathApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<PathApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('path example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

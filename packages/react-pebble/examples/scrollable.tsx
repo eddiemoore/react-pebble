@@ -7,8 +7,6 @@
  *   - .map() list rendering inside a scrollable viewport
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group, Scrollable } from '../src/components/index.js';
 import { useScreen, getScreen } from '../src/hooks/index.js';
 
@@ -33,7 +31,7 @@ const HEADER_H = 28;
 const VIEW_H = getScreen().height - HEADER_H;
 const CONTENT_H = ITEMS.length * ROW_H;
 
-function ScrollApp() {
+export default function ScrollApp() {
   const { width, height } = useScreen();
 
   return (
@@ -59,16 +57,3 @@ function ScrollApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<ScrollApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('scrollable example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

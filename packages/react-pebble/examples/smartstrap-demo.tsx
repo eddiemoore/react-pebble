@@ -7,11 +7,10 @@
  * capability when this hook is referenced.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text } from '../src/index.js';
+import { Group, Rect, Text } from '../src/index.js';
 import { useSmartstrap, useButton, useState } from '../src/hooks/index.js';
 
-function SmartstrapDemo() {
+export default function SmartstrapDemo() {
   const strap = useSmartstrap({ service: 0x1001, attribute: 0x0001, length: 16 });
   const [lastByte, setLastByte] = useState(0);
 
@@ -47,9 +46,3 @@ function SmartstrapDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<SmartstrapDemo />, { poco: PocoCtor });
-}
-
-export default main;

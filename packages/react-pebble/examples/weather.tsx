@@ -5,12 +5,10 @@
  * multi-label layout, and a polished visual design.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Circle, Group } from '../src/components/index.js';
 import { useTime } from '../src/hooks/index.js';
 
-function Weather() {
+export default function Weather() {
   const time = useTime();
   const hours = time.getHours().toString().padStart(2, '0');
   const minutes = time.getMinutes().toString().padStart(2, '0');
@@ -84,13 +82,3 @@ function Weather() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<Weather />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('weather (mock)', app.drawLog.length, 'draw calls');
-  }
-  return app;
-}
-
-export default main;

@@ -10,11 +10,10 @@
  *   - Circle (filled)
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, Circle, StatusBar, Column } from '../src/index.js';
+import { Group, Rect, Text, Circle, StatusBar, Column } from '../src/index.js';
 import { useTime, useBattery, useConnection } from '../src/hooks/index.js';
 
-function Dashboard() {
+export default function Dashboard() {
   const time = useTime(60000); // minute-level updates for battery efficiency
   const battery = useBattery();
   const conn = useConnection();
@@ -70,16 +69,3 @@ function Dashboard() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<Dashboard />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('dashboard example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

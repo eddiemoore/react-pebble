@@ -7,15 +7,14 @@
  * activity to a specific user, watch, or timeline subscriber.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text } from '../src/index.js';
+import { Group, Rect, Text } from '../src/index.js';
 import {
   useAccountToken,
   useWatchToken,
   useTimelineToken,
 } from '../src/hooks/index.js';
 
-function TokensDemo() {
+export default function TokensDemo() {
   const account = useAccountToken();
   const watchTok = useWatchToken();
   const { token: timelineTok, error } = useTimelineToken();
@@ -47,9 +46,3 @@ function TokensDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<TokensDemo />, { poco: PocoCtor });
-}
-
-export default main;

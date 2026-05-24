@@ -13,14 +13,13 @@
  * communicate.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, Window } from '../src/index.js';
+import { Group, Rect, Text, Window } from '../src/index.js';
 import { useState, useWorkerLaunch, useWorkerMessage, useWorkerSender } from '../src/hooks/index.js';
 
 const MSG_REQUEST_STEPS = 1;
 const MSG_STEPS_UPDATE = 2;
 
-function WorkerApp() {
+export default function WorkerApp() {
   const { launch, kill, isRunning } = useWorkerLaunch();
   const { send } = useWorkerSender();
   const [steps, setSteps] = useState(0);
@@ -62,13 +61,3 @@ function WorkerApp() {
     </Window>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<WorkerApp />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('worker-demo example (mock mode)');
-  }
-  return app;
-}
-
-export default main;

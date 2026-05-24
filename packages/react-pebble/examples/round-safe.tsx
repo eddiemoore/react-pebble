@@ -7,12 +7,10 @@
  *   - Content that adapts to display shape
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group, Circle, RoundSafeArea } from '../src/components/index.js';
 import { useDisplayBounds } from '../src/hooks/index.js';
 
-function RoundSafeApp() {
+export default function RoundSafeApp() {
   const bounds = useDisplayBounds(4);
 
   return (
@@ -56,16 +54,3 @@ function RoundSafeApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<RoundSafeApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('round-safe example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

@@ -18,10 +18,9 @@
  * whose name matches the resource name so `"18px ROBOTO_24"` resolves.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text } from '../src/index.js';
+import { Group, Rect, Text } from '../src/index.js';
 
-function CustomFontDemo() {
+export default function CustomFontDemo() {
   return (
     <Group>
       <Rect x={0} y={0} w={200} h={228} fill="black" />
@@ -40,9 +39,3 @@ function CustomFontDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<CustomFontDemo />, { poco: PocoCtor });
-}
-
-export default main;

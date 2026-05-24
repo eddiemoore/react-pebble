@@ -17,9 +17,7 @@
  *   └─ footer Group (bg Rect + Text)
  */
 
-import type Poco from 'commodetto/Poco';
 import {
-  render,
   Group,
   Rect,
   Circle,
@@ -78,7 +76,7 @@ function statCard(stat: Stat) {
   );
 }
 
-function LayeredCards() {
+export default function LayeredCards() {
   return (
     <Group>
       {/* Full-screen backdrop. */}
@@ -114,13 +112,3 @@ function LayeredCards() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<LayeredCards />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('layered-cards (mock)', app.drawLog.length, 'draw calls');
-  }
-  return app;
-}
-
-export default main;

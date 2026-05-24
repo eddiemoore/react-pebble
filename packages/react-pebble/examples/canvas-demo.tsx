@@ -8,12 +8,11 @@
  *   - Combining Canvas with standard components
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, Canvas } from '../src/index.js';
+import { Group, Rect, Text, Canvas } from '../src/index.js';
 import type { CanvasDrawContext } from '../src/components/index.js';
 import { useState, useButton } from '../src/hooks/index.js';
 
-function GaugeApp() {
+export default function GaugeApp() {
   const [speed, setSpeed] = useState(45);
 
   useButton('up', () => setSpeed((s) => Math.min(s + 5, 120)));
@@ -92,16 +91,3 @@ function GaugeApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<GaugeApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('canvas-demo example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

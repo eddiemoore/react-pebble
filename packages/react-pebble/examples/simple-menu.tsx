@@ -8,12 +8,10 @@
  *   - onSelect callbacks
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group, SimpleMenu } from '../src/components/index.js';
 import { useState } from '../src/hooks/index.js';
 
-function SimpleMenuApp() {
+export default function SimpleMenuApp() {
   const [selected, setSelected] = useState('None');
 
   return (
@@ -42,16 +40,3 @@ function SimpleMenuApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<SimpleMenuApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('simple-menu example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

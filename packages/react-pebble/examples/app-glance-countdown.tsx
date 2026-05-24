@@ -12,8 +12,7 @@
  * handles the countdown.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, Window } from '../src/index.js';
+import { Group, Rect, Text, Window } from '../src/index.js';
 import {
   useState,
   useAppGlance,
@@ -21,7 +20,7 @@ import {
   appGlanceTimeSince,
 } from '../src/hooks/index.js';
 
-function AppGlanceDemo() {
+export default function AppGlanceDemo() {
   const glance = useAppGlance();
   const [mode, setMode] = useState<'idle' | 'future' | 'past'>('idle');
 
@@ -62,9 +61,3 @@ function AppGlanceDemo() {
     </Window>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<AppGlanceDemo />, { poco: PocoCtor });
-}
-
-export default main;

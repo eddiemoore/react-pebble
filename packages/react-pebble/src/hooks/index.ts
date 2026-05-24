@@ -20,7 +20,6 @@ export {
   _setUseStateImpl,
   _restoreUseState,
 } from './internal/use-state.js';
-export { PebbleAppContext, useApp } from './internal/context.js';
 export {
   ButtonRegistry,
   type ButtonRegistryKey,

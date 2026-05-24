@@ -8,8 +8,6 @@
  *   - Shows "Done!" briefly then exits
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Group, Rect, WindowStack } from '../src/components/index.js';
 import { useButton, useState, useOneClickAction } from '../src/hooks/index.js';
 
@@ -47,19 +45,6 @@ function OneClickApp() {
   );
 }
 
-function OneClickWrapper() {
+export default function OneClickWrapper() {
   return <WindowStack initial={<OneClickApp />} />;
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<OneClickWrapper />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('one-click example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

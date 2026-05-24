@@ -7,8 +7,7 @@
  *     with optional `{param}` interpolation.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text } from '../src/index.js';
+import { Group, Rect, Text } from '../src/index.js';
 import { defineTranslations, useTranslation, useHealth } from '../src/hooks/index.js';
 
 defineTranslations({
@@ -34,7 +33,7 @@ defineTranslations({
   },
 }, 'en');
 
-function I18NDemo() {
+export default function I18NDemo() {
   const t = useTranslation();
   const { data: health } = useHealth();
 
@@ -53,9 +52,3 @@ function I18NDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<I18NDemo />, { poco: PocoCtor });
-}
-
-export default main;

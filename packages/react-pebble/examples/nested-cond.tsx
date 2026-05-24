@@ -5,12 +5,10 @@
  * UP toggles header, DOWN toggles footer.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
-function NestedCond() {
+export default function NestedCond() {
   const [showHeader, setShowHeader] = useState(true);
   const [showFooter, setShowFooter] = useState(true);
 
@@ -45,13 +43,3 @@ function NestedCond() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<NestedCond />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('nested-cond (mock)', app.drawLog.length, 'draw calls');
-  }
-  return app;
-}
-
-export default main;

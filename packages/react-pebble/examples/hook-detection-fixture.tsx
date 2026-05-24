@@ -7,8 +7,6 @@
  * and docs/adr/0003-hook-detection-in-analyzer.md.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text } from '../src/components/index.js';
 import { useTime } from '../src/hooks/index.js';
 
@@ -16,7 +14,7 @@ function useMyHelper(): number {
   return 42;
 }
 
-function Face() {
+export default function Face() {
   useMyHelper();
   const t = useTime('minute');
   return (
@@ -25,9 +23,3 @@ function Face() {
     </Text>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<Face />, { poco: PocoCtor });
-}
-
-export default main;

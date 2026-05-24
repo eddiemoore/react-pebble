@@ -12,10 +12,9 @@
  *   resources: [{ type: 'apng', name: 'SPINNER', file: 'resources/spinner.apng' }]
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, AnimatedImage } from '../src/index.js';
+import { Group, Rect, Text, AnimatedImage } from '../src/index.js';
 
-function AnimatedApngDemo() {
+export default function AnimatedApngDemo() {
   return (
     <Group>
       <Rect x={0} y={0} w={200} h={228} fill="black" />
@@ -29,9 +28,3 @@ function AnimatedApngDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<AnimatedApngDemo />, { poco: PocoCtor });
-}
-
-export default main;

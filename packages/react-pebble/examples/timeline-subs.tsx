@@ -5,11 +5,10 @@
  * (Pebble.timelineSubscribe / timelineUnsubscribe / timelineSubscriptions).
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text } from '../src/index.js';
+import { Group, Rect, Text } from '../src/index.js';
 import { useTimelineSubscriptions, useButton } from '../src/hooks/index.js';
 
-function TimelineSubsDemo() {
+export default function TimelineSubsDemo() {
   const { topics, error, subscribe, unsubscribe, refresh } = useTimelineSubscriptions();
 
   useButton('up', () => subscribe('news'));
@@ -44,9 +43,3 @@ function TimelineSubsDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<TimelineSubsDemo />, { poco: PocoCtor });
-}
-
-export default main;

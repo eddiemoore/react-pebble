@@ -6,8 +6,6 @@
  * per item.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
@@ -19,7 +17,7 @@ const ITEMS = [
   { title: 'Refactor auth', status: 'To Do' },
 ];
 
-function RichList() {
+export default function RichList() {
   const [index, setIndex] = useState(0);
 
   useButton('up', () => setIndex((i: number) => i - 1));
@@ -47,13 +45,3 @@ function RichList() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<RichList />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('rich-list (mock)', app.drawLog.length, 'draw calls');
-  }
-  return app;
-}
-
-export default main;

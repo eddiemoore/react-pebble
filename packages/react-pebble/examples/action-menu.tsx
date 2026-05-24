@@ -10,14 +10,12 @@
  * composite, so the piu compiler can detect button bindings.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
 const ACTIONS = ['Reply', 'Dismiss', 'Mute', 'Open on Phone'];
 
-function ActionMenuApp() {
+export default function ActionMenuApp() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [result, setResult] = useState('');
 
@@ -65,16 +63,3 @@ function ActionMenuApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<ActionMenuApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('action-menu example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

@@ -8,11 +8,9 @@
  *   - Pill shapes and card styles
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Rect, Text, Group, Column } from '../src/components/index.js';
 
-function RoundedCornersDemo() {
+export default function RoundedCornersDemo() {
   return (
     <Group>
       <Rect x={0} y={0} w={200} h={228} fill="black" />
@@ -86,16 +84,3 @@ function RoundedCornersDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<RoundedCornersDemo />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('rounded-corners example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

@@ -7,8 +7,6 @@
  * Deploy: ./scripts/deploy.sh transit-tracker
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Circle, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
@@ -20,7 +18,7 @@ const ROUTES = [
   { id: 'K', name: 'K-Rail', color: 'cyan', dir: 'West to Coast', mins: 3 },
 ];
 
-function TransitTracker() {
+export default function TransitTracker() {
   const [sel, setSel] = useState(0);
   const [view, setView] = useState('list');
 
@@ -87,13 +85,3 @@ function TransitTracker() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<TransitTracker />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('transit-tracker (mock)', app.drawLog.length, 'draw calls');
-  }
-  return app;
-}
-
-export default main;

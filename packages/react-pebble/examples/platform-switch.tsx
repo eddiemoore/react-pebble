@@ -7,12 +7,10 @@
  *   - Different layouts for color vs BW and round vs rect screens
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Group, Rect, PlatformSwitch } from '../src/components/index.js';
 import { usePlatform } from '../src/hooks/index.js';
 
-function PlatformSwitchDemo() {
+export default function PlatformSwitchDemo() {
   const { width, height, platform, isColor, isRound } = usePlatform();
 
   return (
@@ -81,16 +79,3 @@ function PlatformSwitchDemo() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<PlatformSwitchDemo />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('platform-switch example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

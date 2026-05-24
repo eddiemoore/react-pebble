@@ -7,12 +7,10 @@
  *   - Badge component for heart rate
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group, Badge } from '../src/components/index.js';
 import { useHealth, useFormattedTime } from '../src/hooks/index.js';
 
-function HealthFace() {
+export default function HealthFace() {
   const time = useFormattedTime('HH:mm');
   const { data: health } = useHealth(30000);
 
@@ -68,16 +66,3 @@ function HealthFace() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<HealthFace />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('health example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

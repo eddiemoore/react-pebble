@@ -7,12 +7,10 @@
  *   - useTimer for one-shot delayed callback
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useState, useMultiClick, useRepeatClick, useTimer } from '../src/hooks/index.js';
 
-function MultiClickApp() {
+export default function MultiClickApp() {
   const [doubleClicks, setDoubleClicks] = useState(0);
   const [repeatCount, setRepeatCount] = useState(0);
   const [timerMsg, setTimerMsg] = useState('idle');
@@ -72,16 +70,3 @@ function MultiClickApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<MultiClickApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('multi-click example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

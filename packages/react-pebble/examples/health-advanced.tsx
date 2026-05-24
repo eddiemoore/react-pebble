@@ -8,8 +8,7 @@
  *   - useMeasurementSystem(): user's preferred metric/imperial setting.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, Window } from '../src/index.js';
+import { Group, Rect, Text, Window } from '../src/index.js';
 import {
   useState,
   useHealth,
@@ -19,7 +18,7 @@ import {
   useMeasurementSystem,
 } from '../src/hooks/index.js';
 
-function HealthAdvanced() {
+export default function HealthAdvanced() {
   const { data: health } = useHealth();
   const units = useMeasurementSystem();
   const [hrAlert, setHrAlert] = useState<number | null>(null);
@@ -79,9 +78,3 @@ function HealthAdvanced() {
     </Window>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  return render(<HealthAdvanced />, { poco: PocoCtor });
-}
-
-export default main;

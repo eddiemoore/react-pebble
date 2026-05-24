@@ -6,12 +6,10 @@
  * together for a visually polished watchface.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Circle, Group } from '../src/components/index.js';
 import { useTime } from '../src/hooks/index.js';
 
-function AnalogClock() {
+export default function AnalogClock() {
   const time = useTime();
   const hours = time.getHours().toString().padStart(2, '0');
   const minutes = time.getMinutes().toString().padStart(2, '0');
@@ -60,13 +58,3 @@ function AnalogClock() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<AnalogClock />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('analog-clock (mock)', app.drawLog.length, 'draw calls');
-  }
-  return app;
-}
-
-export default main;

@@ -8,12 +8,10 @@
  *   - useState to animate arc endAngle
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group, Arc } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
-function ArcApp() {
+export default function ArcApp() {
   const [progress, setProgress] = useState(65);
 
   useButton('up', () => setProgress(p => Math.min(p + 10, 100)));
@@ -60,16 +58,3 @@ function ArcApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<ArcApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('arc example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

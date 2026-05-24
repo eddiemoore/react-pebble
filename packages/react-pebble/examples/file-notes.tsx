@@ -9,8 +9,7 @@
  *   - ActionBar for button hints
  */
 
-import type Poco from 'commodetto/Poco';
-import { render, Group, Rect, Text, ActionBar } from '../src/index.js';
+import { Group, Rect, Text, ActionBar } from '../src/index.js';
 import { useState, useButton, useFileStorage } from '../src/hooks/index.js';
 
 const NOTES = [
@@ -21,7 +20,7 @@ const NOTES = [
   'Send invoice',
 ];
 
-function FileNotesApp() {
+export default function FileNotesApp() {
   const files = useFileStorage();
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [notes, setNotes] = useState<string[]>(() => {
@@ -128,16 +127,3 @@ function FileNotesApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<FileNotesApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('file-notes example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

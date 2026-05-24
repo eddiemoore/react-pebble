@@ -5,12 +5,10 @@
  * Used to validate the v4 compiler's branch detection + piu .visible toggling.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
-function Toggle() {
+export default function Toggle() {
   const [on, setOn] = useState(false);
 
   useButton('select', () => setOn((v: boolean) => !v));
@@ -41,16 +39,3 @@ function Toggle() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<Toggle />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('toggle example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

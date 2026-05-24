@@ -8,8 +8,6 @@
  *   - `onSelect` callback for item selection
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Group, MenuLayer } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 import type { MenuSection } from '../src/components/index.js';
@@ -32,7 +30,7 @@ const SECTIONS: MenuSection[] = [
   },
 ];
 
-function MenuApp() {
+export default function MenuApp() {
   const [detail, setDetail] = useState('');
 
   useButton('back', () => setDetail(''));
@@ -78,16 +76,3 @@ function MenuApp() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<MenuApp />, { poco: PocoCtor });
-
-  if (app.platform.platform === 'mock') {
-    console.log('menu-layer example (mock mode)');
-    console.log('Draw calls:', app.drawLog.length);
-  }
-
-  return app;
-}
-
-export default main;

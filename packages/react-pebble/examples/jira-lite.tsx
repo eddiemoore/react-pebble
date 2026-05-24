@@ -14,8 +14,6 @@
  * All compiled to piu with zero runtime allocation.
  */
 
-import type Poco from 'commodetto/Poco';
-import { render } from '../src/index.js';
 import { Text, Rect, Circle, Group } from '../src/components/index.js';
 import { useButton, useState } from '../src/hooks/index.js';
 
@@ -29,7 +27,7 @@ const ISSUES = [
   { key: 'PROJ-5', summary: 'Refactor auth', status: 'To Do' },
 ];
 
-function JiraLite() {
+export default function JiraLite() {
   const [view, setView] = useState<View>('list');
   const [sel, setSel] = useState(0);
 
@@ -90,13 +88,3 @@ function JiraLite() {
     </Group>
   );
 }
-
-export function main(PocoCtor?: typeof Poco) {
-  const app = render(<JiraLite />, { poco: PocoCtor });
-  if (app.platform.platform === 'mock') {
-    console.log('jira-lite (mock)', app.drawLog.length, 'draw calls');
-  }
-  return app;
-}
-
-export default main;
