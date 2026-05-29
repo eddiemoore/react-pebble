@@ -1,5 +1,5 @@
 /**
- * ir-assembly.ts — Pure synthesis from perturbation observations to CompilerIR.
+ * ir-assembly.ts — Synthesis from perturbation observations to CompilerIR.
  *
  * Takes everything the Analyzer's perturbation engine harvested (state deps,
  * skin deps, animated elements, branches, the final tree, etc.) plus the
@@ -8,8 +8,11 @@
  * `isSkinDynamic`, `isAnimated`, `isListSlot`) are reified here, not by a
  * second mutating walk after the IR is built.
  *
- * No file I/O, no globals, no Preact, no Date mocking — pure transform.
- * Drives Target Adapter emission through the CompilerIR contract.
+ * Pure with respect to globals and I/O — no file I/O, no globals, no Preact,
+ * no Date mocking. Internally mutates the IRElement tree passed in (sets
+ * names + reactivity flags inline via `reifyReactivityFlags`); the elements
+ * are owned by this assembly pass once handed over. ADR 0006 records the
+ * deferred pure-transform variant.
  *
  * See: docs/adr/0006-ir-assembly-extracted-from-analyzer.md
  */

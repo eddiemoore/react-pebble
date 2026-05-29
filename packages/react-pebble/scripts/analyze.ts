@@ -17,10 +17,9 @@ import { _setUseStateImpl, _restoreUseState } from '../src/hooks/index.js';
 import { useState as realUseState } from 'preact/hooks';
 import { PLATFORMS } from '../src/platform.js';
 import type {
-  CompilerIR, IRElement, IRStateSlot, IRButtonAction,
+  CompilerIR, IRElement, IRButtonAction,
   IRStateDep, IRSkinDep, IRBranch, IRConditionalChild,
-  IRListInfo, IRAnimatedElement, IRTimeReactiveGraphic, IRMessageInfo, IRConfigInfo, TimeFormat, TimeGranularity,
-  HookUsage,
+  IRAnimatedElement, IRTimeReactiveGraphic, TimeFormat, TimeGranularity,
 } from './compiler-ir.js';
 
 /**
