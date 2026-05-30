@@ -17,10 +17,9 @@ import { _setUseStateImpl, _restoreUseState } from '../src/hooks/index.js';
 import { useState as realUseState } from 'preact/hooks';
 import { PLATFORMS } from '../src/platform.js';
 import type {
-  CompilerIR, IRElement, IRStateSlot, IRButtonAction,
+  CompilerIR, IRElement, IRButtonAction,
   IRStateDep, IRSkinDep, IRBranch, IRConditionalChild,
-  IRListInfo, IRAnimatedElement, IRTimeReactiveGraphic, IRMessageInfo, IRConfigInfo, TimeFormat, TimeGranularity,
-  HookUsage,
+  IRAnimatedElement, IRTimeReactiveGraphic, TimeFormat, TimeGranularity,
 } from './compiler-ir.js';
 
 /**
@@ -31,22 +30,6 @@ import type {
 import { detectHookUsages } from './analyzer/passes/hooks.js';
 import { HOOK_MODULE_SPECIFIERS as DEFAULT_HOOK_MODULE_SPECIFIERS } from './analyzer/passes/types.js';
 export { detectHookUsages, DEFAULT_HOOK_MODULE_SPECIFIERS };
-
-function detectGranularity(
-  timeDeps: Map<number, TimeFormat>,
-  hasAnimatedElements: boolean,
-  hasTimeReactiveGraphics: boolean,
-): TimeGranularity | null {
-  if (timeDeps.size === 0 && !hasAnimatedElements && !hasTimeReactiveGraphics) {
-    return null;
-  }
-  if (hasAnimatedElements || hasTimeReactiveGraphics) return 'second';
-  const formats = [...timeDeps.values()];
-  if (formats.some(f => f === 'SS' || f === 'MMSS')) return 'second';
-  if (formats.some(f => f === 'HHMM')) return 'minute';
-  if (formats.length > 0 && formats.every(f => f === 'DATE')) return 'day';
-  return 'minute';
-}
 
 function detectExplicitGranularity(sourceText: string): TimeGranularity | null {
   const strMatch = /\buseTime\s*\(\s*['"](second|minute|hour|day)['"]\s*\)/.exec(sourceText);
@@ -108,6 +91,7 @@ interface StateSlot {
 
 import type { ButtonBinding } from './analyzer/passes/buttons.js';
 import { parseEntry, scanEntry } from './analyzer/index.js';
+import { assembleIR } from './analyzer/ir-assembly.js';
 
 interface HandlerAction {
   type: 'increment' | 'decrement' | 'reset' | 'toggle' | 'set_string';
@@ -1419,148 +1403,29 @@ export async function analyze(options: AnalyzeOptions): Promise<CompilerIR> {
   _restoreUseState();
 
   // =========================================================================
-  // Build convenience flags
+  // Assemble CompilerIR — pure synthesis from harvested observations.
+  // See scripts/analyzer/ir-assembly.ts and ADR 0006.
   // =========================================================================
 
-  const stateNeedsTime = [...stateDeps.values()].some(d => d.needsTime);
-  const hasAnimatedElements = animatedElements.length > 0;
-  const hasTimeReactiveGraphics = timeReactiveGraphics.length > 0;
-  const hasTimeDeps = dynamicLabels.size > 0 || stateNeedsTime || hasAnimatedElements || hasTimeReactiveGraphics;
-
-  // Tick granularity: explicit `useTime('minute')` arg wins; else derive from
-  // the formats the app actually renders.
   const entrySrc = readFileSync(entryPath, 'utf-8');
-  const explicitGranularity = detectExplicitGranularity(entrySrc);
-  const detectedGranularity = detectGranularity(
-    labelFormats,
-    hasAnimatedElements,
-    hasTimeReactiveGraphics,
-  );
-  const timeGranularity: TimeGranularity | null = hasTimeDeps
-    ? (explicitGranularity ?? detectedGranularity ?? 'minute')
-    : null;
-  const hasStateDeps = stateDeps.size > 0;
-  const hasButtons = buttonActions.length > 0;
-  const hasBranches = branchInfos.length > 0;
-  const hasConditionals = conditionalChildren.length > 0 && !messageInfoRaw;
-  const hasSkinDeps = skinDeps.size > 0;
-  const hasList = listInfoRaw !== null && listSlotLabels.size > 0;
-
-  // =========================================================================
-  // Build IR
-  // =========================================================================
-
-  const irStateSlots: IRStateSlot[] = stateSlots.map(s => ({
-    index: s.index,
-    initialValue: s.initialValue,
-    type: typeof s.initialValue === 'number' ? 'number'
-        : typeof s.initialValue === 'boolean' ? 'boolean'
-        : typeof s.initialValue === 'string' ? 'string'
-        : 'unknown',
-  }));
-
-  const irListInfo: IRListInfo | null = listInfoRaw && hasList ? {
-    ...listInfoRaw,
-    scrollSlotIndex: listScrollSlotIndex,
-  } : null;
-
-  const irMessageInfo: IRMessageInfo | null = messageInfoRaw ? {
-    key: messageInfoRaw.key,
-    mockDataArrayName: messageInfoRaw.mockDataArrayName,
-    mockDataSource,
-  } : null;
-
-  const irConfigInfo: IRConfigInfo | null = configInfoRaw ? {
-    keys: configInfoRaw.keys,
-    url: configInfoRaw.url,
-    appName: configInfoRaw.appName,
-    sectionTitles: configInfoRaw.sectionTitles,
-  } : null;
-
-  // Assign names and reactivity flags to the final tree elements
-  function assignNames(elements: IRElement[]): void {
-    for (const el of elements) {
-      if (el.labelIndex !== undefined) {
-        if (listSlotLabels.has(el.labelIndex)) {
-          el.isListSlot = true;
-          const flatIdx = [...listSlotLabels].indexOf(el.labelIndex);
-          const lpi = listInfoRaw?.labelsPerItem ?? 1;
-          const itemIdx = Math.floor(flatIdx / lpi);
-          const labelIdx = flatIdx % lpi;
-          el.name = lpi > 1 ? `ls${itemIdx}_${labelIdx}` : `ls${flatIdx}`;
-        } else if (stateDeps.has(el.labelIndex)) {
-          el.isStateDynamic = true;
-          el.name = `sl${el.labelIndex}`;
-        } else if (dynamicLabels.has(el.labelIndex)) {
-          el.isTimeDynamic = true;
-          el.name = `tl${el.labelIndex}`;
-        }
-      }
-      if (el.rectIndex !== undefined && skinDeps.has(el.rectIndex)) {
-        el.isSkinDynamic = true;
-        el.name = `sr${el.rectIndex}`;
-      }
-      if (el.elemIndex !== undefined && animatedElemIndices.has(el.elemIndex)) {
-        el.isAnimated = true;
-        if (!el.name) el.name = `ae${el.elemIndex}`;
-      }
-      if (el.children) assignNames(el.children);
-      // Assign list group names AFTER children have been named
-      if (el.type === 'group' && el.children && listInfoRaw && listInfoRaw.labelsPerItem > 1) {
-        const directListChildren = el.children.filter(c => c.isListSlot && c.name?.startsWith('ls'));
-        if (directListChildren.length > 0) {
-          const m = directListChildren[0]!.name?.match(/^ls(\d+)/);
-          if (m) el.listGroupName = `lg${m[1]}`;
-        }
-      }
-    }
-  }
-
-  const tree = finalTree ? [finalTree] : [];
-  assignNames(tree);
-
-  // Only assign names on baseline branch trees — perturbed branches have
-  // baked-in label text and don't need runtime references.
-  for (const [, branchList] of branches) {
-    for (const branch of branchList) {
-      if (branch.isBaseline) {
-        assignNames(branch.tree);
-      }
-    }
-  }
-
-  return {
-    platform: {
-      name: platformSpec.name,
-      width: platformSpec.width,
-      height: platformSpec.height,
-      isRound: platformSpec.isRound,
-    },
-    tree,
-    stateSlots: irStateSlots,
-    buttonActions,
-    timeDeps: labelFormats,
+  return assembleIR({
+    platformSpec,
+    scan,
+    stateSlots,
     stateDeps,
     skinDeps,
-    branches,
+    dynamicLabels,
+    labelFormats,
     conditionalChildren,
-    listInfo: irListInfo,
-    listSlotLabels,
-    timeReactiveGraphics,
     animatedElements,
-    messageInfo: irMessageInfo,
-    configInfo: irConfigInfo,
-    hasButtons,
-    hasTimeDeps,
-    timeGranularity,
-    hasStateDeps,
-    hasBranches,
-    hasConditionals,
-    hasSkinDeps,
-    hasList,
-    hasAnimatedElements,
-    hasImages: ctxFinal.imageResources.length > 0,
+    timeReactiveGraphics,
+    branches,
+    buttonActions,
+    finalTree,
     imageResources: ctxFinal.imageResources,
-    hooksUsed: scan.hooks,
-  };
+    listSlotLabels,
+    listScrollSlotIndex,
+    mockDataSource,
+    explicitGranularity: detectExplicitGranularity(entrySrc),
+  });
 }
